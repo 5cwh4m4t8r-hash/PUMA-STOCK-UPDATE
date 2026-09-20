@@ -62,6 +62,16 @@ def _linear_drift_pct(values: list[float]) -> float:
     return abs(slope) * (n - 1) / abs(ybar) * 100.0
 
 
+def _directionality(values: list[float]) -> float:
+    """1.0 is near one-way trend; low values mean back-and-forth sideways travel."""
+    if len(values) < 3:
+        return 1.0
+    travel = sum(abs(float(values[i]) - float(values[i-1])) for i in range(1, len(values)))
+    if travel <= 0:
+        return 0.0
+    return abs(float(values[-1]) - float(values[0])) / travel
+
+
 def _spaced_touch_indices(seg: list[dict], level: float, tol: float, side: str) -> list[int]:
     raw = []
     for i, c in enumerate(seg):
@@ -115,12 +125,14 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
     touch_req = int(_s(settings, "box_min_touches", 2))
     alt_req = int(_s(settings, "box_min_alternations", 2))
     max_drift = float(_s(settings, "box_max_drift_pct", 7.5))
+    max_directionality = float(_s(settings, "box_max_directionality", 0.62))
 
     coverage = sum(1 for c in closes if low*(1-tol) <= c <= high*(1+tol)) / n
     top_idx = _spaced_touch_indices(seg, high, tol, "top")
     bottom_idx = _spaced_touch_indices(seg, low, tol, "bottom")
     alts = _alternations(top_idx, bottom_idx)
     drift = _linear_drift_pct(closes)
+    directionality = _directionality(closes)
 
     if coverage < coverage_req:
         return None
@@ -129,6 +141,8 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
     if alts < alt_req:
         return None
     if drift > max_drift:
+        return None
+    if directionality > max_directionality:
         return None
 
     score = (
@@ -149,6 +163,7 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
         "bottom_touches":len(bottom_idx),
         "alternations":alts,
         "drift_pct":drift,
+        "directionality":directionality,
         "period":n,
         "score":score,
         "structure_type":"공구리",
@@ -305,8 +320,12 @@ def analyze_market_path(candles: list[dict], settings: Any=None) -> dict:
             continue
 
         level=float(structure["high"])
+        # A new high-volume push shortly after a breakout belongs to the same
+        # breakout->pullback->rebreak sequence, even if its temporary resistance
+        # estimate moved. Do not create a second '돌파' label for it.
         duplicate=any(
-            i-pi <= duplicate_bars and abs(level/plevel-1.0) <= 0.025
+            (i-pi <= max_after)
+            or (i-pi <= duplicate_bars and abs(level/plevel-1.0) <= 0.025)
             for pi,plevel in recent_levels if plevel>0
         )
         if duplicate:
