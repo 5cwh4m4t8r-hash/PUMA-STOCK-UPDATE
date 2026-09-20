@@ -1,0 +1,57 @@
+name: publish-v271-laptop
+
+on:
+  push:
+    branches:
+      - puma-v2.7.1-laptop-opt
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build validated v2.7.1 package
+        run: |
+          rm -rf /tmp/PUMA_STOCK_PRO_v2.7.1 /tmp/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip
+          cp -a source_build/v2.7 /tmp/PUMA_STOCK_PRO_v2.7.1
+          find /tmp/PUMA_STOCK_PRO_v2.7.1 -type d -name __pycache__ -prune -exec rm -rf {} +
+          find /tmp/PUMA_STOCK_PRO_v2.7.1 -type d -name .pytest_cache -prune -exec rm -rf {} +
+          cd /tmp
+          zip -qr PUMA_STOCK_PRO_v2.7.1_UPDATE.zip PUMA_STOCK_PRO_v2.7.1
+          sha256sum PUMA_STOCK_PRO_v2.7.1_UPDATE.zip
+      - name: Publish to main
+        run: |
+          SHA=$(sha256sum /tmp/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip | awk '{print $1}')
+          git fetch origin main
+          git checkout -B main origin/main
+          rm -rf source_build/v2.7.1
+          cp -a /tmp/PUMA_STOCK_PRO_v2.7.1 source_build/v2.7.1
+          cp /tmp/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip
+          SHA="$SHA" python - <<'PY'
+          import json, os
+          from pathlib import Path
+          sha=os.environ["SHA"]
+          manifest={
+            "version":"2.7.1",
+            "url":"https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip",
+            "notes":"v2.7.1: 저사양 노트북 자동 최적화. CPU/RAM 자동감지, 첫 차트 전 전체이력 해시 제거, 저사양 렌더 경량화, 캐시 메모리 축소, 조건검색 백그라운드 확률/백테스트 지연. 분석 기준·신호 임계값·전체 과거데이터는 유지.",
+            "sha256":sha,
+          }
+          Path("manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          release={
+            "version":"2.7.1",
+            "sha256":sha,
+            "tests_passed":44,
+            "source":"source_build/v2.7.1",
+            "profile":"adaptive-low-power",
+          }
+          Path("release/v2.7.1.json").write_text(json.dumps(release,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          git config user.name "PUMA Release Bot"
+          git config user.email "puma-release@users.noreply.github.com"
+          git add source_build/v2.7.1 releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip manifest.json release/v2.7.1.json
+          git commit -m "Publish PUMA STOCK PRO v2.7.1 laptop optimized"
+          git push origin main
