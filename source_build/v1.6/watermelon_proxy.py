@@ -3,7 +3,18 @@ from __future__ import annotations
 from statistics import mean
 from typing import List, Optional
 
-from .swing import ema
+def _ema(values: List[float], period: int) -> List[Optional[float]]:
+    out: List[Optional[float]] = [None] * len(values)
+    if period <= 0 or len(values) < period:
+        return out
+    seed = sum(values[:period]) / period
+    out[period - 1] = seed
+    k = 2.0 / (period + 1.0)
+    prev = seed
+    for i in range(period, len(values)):
+        prev = float(values[i]) * k + prev * (1.0 - k)
+        out[i] = prev
+    return out
 
 
 def _rolling_avg(values: List[float], period: int) -> List[Optional[float]]:
@@ -47,9 +58,9 @@ def build_puma_watermelon(candles: List[dict], arrow_series: dict | None = None)
     closes = [float(c["close"]) for c in candles]
     lows = [float(c["low"]) for c in candles]
     vols = [float(c["volume"]) for c in candles]
-    e112 = ema(closes, 112)
-    e224 = ema(closes, 224)
-    e448 = ema(closes, 448)
+    e112 = _ema(closes, 112)
+    e224 = _ema(closes, 224)
+    e448 = _ema(closes, 448)
     v20 = _rolling_avg(vols, 20)
 
     arrow_series = arrow_series or {}
