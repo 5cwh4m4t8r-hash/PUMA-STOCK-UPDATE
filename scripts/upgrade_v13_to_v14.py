@@ -211,8 +211,8 @@ danta = once(
 )
 
 # ---------- Swing: reason + Ichimoku + honest watermelon status ----------
-swing = once(swing, "from typing import Dict, List, Optional\n",
-             "from typing import Dict, List, Optional\n\nfrom .indicators import ichimoku_cloud\n",
+swing = once(swing, "from typing import List, Dict, Optional\n",
+             "from typing import List, Dict, Optional\n\nfrom .indicators import ichimoku_cloud\n",
              "swing ichimoku import")
 swing = swing.replace("stage = '수박·화살표 최종 타점 대기'", "stage = '최종 신호(수박/화살표) 수식 대기'")
 swing = once(
