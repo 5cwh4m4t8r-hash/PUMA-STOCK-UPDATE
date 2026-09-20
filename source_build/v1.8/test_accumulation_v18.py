@@ -1,4 +1,4 @@
-from puma_trader.swing import SwingSettings, accumulation_flags
+from puma_trader.swing import SwingSettings, accumulation_flags, confirm_accumulation_flags
 
 
 def _base_candle(i, volume=1000):
@@ -13,9 +13,10 @@ def _upper_wick_candle(i):
 
 def test_single_candidate_is_not_confirmed_accumulation():
     rows = [_base_candle(i) for i in range(30)] + [_upper_wick_candle(2)]
-    flags, meta = accumulation_flags(rows, SwingSettings())
-    assert meta[-1]["raw_candidate"] is True
-    assert flags[-1] is False
+    raw, meta = accumulation_flags(rows, SwingSettings())
+    confirmed = confirm_accumulation_flags(raw, meta)
+    assert raw[-1] is True
+    assert confirmed[-1] is False
 
 
 def test_repeated_candidates_form_confirmed_accumulation_zone():
@@ -23,8 +24,9 @@ def test_repeated_candidates_form_confirmed_accumulation_zone():
     rows.append(_upper_wick_candle(2))
     rows.extend(_base_candle(40+i) for i in range(6))
     rows.append(_upper_wick_candle(9))
-    flags, meta = accumulation_flags(rows, SwingSettings())
-    idx = [i for i, x in enumerate(flags) if x]
+    raw, meta = accumulation_flags(rows, SwingSettings())
+    confirmed = confirm_accumulation_flags(raw, meta)
+    idx = [i for i, x in enumerate(confirmed) if x]
     assert len(idx) >= 2
     assert meta[idx[-1]]["confirmed"] is True
     assert meta[idx[-1]]["cluster_size"] >= 2
