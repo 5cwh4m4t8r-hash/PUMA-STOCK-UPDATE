@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import time
 from copy import deepcopy
-from .performance import DisplayCache, settings_key, data_revision, analysis_scope, check_cancelled, AnalysisCancelled
+from .performance import DisplayCache, settings_key, data_revision, analysis_scope, check_cancelled, AnalysisCancelled, DEVICE_PROFILE
 from .chart_loader import FocusDataThread, NameLookupThread, reader_broker
 
 from PySide6.QtCore import QTime, QTimer, Qt, QDate, QSettings, QThread, Signal, QEvent
@@ -322,6 +322,10 @@ class CandidateClassifier(QThread):
         self.swing_settings = deepcopy(swing_settings)
         self.bowl_settings = deepcopy(bowl_settings)
         self.context_key = None
+        # On low-power laptops the background classifier keeps only the core
+        # DAY/SWING/LONG scores. Probability/backtest enrichment is deferred
+        # until the user actually selects the stock.
+        self.lightweight = DEVICE_PROFILE.low_power
 
     def run(self):
         broker = reader_broker(self.broker, self.isInterruptionRequested)
@@ -355,7 +359,7 @@ class CandidateClassifier(QThread):
             check_cancelled()
             bowl, bs = analyze_bowl(daily, self.bowl_settings)
             prepared = None
-            if self.context_key:
+            if self.context_key and not self.lightweight:
                 tp, sl = self.context_key[-2:]
                 danta, ds = _enrich_analysis_pure(danta, ds, "DAY", self.swing_settings, tp, sl)
                 swing, ss = _enrich_analysis_pure(swing, ss, "SWING", self.swing_settings, tp, sl)
@@ -656,14 +660,14 @@ class MainWindow(QMainWindow):
         self._focus_readers = set()
         self._focus_request_id = 0
         self._focus_fetch_pending = False
-        self._display_cache = DisplayCache(12)
-        self._analysis_cache = DisplayCache(24)
+        self._display_cache = DisplayCache(DEVICE_PROFILE.display_cache_entries)
+        self._analysis_cache = DisplayCache(DEVICE_PROFILE.analysis_cache_entries)
         self._closing = False
         self._name_worker = None
         self._range_worker = None
         self._range_pending = None
         self._range_request_id = 0
-        self._range_cache = DisplayCache(6)
+        self._range_cache = DisplayCache(DEVICE_PROFILE.range_cache_entries)
         self._preview_series = {}
         self._shown_daily_revision = ""
         self._focus_revision = ""
@@ -687,7 +691,7 @@ class MainWindow(QMainWindow):
 
         # 조건검색 WebSocket은 종목명 없이 코드만 주는 경우가 있어 REST 종목정보로 천천히 보완한다.
         self.name_lookup_timer = QTimer(self)
-        self.name_lookup_timer.setInterval(320)
+        self.name_lookup_timer.setInterval(650 if DEVICE_PROFILE.low_power else 320)
         self.name_lookup_timer.timeout.connect(self._resolve_next_name)
 
         self._build_ui()
@@ -701,7 +705,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.7")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.7.1")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -2492,7 +2496,7 @@ class MainWindow(QMainWindow):
         if worker is not None:
             worker.deleteLater()
         if not self._closing:
-            QTimer.singleShot(80, self._start_next_candidate_classification)
+            QTimer.singleShot(DEVICE_PROFILE.background_delay_ms, self._start_next_candidate_classification)
 
     def _upsert_condition_row(self, code: str):
         item = self.condition_candidates.get(code, {})
