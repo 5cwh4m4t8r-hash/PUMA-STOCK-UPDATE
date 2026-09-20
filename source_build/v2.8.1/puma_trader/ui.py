@@ -607,7 +607,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.8.0")
+        self.setWindowTitle("PUMA STOCK PRO v2.8.1")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -714,7 +714,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.8.0")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.8.1")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -3901,9 +3901,15 @@ class MainWindow(QMainWindow):
         self.mobile_order_box.toggled.connect(self._mobile_order_permission_changed)
         sec.addWidget(self.mobile_order_box)
 
+        self.mobile_auto_trade_box = QCheckBox("모바일에서 자동매매 시작/중지 허용")
+        self.mobile_auto_trade_box.setChecked(False)
+        self.mobile_auto_trade_box.toggled.connect(self._mobile_auto_permission_changed)
+        sec.addWidget(self.mobile_auto_trade_box)
+
         warn = QLabel(
-            "기본값은 OFF입니다. ON으로 바꿔도 실전 주문은 PC에서 LIVE 1차 잠금이 먼저 해제되어 있어야 하고, "
-            "휴대폰에서도 LIVE ORDER를 다시 입력해야 전송됩니다. 자동매매 시작/중지는 모바일에서 허용하지 않습니다."
+            "두 권한은 프로그램 실행 시 기본 OFF입니다. 실전 수동주문은 PC LIVE 잠금 + 모바일 LIVE ORDER, "
+            "실전 자동매매 시작은 PC LIVE 잠금 + 모바일 LIVE START를 모두 통과해야 합니다. "
+            "자동매매 중지는 인증된 모바일에서 언제든 즉시 가능합니다."
         )
         warn.setWordWrap(True)
         warn.setStyleSheet("color:#f4c95d")
@@ -3919,7 +3925,8 @@ class MainWindow(QMainWindow):
             "• EMA112/224/448, 4종 화살표, 수박 표시\n"
             "• 단타 / 역매공파 / 밥그릇3 분석 결과\n"
             "• PUMA 관리 보유종목 / 주문·신호 로그\n"
-            "• PC 허용 시 시장가·지정가·스톱지정가 수동 주문"
+            "• PC 허용 시 시장가·지정가·스톱지정가 수동 주문\n"
+            "• PC 허용 시 전체 후보/선택 종목 자동매매 시작·중지와 리스크값 설정"
         )
         feature_text.setWordWrap(True)
         feature_text.setStyleSheet("color:#c7d8e8;line-height:1.5")
@@ -3958,9 +3965,54 @@ class MainWindow(QMainWindow):
         self.mobile_bridge.set_orders_enabled(bool(checked))
         state = "허용" if checked else "차단"
         self.mobile_status_label.setText(
-            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 주문 {state}"
+            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 수동주문 {state}"
         )
         self._publish_mobile_snapshot()
+
+    def _mobile_auto_permission_changed(self, checked: bool):
+        self.mobile_bridge.set_auto_enabled(bool(checked))
+        state = "허용" if checked else "차단"
+        self.mobile_status_label.setText(
+            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 자동매매 제어 {state}"
+        )
+        self._publish_mobile_snapshot()
+
+    def _apply_mobile_auto_settings(self, data: dict):
+        source = str(data.get("candidate_source") or self.settings.candidate_source or "WATCHLIST")
+        if source not in ("WATCHLIST", "HERO4", "BOTH"):
+            raise ValueError("자동매매 후보 소스가 올바르지 않습니다.")
+        idx = self.source_combo.findData(source)
+        if idx >= 0:
+            self.source_combo.setCurrentIndex(idx)
+
+        budget = max(10_000, min(100_000_000, int(float(data.get("order_budget") or self.settings.order_budget))))
+        max_pos = max(1, min(20, int(float(data.get("max_positions") or self.settings.max_positions))))
+        daily = max(1, min(100, int(float(data.get("max_daily_orders") or self.settings.max_daily_orders))))
+        tp = max(0.1, min(100.0, float(data.get("take_profit_pct") or self.settings.take_profit_pct)))
+        sl_raw = float(data.get("stop_loss_pct") if data.get("stop_loss_pct") not in (None, "") else self.settings.stop_loss_pct)
+        sl = max(-50.0, min(-0.1, sl_raw))
+        trail_start = max(0.1, min(100.0, float(data.get("trailing_start_pct") or self.settings.trailing_start_pct)))
+        trail_gap = max(0.1, min(30.0, float(data.get("trailing_gap_pct") or self.settings.trailing_gap_pct)))
+        trailing = bool(data.get("trailing_enabled", self.settings.trailing_enabled))
+
+        self.order_budget.setValue(budget)
+        self.max_positions.setValue(max_pos)
+        self.max_daily_orders.setValue(daily)
+        self.take_profit.setValue(tp)
+        self.stop_loss.setValue(sl)
+        self.trailing.setChecked(trailing)
+        self.trailing_start.setValue(trail_start)
+        self.trailing_gap.setValue(trail_gap)
+
+        if getattr(self, "focus_budget", None) is not None:
+            self.focus_budget.setValue(budget)
+            self.focus_tp.setValue(tp)
+            self.focus_sl.setValue(sl)
+            self.focus_trail.setChecked(trailing)
+            self.focus_trail_start.setValue(trail_start)
+            self.focus_trail_gap.setValue(trail_gap)
+
+        self.save_settings_silent()
 
     @staticmethod
     def _mobile_number(value):
@@ -4079,6 +4131,29 @@ class MainWindow(QMainWindow):
                 "real_armed": bool(self.real_armed),
                 "status": self.conn_label.text() if getattr(self, "conn_label", None) is not None else "-",
                 "mode": self.mode_label.text() if getattr(self, "mode_label", None) is not None else "-",
+                "auto": {
+                    "enabled": bool(self.engine.enabled),
+                    "scope": "SELECTED" if self.focus_only_code else "ALL",
+                    "scope_label": (
+                        f"선택종목 {self.name_cache.get(self.focus_only_code, self.focus_only_code)}"
+                        if self.focus_only_code else
+                        {"WATCHLIST": "관심종목", "HERO4": "영웅문 조건검색", "BOTH": "관심+조건검색"}.get(
+                            str(self.settings.candidate_source), str(self.settings.candidate_source)
+                        )
+                    ),
+                    "focus_only_code": self.focus_only_code or "",
+                    "settings": {
+                        "candidate_source": str(self.settings.candidate_source),
+                        "order_budget": int(self.settings.order_budget),
+                        "max_positions": int(self.settings.max_positions),
+                        "max_daily_orders": int(self.settings.max_daily_orders),
+                        "take_profit_pct": float(self.settings.take_profit_pct),
+                        "stop_loss_pct": float(self.settings.stop_loss_pct),
+                        "trailing_enabled": bool(self.settings.trailing_enabled),
+                        "trailing_start_pct": float(self.settings.trailing_start_pct),
+                        "trailing_gap_pct": float(self.settings.trailing_gap_pct),
+                    },
+                },
                 "candidates": candidates,
                 "positions": positions,
                 "logs": logs,
@@ -4128,6 +4203,71 @@ class MainWindow(QMainWindow):
                 self.mobile_bridge.complete_command(
                     request_id, {"message": f"{mode} 차트 전환", "mode": mode}
                 )
+                return
+
+            if command == "auto_stop":
+                self.stop_auto()
+                self.mobile_bridge.complete_command(
+                    request_id, {"message": "자동매매 중지 완료"}
+                )
+                self._publish_mobile_snapshot()
+                return
+
+            if command == "auto_start":
+                if not self.mobile_bridge.auto_enabled:
+                    raise PermissionError("PC에서 모바일 자동매매 제어 허용을 켜야 합니다.")
+
+                scope = str(data.get("scope") or "ALL").upper()
+                if scope not in ("ALL", "SELECTED"):
+                    raise ValueError("자동매매 대상 구분이 올바르지 않습니다.")
+
+                self._apply_mobile_auto_settings(data)
+                source = str(self.settings.candidate_source)
+
+                if scope == "SELECTED":
+                    code = str(data.get("code") or self.selected_code or "").strip()
+                    name = str(data.get("name") or self.name_cache.get(code) or code).strip()
+                    if not code:
+                        raise ValueError("선택 종목이 없습니다.")
+                    self.focus_only_code = code
+                    if code != self.selected_code:
+                        self.open_focus_stock(code, name or code)
+                else:
+                    self.focus_only_code = None
+                    if source == "WATCHLIST" and not self.watchlist:
+                        raise ValueError("관심종목이 없습니다.")
+                    if source == "HERO4" and (not self.condition_thread or not self.condition_thread.isRunning()):
+                        raise ValueError("영웅문 조건검색 실시간 연결을 먼저 시작하세요.")
+                    if source == "BOTH":
+                        active_hero = any(x.get("active") for x in self.condition_candidates.values())
+                        if not self.watchlist and not active_hero:
+                            raise ValueError("관심종목 또는 활성 조건검색 종목이 없습니다.")
+
+                if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
+                    if not self.real_armed:
+                        raise PermissionError("PC에서 실전 LIVE 1차 잠금을 먼저 해제하세요.")
+                    phrase = str(data.get("live_confirm") or "").strip().upper()
+                    if phrase != "LIVE START":
+                        raise PermissionError("실전 자동매매 확인문구가 올바르지 않습니다.")
+                    try:
+                        self.engine.sync_account(force=True)
+                        self._refresh_position_rows()
+                    except Exception as exc:
+                        raise RuntimeError(f"실계좌 잔고 동기화 실패: {exc}") from exc
+
+                self.engine.enabled = True
+                self.timer.start()
+                if scope == "SELECTED":
+                    name = self.name_cache.get(self.focus_only_code) or self.selected_name or self.focus_only_code
+                    self.log(name, "MOBILE AUTO", "-", "선택 종목 전용 자동매매 시작")
+                    message = f"{name} 선택 종목 자동매매 시작"
+                else:
+                    self.log("SYSTEM", "MOBILE AUTO", "0", f"전체 후보 자동매매 시작 · {source}")
+                    message = f"전체 후보 자동매매 시작 · {source}"
+
+                self.mobile_bridge.complete_command(request_id, {"message": message})
+                self._publish_mobile_snapshot()
+                QTimer.singleShot(0, self.scan_one)
                 return
 
             if command == "order":
