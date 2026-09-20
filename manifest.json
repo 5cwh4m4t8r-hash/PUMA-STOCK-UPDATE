@@ -1,6 +1,6 @@
 {
-  "version": "1.8.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip",
-  "notes": "v1.8: 매집봉 오탐 감소. 단독 후보는 매집으로 확정하지 않고 20봉 내 2회 이상 반복될 때만 매집확정/구간으로 처리. 하단 전략3종은 말줄임과 hover 툴팁을 없애고 카드 내부 세로 스크롤로 전체 분석을 확인하도록 변경.",
-  "sha256": "e6d48abeecaea39054b92c2a82322bf768363f1019c012f1bf0e063abf8280a0"
+  "version": "1.9.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip",
+  "notes": "v1.9: YTN처럼 급등 기준봉 이후 거래량이 줄며 기준가 위를 지키는 눌림을 별도 패턴으로 분석. 영웅문 화면 기준 EMA5/20/60/112/224/448 색·굵기 재정리, 검정선/화살표 외곽선 대비 강화, 역매공파 설정 수치 전체 노출 및 PUMA 표준값 버튼 추가.",
+  "sha256": "ecf043df2f3e54b677d9f8ccf3daf4731260f28ea4d9ad1eee69e601730bace7"
 }
