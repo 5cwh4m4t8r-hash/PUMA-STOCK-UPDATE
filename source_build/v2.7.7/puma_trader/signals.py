@@ -53,58 +53,116 @@ def _crossup(values: List[float], target: List[Optional[float]]) -> List[bool]:
     return out
 
 
-def _sar(candles: List[dict], af: float = 0.066, max_af: float = 0.016) -> List[Optional[float]]:
-    """Parabolic SAR compatible implementation for the user's SAR(af,maxAF) inputs.
+def _sar(candles: List[dict], af: float = 0.02, max_af: float = 0.2) -> List[Optional[float]]:
+    """Hero/YesLanguage-compatible Parabolic SAR state machine.
 
-    Parameters are kept literally as supplied by the user/HTS formula.
+    Kiwoom Hero uses SAR(af,maxAF) as a built-in stateful indicator.
+    The previous PUMA implementation used a simplified two-bar initialization,
+    which can move c>=SAR across different dates.  This version mirrors the
+    public Hero-compatible state transition used by YesLanguage conversions:
+    direction discovery -> EP activation -> acceleration/cap -> reversal reset.
+
+    User parameters are preserved literally, including af=0.066/maxAF=0.016.
     """
     n = len(candles)
     if n == 0:
         return []
-    if n == 1:
-        return [float(candles[0]["low"])]
 
-    highs = [float(c["high"]) for c in candles]
-    lows = [float(c["low"]) for c in candles]
-    closes = [float(c["close"]) for c in candles]
-
+    highs = [float(x["high"]) for x in candles]
+    lows = [float(x["low"]) for x in candles]
+    closes = [float(x["close"]) for x in candles]
     out: List[Optional[float]] = [None] * n
-    up = closes[1] >= closes[0]
-    sar = lows[0] if up else highs[0]
-    ep = max(highs[0], highs[1]) if up else min(lows[0], lows[1])
-    af_value = float(af)
-    out[0] = sar
+
+    direction = 0
+    sar_value = closes[0]
+    af_value = 0.02
+    high_value = highs[0]
+    low_value = lows[0]
+    ep = 0.0
+    out[0] = sar_value
 
     for i in range(1, n):
-        sar = sar + af_value * (ep - sar)
+        high = highs[i]
+        low = lows[i]
+        close = closes[i]
+        prev_close = closes[i - 1]
 
-        if up:
-            sar = min(sar, lows[i - 1])
-            if i >= 2:
-                sar = min(sar, lows[i - 2])
-            if lows[i] < sar:
-                up = False
-                sar = ep
-                ep = lows[i]
-                af_value = float(af)
-            elif highs[i] > ep:
-                ep = highs[i]
-                af_value = min(af_value + float(af), float(max_af))
+        if ep != 0.0:
+            if direction == 1:
+                ep = high_value
+                sar_value = sar_value + af_value * (ep - sar_value)
+                if high > high_value:
+                    high_value = high
+                    af_value = af_value + float(af)
+                    if af_value >= float(max_af):
+                        af_value = float(max_af)
+                if low < sar_value:
+                    direction = -1
+                    sar_value = ep
+                    af_value = 0.0
+                    ep = 0.0
+                    low_value = low
+            else:
+                ep = low_value
+                sar_value = sar_value + af_value * (ep - sar_value)
+                if low < low_value:
+                    low_value = low
+                    af_value = af_value + float(af)
+                    if af_value >= float(max_af):
+                        af_value = float(max_af)
+                if high > sar_value:
+                    direction = 1
+                    sar_value = ep
+                    af_value = 0.0
+                    ep = 0.0
+                    high_value = high
         else:
-            sar = max(sar, highs[i - 1])
-            if i >= 2:
-                sar = max(sar, highs[i - 2])
-            if highs[i] > sar:
-                up = True
-                sar = ep
-                ep = highs[i]
-                af_value = float(af)
-            elif lows[i] < ep:
-                ep = lows[i]
-                af_value = min(af_value + float(af), float(max_af))
-        out[i] = sar
-    return out
+            # Hero-style direction discovery before SAR becomes active.
+            if direction == 0:
+                if close > prev_close:
+                    direction = 1
+                elif close < prev_close:
+                    direction = -1
+                high_value = max(high_value, high)
+                low_value = min(low_value, low)
+            else:
+                # First bar after direction discovery activates EP/AF.
+                if direction == 1:
+                    ep = high_value
+                    af_value = float(af)
+                    sar_value = sar_value + af_value * (ep - sar_value)
+                    if high > high_value:
+                        high_value = high
+                        af_value = af_value + float(af)
+                        if af_value >= float(max_af):
+                            af_value = float(max_af)
+                else:
+                    ep = low_value
+                    af_value = float(af)
+                    sar_value = sar_value + af_value * (ep - sar_value)
+                    if low < low_value:
+                        low_value = low
+                        af_value = af_value + float(af)
+                        if af_value >= float(max_af):
+                            af_value = float(max_af)
 
+                # Immediate reversal check on activation bar.
+                if direction == 1 and low < sar_value:
+                    direction = -1
+                    sar_value = ep
+                    af_value = 0.0
+                    ep = 0.0
+                    low_value = low
+                elif direction == -1 and high > sar_value:
+                    direction = 1
+                    sar_value = ep
+                    af_value = 0.0
+                    ep = 0.0
+                    high_value = high
+
+        out[i] = sar_value
+
+    return out
 
 def build_arrow_signals(candles: List[dict]) -> dict:
     """Exact user formulas translated from the supplied 영웅문 signal settings.
