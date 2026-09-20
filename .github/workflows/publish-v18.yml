@@ -35,7 +35,7 @@ jobs:
           ! grep -q 'dreason_short' puma_trader/ui.py
           ! grep -q 'focus_danta_signal.setToolTip' puma_trader/ui.py
           grep -q 'raw_candidate' puma_trader/swing.py
-          grep -q 'idx - group\[-1\] <= 20' puma_trader/swing.py
+          grep -q 'idx - group\[-1\] <= cluster_window' puma_trader/swing.py
           grep -q 'required_acc = max(2' puma_trader/swing.py
           grep -q '매집확정' puma_trader/swing_chart.py
           grep -q 'CURRENT_VERSION = "1.8.0"' puma_trader/updater.py
