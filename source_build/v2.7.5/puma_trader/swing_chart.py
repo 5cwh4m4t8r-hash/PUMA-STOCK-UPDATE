@@ -75,7 +75,7 @@ class SwingChart(QWidget):
         excluded = {
             'candles','acc_flags','acc_meta','box','watermelon','watermelon_stage',
             'watermelon_score','watermelon_reason','watermelon_confirmed','watermelon_display',
-            'path_breakout','path_pullback','path_rebreakout','cloud_a','cloud_b',
+            'path_breakout','path_pullback','path_rebreakout','path_breakout_ma','path_pullback_ma','cloud_a','cloud_b',
             'signal_pink','signal_blue','signal_red','signal_black','signal_sar','signal_bb40_22'
         }
         self._line_keys = tuple(
@@ -390,6 +390,8 @@ class SwingChart(QWidget):
         path_break = self.series.get('path_breakout', [])
         path_pull = self.series.get('path_pullback', [])
         path_rebreak = self.series.get('path_rebreakout', [])
+        path_break_ma = self.series.get('path_breakout_ma', [])
+        path_pull_ma = self.series.get('path_pullback_ma', [])
         cw = max(1.5, min(12.0, price_rect.width()/n*0.58))
         for i,c in enumerate(cs):
             xx=x(i)
@@ -432,9 +434,11 @@ class SwingChart(QWidget):
             if isinstance(path_rebreak, list) and gi < len(path_rebreak) and path_rebreak[gi]:
                 label = '✓재돌파'; label_color = QColor('#ffcf3d')
             elif isinstance(path_pull, list) and gi < len(path_pull) and path_pull[gi]:
-                label = '✓눌림'; label_color = QColor('#62d98b')
+                ma = path_pull_ma[gi] if isinstance(path_pull_ma, list) and gi < len(path_pull_ma) else 0
+                label = f'✓눌림{ma}' if ma else '✓눌림'; label_color = QColor('#62d98b')
             elif isinstance(path_break, list) and gi < len(path_break) and path_break[gi]:
-                label = '✓돌파'; label_color = QColor('#ff6a6a')
+                ma = path_break_ma[gi] if isinstance(path_break_ma, list) and gi < len(path_break_ma) else 0
+                label = f'✓돌파{ma}' if ma else '✓돌파'; label_color = QColor('#ff6a6a')
             if label:
                 p.setPen(label_color)
                 p.setFont(QFont('Malgun Gothic', 8, QFont.Bold))
@@ -591,7 +595,10 @@ class SwingChart(QWidget):
         bi = getattr(self.analysis, 'breakout_index', -1) if self.analysis is not None else -1
         if start <= bi < end:
             xx=x(bi-start); p.setPen(QPen(QColor('#61ff8f'),2)); p.drawLine(QPointF(xx,price_rect.top()+18),QPointF(xx,price_rect.bottom()))
-            p.setPen(QColor('#61ff8f')); p.setFont(QFont('Malgun Gothic',9,QFont.Bold)); p.drawText(int(xx+5), int(price_rect.top()+34), '박스 상단 돌파')
+            cp = self.series.get('core_path', {}) or {}
+            ma = int(cp.get('breakout_ma_period',0) or 0)
+            p.setPen(QColor('#61ff8f')); p.setFont(QFont('Malgun Gothic',9,QFont.Bold))
+            p.drawText(int(xx+5), int(price_rect.top()+34), f'확정 돌파 {ma}EMA' if ma else '확정 돌파')
 
         # x-axis 날짜 라벨
         p.setPen(QColor('#8298af')); p.setFont(QFont('Malgun Gothic',8))
