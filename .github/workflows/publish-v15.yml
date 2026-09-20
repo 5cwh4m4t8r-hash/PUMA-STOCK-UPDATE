@@ -1,0 +1,96 @@
+name: Publish PUMA v1.5
+
+on:
+  push:
+    paths:
+      - "release/v1.5.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v1.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v1.4.1_UPDATE.zip -d work
+          cp source_build/v1.5/signals.py work/PUMA_STOCK_PRO_v1.4.1/puma_trader/signals.py
+          cp source_build/v1.5/test_signals.py work/PUMA_STOCK_PRO_v1.4.1/tests/test_signals.py
+          python scripts/upgrade_v141_to_v15.py
+
+          cd work/PUMA_STOCK_PRO_v1.4.1
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v1.5' puma_trader/ui.py
+          grep -q 'signal_blue' puma_trader/signals.py
+          grep -q "Period1=112" puma_trader/signals.py
+          grep -q "signal_pink" puma_trader/swing_chart.py
+          grep -q "signal_red" puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "1.5.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v1.4.1 work/PUMA_STOCK_PRO_v1.5
+          cat > work/PUMA_STOCK_PRO_v1.5/CHANGELOG_v1.5.txt <<'EOF'
+          PUMA STOCK PRO v1.5.0
+
+          사용자 영웅문 화살표 3종 수식 반영
+
+          분홍 화살표
+          - Period=40, Period2=112, Period3=224, Period4=448, D1=2.2
+          - a=crossup(c,bbandsup(Period,D1))
+          - b/b2/b3=crossup(c,eavg(c,112/224/448))
+          - if(b or b2 or b3,a,0)
+          - 표시색: 분홍
+
+          파랑 화살표
+          - Period1=112, af=0.066, maxAF=0.016
+          - a=c >= SAR(af,maxAF)
+          - b=crossup(c,bbandsup(40,2.2)) and crossup(c,eavg(c,Period1))
+          - if(a,b,0)
+          - 표시색: 파랑
+
+          빨강 화살표
+          - Period1=224, af=0.066, maxAF=0.016
+          - a=c >= SAR(af,maxAF)
+          - b=crossup(c,eavg(c,Period1))
+          - if(a,b,0)
+          - 표시색: 빨강
+
+          - 일봉/5분봉 모두 같은 수식으로 계산
+          - 차트에서 색상별 위쪽 매수 화살표 표시
+          - 메인 분석 상세에 현재봉 화살표 발생 이유 표시
+          - 기존 거래량 규칙 증가=빨강 / 감소=파랑 유지
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip PUMA_STOCK_PRO_v1.5
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "1.5.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip",
+            "notes": "v1.5: 사용자 영웅문 수식 기준 분홍/파랑/빨강 매수 화살표 3종 반영. 파랑은 SAR + BBandsUp(40,2.2) + EMA112 동시조건을 정확히 적용. 일봉/5분봉 공통 표시.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v1.5.0"
+          git push
