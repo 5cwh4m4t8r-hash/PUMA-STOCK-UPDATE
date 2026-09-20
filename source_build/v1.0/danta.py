@@ -122,6 +122,7 @@ def analyze_danta(
     details = {
         "검색 시간": f"{hm} / {scan_start}~{scan_end} · {'진입허용' if in_time else '시간외'}",
         "데이터 시각": data_time,
+        "5분 기준선": f"{k_now:,.0f} · {'상승/지지' if baseline_lift else ('위 유지' if baseline_alive else '이탈')}",
         "PUMA 기준선(26)": f"{k_now:,.0f} · {'상승/지지' if baseline_lift else ('위 유지' if baseline_alive else '이탈')}",
         "EMA 5·20·60": "정배열 확인" if ema_stack else "정배열 미확인",
         "현재 5분봉 거래량": f"최근20봉 평균의 {volume_ratio_5m:.2f}배",
