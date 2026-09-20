@@ -1,0 +1,7 @@
+{
+  "version": "2.7.0",
+  "sha256": "b4648c20eb13e6cffec7a3d378d923d0506421edb644195e8d476c38433aff60",
+  "tests_passed": 44,
+  "source": "source_build/v2.7",
+  "benchmark": "source_build/v2.7/PERFORMANCE_v2.7.json"
+}

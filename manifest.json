@@ -1,6 +1,6 @@
 {
-  "version": "2.6.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.6_UPDATE.zip",
-  "notes": "v2.6: 응답없음 2차 긴급수정. REST뿐 아니라 스윙/중장기/단타/수박/확률/박스 CPU 분석 전체를 GUI 스레드 밖으로 이동. 날짜별 단타도 비동기 처리하고 박스 탐색을 coarse→refine 방식으로 추가 고속화.",
-  "sha256": "fdc1a4a47467fcb0af907500b669b39aa4ed7ae94270d3c0bc17f9f14f32c8e6"
+  "version": "2.7.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7_UPDATE.zip",
+  "notes": "v2.7: 차트 선표시·완성 분석 즉시 재사용·조건검색 사전분석 재사용·최신 클릭 우선 처리·박스 중복 계산 최적화. 처음 보는 종목은 API 응답 후 차트부터 표시하고 전체 과거 분석은 이어서 완료합니다.",
+  "sha256": "b4648c20eb13e6cffec7a3d378d923d0506421edb644195e8d476c38433aff60"
 }

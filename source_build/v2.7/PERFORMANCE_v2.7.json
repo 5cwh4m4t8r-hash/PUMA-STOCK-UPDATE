@@ -1,0 +1,62 @@
+{
+  "version": "2.7.0",
+  "environment": "Linux container, Python 3.12, PySide6 offscreen; synthetic OHLCV; no live Kiwoom calls",
+  "ui_benchmark": {
+    "before_2_6": {
+      "cold": {
+        "first_analysis_ms": 3308.99,
+        "chart_painted_ms": 3331.79,
+        "full_complete_ms": 3360.42
+      },
+      "warm": {
+        "chart_painted_ms": 16.94,
+        "first_analysis_ms": 42.36,
+        "full_complete_ms": 717.72
+      },
+      "daily_bars": 2400,
+      "minute_bars": 1200,
+      "simulated_page_ms": 50
+    },
+    "after_2_7": {
+      "cold": {
+        "chart_painted_ms": 74.16,
+        "first_analysis_ms": 403.41,
+        "full_complete_ms": 2261.96
+      },
+      "warm": {
+        "chart_painted_ms": 34.92,
+        "first_analysis_ms": 48.96,
+        "full_complete_ms": 50.0
+      },
+      "daily_bars": 2400,
+      "minute_bars": 1200,
+      "simulated_page_ms": 50
+    }
+  },
+  "algorithm_1200_bars_seconds": {
+    "before": [
+      0.9747117570000228,
+      0.8763912340000388,
+      0.9960839810000834,
+      1.092554365000069
+    ],
+    "after": [
+      0.5278621439999824,
+      0.4343174220000492,
+      0.4916002390000358,
+      0.5299639149998256
+    ]
+  },
+  "compatibility": {
+    "datasets": 4,
+    "matching_exact_values": 90992,
+    "matching_floats": 87192,
+    "float_tolerance": 1e-10
+  },
+  "tests": 44,
+  "limitations": [
+    "Partial first analysis uses the first received pages; full history is then analyzed.",
+    "Warm cache display is dated data, not a new broker response.",
+    "Timing is a controlled synthetic benchmark, not a user-PC or live-market guarantee."
+  ]
+}
