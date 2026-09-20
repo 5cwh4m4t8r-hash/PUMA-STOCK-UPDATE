@@ -606,7 +606,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.7.5")
+        self.setWindowTitle("PUMA STOCK PRO v2.7.6")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -706,7 +706,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.7.5")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.7.6")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
