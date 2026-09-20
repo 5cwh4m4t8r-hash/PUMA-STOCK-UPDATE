@@ -1,6 +1,6 @@
 {
   "version": "2.7.1",
-  "sha256": "c37a9d966223ba26df0438ba7e4aff46744d723b514a92ef9f553699628e0a06",
+  "sha256": "34635cf7051bbb91bca1cfc576c5883c0abd80216a8bc7faa243cf35516c12c0",
   "tests": "full pytest suite",
   "source": "source_build/v2.7.1",
   "target_profile": "Intel Celeron N5095A / 12GB RAM"
