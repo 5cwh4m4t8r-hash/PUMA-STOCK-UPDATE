@@ -1,0 +1,125 @@
+-        al.addRow(QLabel("※ 키/시크릿은 프로그램 설정파일에 저장하지 않습니다. 운영/모의 키는 서로 다릅니다."))
++        note = QLabel("App Key/Secret은 평문 JSON으로 저장하지 않습니다. Windows DPAPI로 암호화되어 현재 Windows 사용자 계정에서만 복호화됩니다. 자동 연결은 인증만 수행하며 실전주문 잠금은 자동 해제하지 않습니다.")
++        note.setWordWrap(True); note.setStyleSheet("color:#9eb4c9")
++        al.addRow(note)
++
++        sim = QGroupBox("오프라인 테스트")
++        sl = QVBoxLayout(sim)
++        sl.addWidget(QLabel("키움 연결 없이 UI와 전략 로직을 시험합니다. 실제 주문은 전송되지 않습니다."))
++        btn = QPushButton("SIMULATION 모드로 전환")
++        btn.clicked.connect(self.use_sim)
++        sl.addWidget(btn)
+ 
+         safety = QGroupBox("실전 안전장치")
+         sf = QVBoxLayout(safety)
+         sf.addWidget(QLabel(
+-            "1) 실전 연결 전에 LIVE 입력
+"
+-            "2) 자동매매 시작 때 LIVE START 재입력
+"
+-            "3) 실제 잔고 주기 동기화
+"
+-            "4) 종목당 투입금 / 최대 보유 / 일일 주문 상한 적용
+"
+-            "5) 같은 종목 주문 확인 중에는 중복주문 차단"
++            "· 프로그램 시작 시 실전 서버까지 자동 인증 가능
+"
++            "· 하지만 실제 주문은 별도의 실전주문 잠금 해제가 있어야 전송
+"
++            "· 자동매매 시작 시 LIVE START 재확인
+"
++            "· 실제 잔고 동기화 / 일일 주문 상한 / 중복주문 차단 유지"
+         ))
+ 
+-        lay.addWidget(sim, 0, 0)
+-        lay.addWidget(api, 0, 1)
+-        lay.addWidget(safety, 1, 0, 1, 2)
++        lay.addWidget(api, 0, 0, 1, 2)
++        lay.addWidget(sim, 1, 0)
++        lay.addWidget(safety, 1, 1)
+         return w
+ 
+     def _update_tab(self):
+@@ -746,7 +790,7 @@
+         save_update_config({"manifest_url": url})
+         if not url:
+             self.update_status.setText("업데이트 서버가 아직 설정되지 않았습니다.")
+-            self.update_notes.setText("v0.6: 과거 차트 탐색·구간분석 + 전략 3종 통합 + 밥그릇3번 엔진이 추가되었습니다.")
++            self.update_notes.setText("v0.7: 통합 트레이딩 화면 + 키움 보안저장/자동연결 + 빠른연결이 추가되었습니다.")
+             self.update_apply_btn.setEnabled(False)
+             return
+         try:
+@@ -1072,12 +1116,65 @@
+         else:
+             self.real_armed = False
+ 
+-    def connect_kiwoom(self):
++    def _load_saved_connection(self):
++        try:
++            data = load_credentials()
++        except CredentialError as exc:
++            if hasattr(self, "saved_cred_label"):
++                self.saved_cred_label.setText("저장정보 읽기 실패")
++            return
++        if not data:
++            return
++        self.appkey.setText(data.get("app_key", ""))
++        self.secret.setText(data.get("app_secret", ""))
++        self.api_env.setCurrentText("실전투자" if data.get("environment") == "REAL" else "모의투자")
++        self.remember_kiwoom.setChecked(True)
++        self.auto_connect_box.setChecked(bool(data.get("auto_connect", False)))
++        self.saved_cred_label.setText("✓ Windows 보안저장소에서 연결정보 불러옴")
++
++    def forget_kiwoom_credentials(self):
++        try:
++            clear_credentials()
++            self.appkey.clear(); self.secret.clear()
++            self.auto_connect_box.setChecked(False)
++            self.saved_cred_label.setText("저장정보 삭제 완료")
++            QMessageBox.information(self, "키움 연결정보", "저장된 App Key/Secret을 삭제했습니다.")
++        except Exception as exc:
++            QMessageBox.critical(self, "삭제 실패", str(exc))
++
++    def save_and_connect_kiwoom(self):
++        if self.remember_kiwoom.isChecked():
++            try:
++                save_credentials(
++                    self.appkey.text(), self.secret.text(),
++                    "REAL" if self.api_env.currentText() == "실전투자" else "MOCK",
++                    self.auto_connect_box.isChecked(),
++                )
++                self.saved_cred_label.setText("✓ 보안저장 완료")
++            except Exception as exc:
++                QMessageBox.critical(self, "보안저장 실패", str(exc)); return
++        else:
++            clear_credentials()
++        self.connect_kiwoom(silent=False)
++
++    def auto_connect_saved(self):
++        if not self.appkey.text().strip() or not self.secret.text().strip():
++            return
++        self.connect_kiwoom(silent=True)
++
++    def quick_connect(self):
++        if isinstance(self.broker, KiwoomRestBroker) and self.broker.token:
++            self.tabs.setCurrentWidget(self.focus_widget)
++            return
++        if not self.appkey.text().strip() or not self.secret.text().strip():
++            self.tabs.setCurrentWidget(self.connection_widget)
++            QMessageBox.information(self, "빠른연결", "처음 한 번만 App Key/Secret을 입력하고 '저장하고 바로 연결'을 눌러주세요.")
++            return
++        self.connect_kiwoom(silent=False)
++
++    def connect_kiwoom(self, silent: bool = False):
+         self.save_settings_silent()
+         real = self.api_env.currentText() == "실전투자"
+-        if real and not self.real_armed:
+-            QMessageBox.warning(self, "실전 잠금", "먼저 '실전매매 1차 잠금 해제'에서 LIVE를 입력하세요.")
+-            return
+         try:
+             broker = KiwoomRestBroker(
+                 self.appkey.text(), self.secret.text(), real=real, order_exchange=self.settings.order_exchange
+@@ -1090,16 +1187,21 @@
+             self.engine.set_settings(self.settings)
+             mode = "KIWOOM REAL" if real else "KIWOOM MOCK"
+             self._set_status(mode, "REST 연결됨")
