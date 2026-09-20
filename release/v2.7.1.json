@@ -1,0 +1,7 @@
+{
+  "version": "2.7.1",
+  "sha256": "99b044d7ad989830a124a6b2841864037772d25744cd04024ea9046bf8789c4d",
+  "tests_passed": 44,
+  "source": "source_build/v2.7.1",
+  "profile": "adaptive-low-power"
+}

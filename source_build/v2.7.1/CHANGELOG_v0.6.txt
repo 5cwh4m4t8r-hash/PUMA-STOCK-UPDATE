@@ -1,0 +1,8 @@
+PUMA STOCK PRO v0.6 CHANGELOG
+- Interactive historical chart: wheel zoom, drag pan, latest/all view
+- Extra daily-history pagination control
+- Date-range and visible-range analysis
+- DAY / SWING / LONG strategy matrix on one screen
+- Bowl #3 (밥그릇 3번) analysis engine added
+- EMA224 breakout/acceptance/retest state display
+- v0.6 version metadata updated

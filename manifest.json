@@ -1,6 +1,6 @@
 {
-  "version": "2.7.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7_UPDATE.zip",
-  "notes": "v2.7: 차트 선표시·완성 분석 즉시 재사용·조건검색 사전분석 재사용·최신 클릭 우선 처리·박스 중복 계산 최적화. 처음 보는 종목은 API 응답 후 차트부터 표시하고 전체 과거 분석은 이어서 완료합니다.",
-  "sha256": "b4648c20eb13e6cffec7a3d378d923d0506421edb644195e8d476c38433aff60"
+  "version": "2.7.1",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip",
+  "notes": "v2.7.1: 저사양 노트북 자동 최적화. CPU/RAM 자동감지, 첫 차트 전 전체이력 해시 제거, 저사양 렌더 경량화, 캐시 메모리 축소, 조건검색 백그라운드 확률/백테스트 지연. 분석 기준·신호 임계값·전체 과거데이터는 유지.",
+  "sha256": "99b044d7ad989830a124a6b2841864037772d25744cd04024ea9046bf8789c4d"
 }
