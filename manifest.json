@@ -1,6 +1,6 @@
 {
-  "version": "1.7.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip",
-  "notes": "v1.7: 전략3종 글씨 잘림 수정, 직접주문 조건가격 0목록 제거/현재가 주변 호가 목록화, 전역 휠 오작동 차단, 일봉 EMA5 복구, 분봉 기준선26 가시성 강화, 거래량 확대, 수박 숫자 제거 및 수박모양 가시성 강화.",
-  "sha256": "ce9d48836c487b27515d9b7146fc8bd461810f07ccfed870024b89eeb8f466ed"
+  "version": "1.8.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip",
+  "notes": "v1.8: 매집봉 오탐 감소. 단독 후보는 매집으로 확정하지 않고 20봉 내 2회 이상 반복될 때만 매집확정/구간으로 처리. 하단 전략3종은 말줄임과 hover 툴팁을 없애고 카드 내부 세로 스크롤로 전체 분석을 확인하도록 변경.",
+  "sha256": "e6d48abeecaea39054b92c2a82322bf768363f1019c012f1bf0e063abf8280a0"
 }
