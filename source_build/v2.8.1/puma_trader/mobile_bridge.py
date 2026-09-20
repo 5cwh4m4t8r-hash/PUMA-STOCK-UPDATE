@@ -118,6 +118,46 @@ INDEX_HTML = r"""<!doctype html>
       <div class="card-title">보유 종목</div>
       <div id="positions" class="stock-list"></div>
     </div>
+    <div class="card auto-card">
+      <div class="card-title">자동매매</div>
+      <div class="auto-status-row">
+        <div><div class="k">현재 상태</div><div id="autoStatus" class="v">중지</div></div>
+        <div id="autoScope" class="class-pill">-</div>
+      </div>
+      <div id="autoLock" class="warning">PC에서 모바일 자동매매 제어 허용 필요</div>
+      <label>대상
+        <select id="autoScopeSelect">
+          <option value="ALL">전체 후보</option>
+          <option value="SELECTED">현재 선택종목만</option>
+        </select>
+      </label>
+      <label>후보 소스
+        <select id="autoSource">
+          <option value="WATCHLIST">관심종목</option>
+          <option value="HERO4">영웅문 조건검색</option>
+          <option value="BOTH">관심종목 + 조건검색</option>
+        </select>
+      </label>
+      <div class="grid2">
+        <label>종목당 투입금<input id="autoBudget" type="number" min="10000" step="10000"></label>
+        <label>최대 보유종목<input id="autoMaxPositions" type="number" min="1" max="50"></label>
+      </div>
+      <div class="grid2">
+        <label>일일 주문수<input id="autoDailyOrders" type="number" min="1" max="100"></label>
+        <label>익절 %<input id="autoTP" type="number" step="0.1"></label>
+      </div>
+      <div class="grid2">
+        <label>손절 %<input id="autoSL" type="number" step="0.1"></label>
+        <label class="checklabel"><input id="autoTrailing" type="checkbox"> 트레일링 스탑</label>
+      </div>
+      <div class="grid2">
+        <label>트레일링 시작 %<input id="autoTrailStart" type="number" step="0.1"></label>
+        <label>고점대비 하락 %<input id="autoTrailGap" type="number" step="0.1"></label>
+      </div>
+      <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
+      <button class="ghost full stop-auto" onclick="stopAuto()">■ 자동매매 중지</button>
+      <div class="muted small">실전 자동매매는 PC LIVE 잠금 해제 + 모바일 LIVE START 확인이 필요합니다.</div>
+    </div>
     <div class="card order-card">
       <div class="card-title">수동 주문</div>
       <div id="orderLock" class="warning">PC에서 모바일 주문 허용 필요</div>
@@ -145,7 +185,8 @@ INDEX_HTML = r"""<!doctype html>
       <div class="card-title">연결</div>
       <div class="kv"><span>서버</span><b id="serverUrl">-</b></div>
       <div class="kv"><span>버전</span><b id="version">-</b></div>
-      <div class="kv"><span>주문 허용</span><b id="orderAllowed">OFF</b></div>
+      <div class="kv"><span>수동주문 허용</span><b id="orderAllowed">OFF</b></div>
+      <div class="kv"><span>자동매매 제어</span><b id="autoAllowed">OFF</b></div>
       <button class="ghost full" onclick="logout()">연결코드 초기화</button>
     </div>
     <div class="card">
@@ -176,7 +217,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .brand{font-size:18px;font-weight:900;letter-spacing:.4px}.muted{color:var(--muted);font-size:12px}.small{font-size:11px}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:11px}.badge.on{background:#0a6b45;color:#8fffc2}.badge.off{background:#542331;color:#ff9cac}
 main{max-width:760px;margin:0 auto;padding:12px}.page{display:none}.page.active{display:block}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px;box-shadow:0 5px 18px rgba(0,0,0,.18)}.card-title{font-weight:900;margin-bottom:9px}.k{font-size:11px;color:var(--muted)}.v{font-size:17px;font-weight:900}.price{font-size:21px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}.analysis{white-space:pre-wrap;margin:0;color:#f4d46b;font:700 12px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:13px;color:#68f29c}
 .page-head,.stock-head,.chart-toolbar,.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:7px}.stock-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;background:#0b1b2c;border:1px solid #203b58;border-radius:10px}.stock-row:active{transform:scale(.995);background:#142f4e}.stock-title{font-weight:900}.stock-meta{font-size:11px;color:var(--muted);margin-top:3px}.class-pill{align-self:center;padding:5px 7px;border-radius:7px;background:#15395d;color:#6dc6ff;font-size:11px;font-weight:900}.inactive{opacity:.55}.log-row{display:grid;grid-template-columns:52px 70px 1fr;gap:7px;padding:7px 0;border-bottom:1px solid rgba(78,111,145,.25);font-size:11px}.log-kind{font-weight:900;color:#72bfff}.warning{background:#4a3011;color:#ffd77c;border:1px solid #7a5520;border-radius:9px;padding:9px;margin-bottom:10px;font-size:12px;font-weight:800}
-button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2{gap:8px}
+button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}
 .chart-card{padding:10px}.mini{padding:5px 9px;margin-right:5px;font-size:10px;background:#102a46;border:1px solid #315a84}.active-mini{background:#1c65a6;color:#fff}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(7,17,29,.97);border-top:1px solid var(--line);backdrop-filter:blur(16px)}nav button{background:none;border-radius:0;color:#829db7;font-size:11px;padding:8px 2px}nav button.active{color:#65baff;border-top:2px solid #4da9ff}
 .overlay{position:fixed;inset:0;z-index:100;background:rgba(3,9,16,.94);display:flex;align-items:center;justify-content:center;padding:24px}.overlay.hidden{display:none}.pair-card{width:min(400px,100%);padding:25px;background:#10233a;border:1px solid #315273;border-radius:20px;text-align:center}.pair-card .logo{font-size:54px}.pair-card h1{font-size:21px}.pair-card input{text-align:center;font-size:28px;letter-spacing:9px;font-weight:900;margin:14px 0}.pair-card button{margin-bottom:8px}
@@ -252,9 +293,27 @@ function render(s){
   document.getElementById('version').textContent=s.version||'-';
   document.getElementById('serverUrl').textContent=location.origin;
   document.getElementById('orderAllowed').textContent=s.mobile_order_enabled?'ON':'OFF';
+  document.getElementById('autoAllowed').textContent=s.mobile_auto_enabled?'ON':'OFF';
   const orderBtn=document.getElementById('orderBtn');
   orderBtn.disabled=!s.mobile_order_enabled;
   document.getElementById('orderLock').style.display=s.mobile_order_enabled?'none':'block';
+
+  const au=s.auto||{};
+  const autoStatus=document.getElementById('autoStatus');
+  autoStatus.textContent=au.enabled?'실행 중':'중지';
+  autoStatus.className='v '+(au.enabled?'auto-running':'auto-stopped');
+  document.getElementById('autoScope').textContent=au.enabled?(au.scope_label||'-'):'-';
+  document.getElementById('autoLock').style.display=s.mobile_auto_enabled?'none':'block';
+  document.getElementById('autoStartBtn').disabled=!s.mobile_auto_enabled;
+  setInputValue('autoBudget',au.settings?.order_budget);
+  setInputValue('autoMaxPositions',au.settings?.max_positions);
+  setInputValue('autoDailyOrders',au.settings?.max_daily_orders);
+  setInputValue('autoTP',au.settings?.take_profit_pct);
+  setInputValue('autoSL',au.settings?.stop_loss_pct);
+  setInputValue('autoTrailStart',au.settings?.trailing_start_pct);
+  setInputValue('autoTrailGap',au.settings?.trailing_gap_pct);
+  if(document.activeElement?.id!=='autoTrailing') document.getElementById('autoTrailing').checked=!!au.settings?.trailing_enabled;
+  if(document.activeElement?.id!=='autoSource' && au.settings?.candidate_source) document.getElementById('autoSource').value=au.settings.candidate_source;
   renderCandidates(s.candidates||[]);
   renderPositions(s.positions||[]);
   renderLogs(s.logs||[]);
@@ -264,6 +323,11 @@ function render(s){
   document.getElementById('minBtn').classList.toggle('active-mini',cm==='MIN');
   document.getElementById('chartCount').textContent=(chart.candles?.length||0)+'봉';
   if(document.getElementById('stock').classList.contains('active')) drawChart(chart);
+}
+function setInputValue(id,v){
+  const el=document.getElementById(id);
+  if(!el||document.activeElement===el||v===undefined||v===null)return;
+  el.value=v;
 }
 function candidateHtml(x){
   const sc=x.scores||{};
@@ -310,6 +374,56 @@ function pollCommand(id){
     }catch(e){clearInterval(t)}
     if(++count>20)clearInterval(t);
   },250);
+}
+async function startAuto(){
+  if(!state?.mobile_auto_enabled)return;
+  const scope=document.getElementById('autoScopeSelect').value;
+  if(scope==='SELECTED'&&!state?.selected?.code){alert('먼저 종목을 선택하세요.');return}
+  const payload={
+    type:'auto_start',
+    scope,
+    code:state?.selected?.code||'',
+    name:state?.selected?.name||'',
+    candidate_source:document.getElementById('autoSource').value,
+    order_budget:Number(document.getElementById('autoBudget').value||0),
+    max_positions:Number(document.getElementById('autoMaxPositions').value||0),
+    max_daily_orders:Number(document.getElementById('autoDailyOrders').value||0),
+    take_profit_pct:Number(document.getElementById('autoTP').value||0),
+    stop_loss_pct:Number(document.getElementById('autoSL').value||0),
+    trailing_enabled:document.getElementById('autoTrailing').checked,
+    trailing_start_pct:Number(document.getElementById('autoTrailStart').value||0),
+    trailing_gap_pct:Number(document.getElementById('autoTrailGap').value||0),
+    live_confirm:''
+  };
+  const what=scope==='SELECTED'?(payload.name||payload.code)+' 한 종목':'전체 후보';
+  if(!confirm(what+' 자동매매를 시작할까요?'))return;
+  if(state.live){
+    payload.live_confirm=prompt('실전 자동매매입니다. LIVE START 를 입력하세요.')||'';
+    if(payload.live_confirm.trim().toUpperCase()!=='LIVE START')return;
+  }
+  try{
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify(payload)});
+    pollAutoResult(r.request_id,'시작');
+  }catch(e){alert('자동매매 시작 실패: '+e.message)}
+}
+async function stopAuto(){
+  if(!state?.auto?.enabled){refreshNow();return}
+  if(!confirm('자동매매를 중지할까요?'))return;
+  try{
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'auto_stop'})});
+    pollAutoResult(r.request_id,'중지');
+  }catch(e){alert('자동매매 중지 실패: '+e.message)}
+}
+function pollAutoResult(id,action){
+  let count=0;
+  const t=setInterval(async()=>{
+    try{
+      const r=await api('/api/command/'+id);
+      if(r.status==='done'){clearInterval(t);alert('자동매매 '+action+': '+(r.result?.message||'완료'));refreshNow();}
+      if(r.status==='error'){clearInterval(t);alert('자동매매 '+action+' 실패: '+(r.error||'오류'));}
+    }catch(e){clearInterval(t)}
+    if(++count>30){clearInterval(t);alert('처리 결과 확인 시간이 초과되었습니다. PC 로그를 확인하세요.');}
+  },300);
 }
 async function submitOrder(){
   if(!state?.mobile_order_enabled)return;
@@ -439,6 +553,7 @@ class MobileBridge(QObject):
         self._server: _ReusableHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._orders_enabled = False
+        self._auto_enabled = False
         cfg = self._load_config()
         self.port = int(cfg.get("port", 8765) or 8765)
         self.token = str(cfg.get("token") or self._new_token())
@@ -477,6 +592,13 @@ class MobileBridge(QObject):
     def set_orders_enabled(self, enabled: bool):
         self._orders_enabled = bool(enabled)
 
+    @property
+    def auto_enabled(self) -> bool:
+        return bool(self._auto_enabled)
+
+    def set_auto_enabled(self, enabled: bool):
+        self._auto_enabled = bool(enabled)
+
     def regenerate_token(self) -> str:
         self.token = self._new_token()
         self._save_config()
@@ -501,6 +623,7 @@ class MobileBridge(QObject):
     def publish(self, state: dict):
         safe = json.loads(json.dumps(state, ensure_ascii=False, default=str))
         safe["mobile_order_enabled"] = bool(self._orders_enabled)
+        safe["mobile_auto_enabled"] = bool(self._auto_enabled)
         with self._state_lock:
             self._state = safe
 
@@ -646,10 +769,12 @@ class MobileBridge(QObject):
                     return self._json(400, {"error": "잘못된 요청입니다."})
 
                 command_type = str(payload.get("type") or "").strip()
-                if command_type not in ("select_stock", "set_chart_mode", "order"):
+                if command_type not in ("select_stock", "set_chart_mode", "order", "auto_start", "auto_stop"):
                     return self._json(400, {"error": "지원하지 않는 명령입니다."})
                 if command_type == "order" and not bridge.orders_enabled:
                     return self._json(403, {"error": "PC에서 모바일 주문 허용을 켜야 합니다."})
+                if command_type == "auto_start" and not bridge.auto_enabled:
+                    return self._json(403, {"error": "PC에서 모바일 자동매매 제어 허용을 켜야 합니다."})
                 rid = bridge.queue_command(payload)
                 return self._json(202, {"accepted": True, "request_id": rid})
 
