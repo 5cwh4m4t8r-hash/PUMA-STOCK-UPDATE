@@ -305,7 +305,7 @@ ui = ui.replace(
 
 # ---------- chart: true box vs prior-high hill; sparse labels ----------
 box_start = chart.index("        # 공구리 박스:")
-box_end = chart.index("        # 일목균형표", box_start)
+box_end = chart.index("        maxvol = max(c['volume'] for c in cs) or 1", box_start)
 new_chart_box = r'''        # 공구리/전고점언덕: 구조 종류를 구분해서 표시.
         box = self.series.get('box')
         if box and box.get('start',-1) < end and box.get('end',-1) >= start:
