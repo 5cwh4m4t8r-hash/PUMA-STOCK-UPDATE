@@ -1,0 +1,11 @@
+{
+  "version": "2.7.5",
+  "sha256": "f60652084f4ac28b24daa7cb83ca467d4b074cd844b701c68af340ebf7846e98",
+  "tests": "full pytest suite",
+  "source": "source_build/v2.7.5",
+  "features": [
+    "dynamic concrete box",
+    "bottom-or-bowl3 long-MA breakout",
+    "112/224 low-volume bearish pullback"
+  ]
+}
