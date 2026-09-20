@@ -1,0 +1,51 @@
+name: test-v271-laptop
+
+on:
+  push:
+    branches:
+      - puma-v2.7.1-laptop-opt
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PUMA_PERFORMANCE_MODE: very_low
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        working-directory: source_build/v2.7
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+      - name: Compile
+        working-directory: source_build/v2.7
+        run: python -m compileall -q app.py puma_trader
+      - name: Low-power smoke test
+        working-directory: source_build/v2.7
+        run: |
+          python - <<'PY'
+          from PySide6.QtWidgets import QApplication
+          from puma_trader.performance import DEVICE_PROFILE
+          assert DEVICE_PROFILE.low_power
+          assert DEVICE_PROFILE.very_low_power
+          from puma_trader.ui import MainWindow
+          from puma_trader.swing_chart import SwingChart
+          app = QApplication([])
+          w = MainWindow()
+          assert w._display_cache.max_entries == 4
+          assert w._analysis_cache.max_entries == 8
+          charts = w.findChildren(SwingChart)
+          assert charts
+          w.close()
+          app.processEvents()
+          print("PROFILE", DEVICE_PROFILE)
+          PY
+      - name: Tests
+        working-directory: source_build/v2.7
+        run: pytest -q tests
