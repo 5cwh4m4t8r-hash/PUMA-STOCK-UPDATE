@@ -1,6 +1,6 @@
 {
-  "version": "2.7.1",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip",
-  "notes": "v2.7.1: Intel Celeron N5095A + RAM 12GB 최적화. RAM 캐시는 유지하고 CPU 동시작업·차트 렌더링·조건검색 백그라운드 경쟁을 줄였습니다. 분석 기준과 주문 로직은 변경하지 않았습니다.",
-  "sha256": "34635cf7051bbb91bca1cfc576c5883c0abd80216a8bc7faa243cf35516c12c0"
+  "version": "2.7.2",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.2_UPDATE.zip",
+  "notes": "v2.7.2: N5095A 2차 속도 최적화. 점진 분석 중 중복 차트 재렌더를 제거하고 실제 API/분석/렌더/전체 시간을 화면과 로그에 표시합니다. 분석 기준과 주문 로직은 변경하지 않았습니다.",
+  "sha256": "d49b9135dec90e2e99a7ee1e40767bd133d65277eadad634cc3069d76d1eb334"
 }

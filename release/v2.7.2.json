@@ -1,0 +1,13 @@
+{
+  "version": "2.7.2",
+  "sha256": "d49b9135dec90e2e99a7ee1e40767bd133d65277eadad634cc3069d76d1eb334",
+  "tests": "full pytest suite",
+  "source": "source_build/v2.7.2",
+  "target_profile": "Intel Celeron N5095A / 12GB RAM",
+  "features": [
+    "deduplicated progressive chart renders",
+    "real paint timing",
+    "API timing",
+    "performance_log.jsonl"
+  ]
+}
