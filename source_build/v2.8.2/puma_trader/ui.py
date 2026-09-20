@@ -607,7 +607,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.8.1")
+        self.setWindowTitle("PUMA STOCK PRO v2.8.2")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -714,7 +714,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.8.1")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.8.2")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -3894,26 +3894,15 @@ class MainWindow(QMainWindow):
         form.addWidget(self.mobile_status_label, 6, 0, 1, 4)
         root.addWidget(info)
 
-        security = QGroupBox("보안 · 모바일 주문")
+        security = QGroupBox("모바일 실전 잠금")
         sec = QVBoxLayout(security)
-        self.mobile_order_box = QCheckBox("모바일에서 수동 주문 요청 허용")
-        self.mobile_order_box.setChecked(False)
-        self.mobile_order_box.toggled.connect(self._mobile_order_permission_changed)
-        sec.addWidget(self.mobile_order_box)
-
-        self.mobile_auto_trade_box = QCheckBox("모바일에서 자동매매 시작/중지 허용")
-        self.mobile_auto_trade_box.setChecked(False)
-        self.mobile_auto_trade_box.toggled.connect(self._mobile_auto_permission_changed)
-        sec.addWidget(self.mobile_auto_trade_box)
-
-        warn = QLabel(
-            "두 권한은 프로그램 실행 시 기본 OFF입니다. 실전 수동주문은 PC LIVE 잠금 + 모바일 LIVE ORDER, "
-            "실전 자동매매 시작은 PC LIVE 잠금 + 모바일 LIVE START를 모두 통과해야 합니다. "
-            "자동매매 중지는 인증된 모바일에서 언제든 즉시 가능합니다."
+        self.mobile_lock_state_label = QLabel(
+            "실전 잠금은 모바일에서 최초 1회만 해제합니다. "
+            "해제 상태는 저장되며 연결코드 재발급 또는 모바일의 '실전 잠금 다시 걸기' 전까지 유지됩니다."
         )
-        warn.setWordWrap(True)
-        warn.setStyleSheet("color:#f4c95d")
-        sec.addWidget(warn)
+        self.mobile_lock_state_label.setWordWrap(True)
+        self.mobile_lock_state_label.setStyleSheet("color:#f4c95d;font-weight:800")
+        sec.addWidget(self.mobile_lock_state_label)
         root.addWidget(security)
 
         features = QGroupBox("모바일 제공 기능")
@@ -3925,8 +3914,8 @@ class MainWindow(QMainWindow):
             "• EMA112/224/448, 4종 화살표, 수박 표시\n"
             "• 단타 / 역매공파 / 밥그릇3 분석 결과\n"
             "• PUMA 관리 보유종목 / 주문·신호 로그\n"
-            "• PC 허용 시 시장가·지정가·스톱지정가 수동 주문\n"
-            "• PC 허용 시 전체 후보/선택 종목 자동매매 시작·중지와 리스크값 설정"
+            "• 최초 1회 모바일 실전 잠금 해제 후 시장가·지정가·스톱지정가 수동 주문\n"
+            "• 최초 1회 모바일 실전 잠금 해제 후 전체 후보/선택 종목 자동매매 시작·중지와 리스크값 설정"
         )
         feature_text.setWordWrap(True)
         feature_text.setStyleSheet("color:#c7d8e8;line-height:1.5")
@@ -3959,22 +3948,8 @@ class MainWindow(QMainWindow):
     def _mobile_regenerate_token(self):
         token = self.mobile_bridge.regenerate_token()
         self.mobile_token_label.setText(token)
-        self.log("PUMA MOBILE", "PAIR", "-", "모바일 연결코드 재발급")
-
-    def _mobile_order_permission_changed(self, checked: bool):
-        self.mobile_bridge.set_orders_enabled(bool(checked))
-        state = "허용" if checked else "차단"
-        self.mobile_status_label.setText(
-            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 수동주문 {state}"
-        )
-        self._publish_mobile_snapshot()
-
-    def _mobile_auto_permission_changed(self, checked: bool):
-        self.mobile_bridge.set_auto_enabled(bool(checked))
-        state = "허용" if checked else "차단"
-        self.mobile_status_label.setText(
-            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 자동매매 제어 {state}"
-        )
+        self.mobile_status_label.setText("새 연결코드 발급 · 모바일 실전 잠금 다시 활성화")
+        self.log("PUMA MOBILE", "PAIR", "-", "모바일 연결코드 재발급 · 실전 잠금 재설정")
         self._publish_mobile_snapshot()
 
     def _apply_mobile_auto_settings(self, data: dict):
@@ -4205,6 +4180,27 @@ class MainWindow(QMainWindow):
                 )
                 return
 
+            if command == "unlock_live":
+                phrase = str(data.get("phrase") or "").strip().upper()
+                if phrase != "PUMA LIVE":
+                    raise PermissionError("실전 잠금 해제 문구가 올바르지 않습니다.")
+                self.mobile_bridge.unlock_live()
+                self.log("PUMA MOBILE", "UNLOCK", "-", "모바일 실전 기능 최초 1회 잠금 해제")
+                self.mobile_bridge.complete_command(
+                    request_id, {"message": "실전 기능 잠금 해제 완료"}
+                )
+                self._publish_mobile_snapshot()
+                return
+
+            if command == "lock_live":
+                self.mobile_bridge.lock_live()
+                self.log("PUMA MOBILE", "LOCK", "-", "모바일 실전 기능 잠금")
+                self.mobile_bridge.complete_command(
+                    request_id, {"message": "실전 기능 잠금 완료"}
+                )
+                self._publish_mobile_snapshot()
+                return
+
             if command == "auto_stop":
                 self.stop_auto()
                 self.mobile_bridge.complete_command(
@@ -4214,8 +4210,8 @@ class MainWindow(QMainWindow):
                 return
 
             if command == "auto_start":
-                if not self.mobile_bridge.auto_enabled:
-                    raise PermissionError("PC에서 모바일 자동매매 제어 허용을 켜야 합니다.")
+                if not self.mobile_bridge.live_unlocked:
+                    raise PermissionError("모바일에서 실전 잠금을 최초 1회 해제하세요.")
 
                 scope = str(data.get("scope") or "ALL").upper()
                 if scope not in ("ALL", "SELECTED"):
@@ -4244,11 +4240,6 @@ class MainWindow(QMainWindow):
                             raise ValueError("관심종목 또는 활성 조건검색 종목이 없습니다.")
 
                 if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-                    if not self.real_armed:
-                        raise PermissionError("PC에서 실전 LIVE 1차 잠금을 먼저 해제하세요.")
-                    phrase = str(data.get("live_confirm") or "").strip().upper()
-                    if phrase != "LIVE START":
-                        raise PermissionError("실전 자동매매 확인문구가 올바르지 않습니다.")
                     try:
                         self.engine.sync_account(force=True)
                         self._refresh_position_rows()
@@ -4271,8 +4262,8 @@ class MainWindow(QMainWindow):
                 return
 
             if command == "order":
-                if not self.mobile_bridge.orders_enabled:
-                    raise PermissionError("PC에서 모바일 주문 허용을 켜야 합니다.")
+                if not self.mobile_bridge.live_unlocked:
+                    raise PermissionError("모바일에서 실전 잠금을 최초 1회 해제하세요.")
                 side = str(data.get("side") or "").upper()
                 code = str(data.get("code") or "").strip()
                 qty = int(data.get("qty") or 0)
@@ -4289,13 +4280,6 @@ class MainWindow(QMainWindow):
                     raise ValueError("지정가는 주문가격이 필요합니다.")
                 if order_type == "stop_limit" and (price <= 0 or cond_price <= 0):
                     raise ValueError("스톱지정가는 가격과 조건가격이 필요합니다.")
-
-                if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-                    if not self.real_armed:
-                        raise PermissionError("PC에서 실전 LIVE 1차 잠금을 먼저 해제하세요.")
-                    phrase = str(data.get("live_confirm") or "").strip().upper()
-                    if phrase != "LIVE ORDER":
-                        raise PermissionError("실전 주문 확인문구가 올바르지 않습니다.")
 
                 resp = self.broker.place_order(side, code, qty, order_type, price, cond_price)
                 name = self.name_cache.get(code) or (
