@@ -322,9 +322,6 @@ class CandidateClassifier(QThread):
         self.swing_settings = deepcopy(swing_settings)
         self.bowl_settings = deepcopy(bowl_settings)
         self.context_key = None
-        # On low-power laptops the background classifier keeps only the core
-        # DAY/SWING/LONG scores. Probability/backtest enrichment is deferred
-        # until the user actually selects the stock.
         self.lightweight = DEVICE_PROFILE.low_power
 
     def run(self):
@@ -365,9 +362,6 @@ class CandidateClassifier(QThread):
                     danta, ds = _enrich_analysis_pure(danta, ds, "DAY", self.swing_settings, tp, sl)
                     swing, ss = _enrich_analysis_pure(swing, ss, "SWING", self.swing_settings, tp, sl)
                     bowl, bs = _enrich_analysis_pure(bowl, bs, "LONG", self.swing_settings, tp, sl)
-                # Low-power mode still keeps the core pre-analysis so clicking a
-                # candidate opens immediately. Only probability/backtest enrichment
-                # is deferred until that stock is actually selected.
                 source = dict(code=self.code, info=info, minute=minute, daily=daily,
                     daily_pages=2, complete=False, loaded_at=loaded_at, errors=[], revision=data_revision(minute, daily))
                 result = dict(code=self.code, request_id=-1, context_key=self.context_key, source_payload=source,
@@ -610,7 +604,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.7")
+        self.setWindowTitle("PUMA STOCK PRO v2.7.1")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -2444,7 +2438,10 @@ class MainWindow(QMainWindow):
             if getattr(self.classification_thread, "code", "") == code:
                 return
         self.classification_queue.append(code)
-        self._start_next_candidate_classification()
+        if DEVICE_PROFILE.low_power:
+            QTimer.singleShot(DEVICE_PROFILE.background_delay_ms, self._start_next_candidate_classification)
+        else:
+            self._start_next_candidate_classification()
 
     def _start_next_candidate_classification(self):
         if self._closing or self._focus_readers or self.focus_analysis_thread is not None:
@@ -2944,7 +2941,8 @@ class MainWindow(QMainWindow):
             self.focus_origin.setText("선택 종목 차트 우선 조회 중...")
         for reader in self._focus_readers:
             reader.requestInterruption()
-        if len(self._focus_readers) >= 2:
+        max_readers = 1 if DEVICE_PROFILE.low_power else 2
+        if len(self._focus_readers) >= max_readers:
             self._focus_fetch_pending = True
             return
         worker = FocusDataThread(self.broker, self.selected_code, self.focus_history_pages, self,
@@ -3007,7 +3005,8 @@ class MainWindow(QMainWindow):
             self._focus_fetch_pending = False
             QTimer.singleShot(0, self.focus_refresh)
         if not self._closing:
-            QTimer.singleShot(0, self._start_next_candidate_classification)
+            delay = DEVICE_PROFILE.background_delay_ms if DEVICE_PROFILE.low_power else 0
+            QTimer.singleShot(delay, self._start_next_candidate_classification)
 
     def _apply_focus_metadata(self, payload: dict):
         """UI-only, intentionally cheap: no indicators/backtests here."""
@@ -3094,7 +3093,8 @@ class MainWindow(QMainWindow):
         if not self._closing and pending and pending.get("request_id") == self._focus_request_id:
             self._start_focus_analysis(pending)
         if not self._closing:
-            QTimer.singleShot(0, self._start_next_candidate_classification)
+            delay = DEVICE_PROFILE.background_delay_ms if DEVICE_PROFILE.low_power else 0
+            QTimer.singleShot(delay, self._start_next_candidate_classification)
 
     def _set_intraday_days_fast(self, days):
         days = list(days or [])

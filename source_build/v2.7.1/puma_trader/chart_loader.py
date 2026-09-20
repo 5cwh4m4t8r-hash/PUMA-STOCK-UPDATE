@@ -65,8 +65,6 @@ class FocusDataThread(QThread):
                 done[kind] = True
 
         def snapshot(complete, include_revision=True):
-            # First-paint previews do not need an all-bars revision hash.
-            # On low-power laptops that hash can delay the chart more than painting it.
             revision = data_revision(payload['minute'], payload['daily']) if include_revision else ''
             return {**payload, 'errors': list(payload['errors']), 'complete': complete,
                     'loaded_at': time.time(), 'revision': revision}

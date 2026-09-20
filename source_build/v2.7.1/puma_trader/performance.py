@@ -5,13 +5,13 @@ These caches are for charts only. Order/position logic never reads them.
 from collections import OrderedDict
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, dataclass
 import hashlib
 import json
 import os
 import threading
 import time
-from dataclasses import dataclass
+
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,26 @@ def _total_memory_gb() -> float:
     return 0.0
 
 
+def _cpu_name() -> str:
+    if os.name == "nt":
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+            )
+            value, _ = winreg.QueryValueEx(key, "ProcessorNameString")
+            winreg.CloseKey(key)
+            return str(value or "").strip()
+        except Exception:
+            pass
+    try:
+        import platform
+        return str(platform.processor() or platform.machine() or "").strip()
+    except Exception:
+        return ""
+
+
 def detect_device_profile() -> DeviceProfile:
     cpu = max(1, int(os.cpu_count() or 1))
     mem = _total_memory_gb()
@@ -67,6 +87,13 @@ def detect_device_profile() -> DeviceProfile:
         return DeviceProfile(cpu, mem, True, False, 6, 12, 4, 650, 110)
     if forced in {"normal", "desktop", "full"}:
         return DeviceProfile(cpu, mem, False, False, 12, 24, 6, 80, 220)
+
+    # User laptop target: Intel Celeron N5095A + 12GB RAM.
+    # RAM is sufficient: retain full caches to avoid recomputation.
+    # Treat CPU/rendering as low-power only.
+    cpu_name = _cpu_name().upper()
+    if "N5095A" in cpu_name:
+        return DeviceProfile(cpu, mem, True, False, 12, 24, 6, 900, 90)
 
     very_low = bool((mem and mem <= 4.75 and cpu <= 4) or cpu <= 2)
     low = bool(very_low or (mem and mem <= 8.25 and cpu <= 4))
