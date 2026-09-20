@@ -1,6 +1,6 @@
 {
-  "version": "2.3.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip",
-  "notes": "v2.3: 단테 공개강의의 박스돌파→저거래량 눌림 원칙을 재반영. 유효 돌파/눌림 누락을 줄이도록 과도한 필터를 완화하면서 돌파 거래량강도 300%와 눌림 거래량 감소는 유지. 차트 라벨은 확정 이벤트마다 표시하고 공통경로 품질점수를 확률판단에 사용.",
-  "sha256": "efda4f40e20ab30f0ba795eeae926b86978666896ec456e7089faa6404b37194"
+  "version": "2.4.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip",
+  "notes": "v2.4: 차트 상단 지표명 범례를 숨겨 정리하고 분홍/파랑/빨강/검정 4종 화살표를 전용 lane과 흰 외곽선으로 크게 표시. 검정 화살표 수식은 사용자 원본식 제공 전까지 임의 생성하지 않음.",
+  "sha256": "b4e25892992ba4c11bfe8cdd08fc0cb8b07c8991177a1f4ccf33595094ade0f3"
 }
