@@ -1,0 +1,15 @@
+{
+  "version": "2.8.0",
+  "sha256": "2a9c25954494547de7b676e9c86a20c3c0db75beeca476300bcc008ccc43911f",
+  "tests": "full pytest suite including mobile bridge HTTP/auth/order-lock/PWA tests",
+  "source": "source_build/v2.8.0",
+  "features": [
+    "PUMA STOCK MOBILE installable PWA",
+    "6-digit LAN pairing",
+    "condition candidates and PC-linked stock selection",
+    "DAY/5m chart with EMA and signals",
+    "3-strategy analysis",
+    "positions and logs",
+    "PC-gated manual mobile orders"
+  ]
+}

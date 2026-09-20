@@ -1,6 +1,6 @@
 {
-  "version": "2.7.7",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.7_UPDATE.zip",
-  "notes": "v2.7.7: 영웅문 화살표 발생일 정합을 위해 SAR 계산을 영웅문 호환 상태 머신 방식으로 교체했습니다. 원식과 af/maxAF 값은 그대로 유지합니다.",
-  "sha256": "3aca9c96f6209b2751ef9a50d7fea1c7ffae295094b5419e23589f91e1b561ab"
+  "version": "2.8.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.0_UPDATE.zip",
+  "notes": "v2.8.0: PUMA STOCK MOBILE 1차 연동. 아이폰/안드로이드 설치형 모바일 앱(PWA), 조건검색/차트/3종 분석/잔고/로그/PC허용 수동주문을 같은 Wi-Fi에서 연동합니다.",
+  "sha256": "2a9c25954494547de7b676e9c86a20c3c0db75beeca476300bcc008ccc43911f"
 }
