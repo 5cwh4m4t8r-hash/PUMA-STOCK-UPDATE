@@ -1,0 +1,140 @@
+name: Publish PUMA v2.2
+
+on:
+  push:
+    paths:
+      - "release/v2.2.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v2.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip -d work
+          cp source_build/v2.2/market_path.py work/PUMA_STOCK_PRO_v2.1/puma_trader/market_path.py
+          cp source_build/v2.2/probability.py work/PUMA_STOCK_PRO_v2.1/puma_trader/probability.py
+          cp source_build/v2.2/test_market_path_v22.py work/PUMA_STOCK_PRO_v2.1/tests/test_market_path_v22.py
+          rm -f work/PUMA_STOCK_PRO_v2.1/tests/test_market_path.py
+          python scripts/upgrade_v21_to_v22.py
+
+          cd work/PUMA_STOCK_PRO_v2.1
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v2.2' puma_trader/ui.py
+          grep -q '기간 자동' puma_trader/ui.py
+          grep -q 'box_search_lookback: int = 160' puma_trader/swing.py
+          grep -q 'box_min_alternations: int = 2' puma_trader/swing.py
+          grep -q 'pullback_volume_max_ratio: float = 0.45' puma_trader/swing.py
+          grep -q 'def find_box_before' puma_trader/market_path.py
+          grep -q 'Candidate duration is determined by the chart itself' puma_trader/market_path.py
+          grep -q '확정 재돌파' puma_trader/market_path.py
+          grep -q '✓돌파' puma_trader/swing_chart.py
+          grep -q '✓눌림' puma_trader/swing_chart.py
+          grep -q '✓재돌파' puma_trader/swing_chart.py
+          grep -q '신뢰도' puma_trader/probability.py
+          grep -q 'CURRENT_VERSION = "2.2.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v2.1 work/PUMA_STOCK_PRO_v2.2
+          cat > work/PUMA_STOCK_PRO_v2.2/CHANGELOG_v2.2.txt <<'EOF'
+          PUMA STOCK PRO v2.2.0
+
+          공구리/박스권 재정의
+          - 박스 기간 60~112봉 고정 완전 제거
+          - '과거 탐색 범위' 안에서 실제 수평 횡보가 이어진 구간의 시작과 끝을 자동 결정
+          - 단순 최고/최저가가 아니라 반복되는 지지·저항 가격대를 robust quantile로 계산
+          - 긴 꼬리 하나가 박스 범위를 왜곡하지 않도록 처리
+          - 상단/하단 접촉은 인접봉을 하나의 접촉으로 묶어 독립 접촉만 계산
+          - 상단↔하단 왕복 횟수 확인
+          - 종가 박스 체류율 확인
+          - 선형 기울기/드리프트 확인해서 상승·하락 추세구간은 박스에서 제외
+          - 박스가 아니고 반복된 상단 저항만 있으면 '전고점언덕'으로 따로 표시
+          - 전고점언덕을 공구리 박스로 잘못 칠하지 않음
+
+          확정 돌파
+          - 직전 종가가 저항 아래/부근이고 현재 종가가 저항을 처음 상향 돌파해야 함
+          - 최근20봉 평균 대비 거래량 300% 이상
+          - 양봉 몸통과 종가 위치까지 확인
+          - 같은 저항대의 반복 돌파 글씨는 20봉 동안 중복 억제
+          - 차트에는 최초 확정봉에만 '✓돌파' 표시
+
+          확정 눌림
+          - 돌파 후 최소 2봉 이상 확인
+          - 돌파기준선 지지 유지
+          - 저항대 재접근 또는 고점대비 4% 이상 실제 조정
+          - 최근 2봉 평균 거래량이 돌파봉의 45% 이하
+          - 동시에 최근20봉 평균 거래량의 85% 이하
+          - 위 조건을 처음 모두 만족한 봉에만 '✓눌림' 한 번 표시
+          - 거래량이 살아있는 조정은 눌림으로 표시하지 않음
+
+          확정 재돌파
+          - 확정 눌림이 먼저 존재해야 함
+          - 눌림 이후 직전 고점을 종가로 재돌파
+          - 최근20봉 평균 대비 거래량 300% 이상
+          - 양봉/종가 위치 확인
+          - 최초 확정봉에만 '✓재돌파' 한 번 표시
+
+          확률 및 판단
+          - 현재 단계가 확정돌파면 과거 확정돌파만 비교
+          - 현재 단계가 확정눌림이면 과거 확정눌림만 비교
+          - 현재 단계가 확정재돌파면 과거 확정재돌파만 비교
+          - 서로 다른 신호를 섞어서 확률을 부풀리지 않음
+          - 과거 적중률 + 표본수 + Wilson 95% 신뢰구간 + 신뢰도(낮음/보통/높음) 표시
+          - 표본 10건 미만이면 '신호 활성 / 통계 부족'
+          - 적중률 65% 이상 + 95% 하한 50% 이상 + 현재점수 60 이상이면 '진입 우위 높음'
+          - 적중률 58% 이상 + 95% 하한 40% 이상 + 현재점수 55 이상이면 '진입 우위 있음'
+          - 그 외는 '진입 보류'
+          - 확률은 과거 동일조건 통계이며 미래 수익을 보장하지 않음
+
+          역매공파 설정 기본값
+          - 박스 기간: 자동
+          - 탐색 범위: 160봉
+          - 박스 최대폭: 30%
+          - 종가 체류율: 72% 이상
+          - 상/하단 독립 접촉: 각각 3회 이상
+          - 상↔하 왕복: 2회 이상
+          - 접촉 오차: 2.5%
+          - 기울기 최대: 6%
+          - 돌파 거래량: 300% 이상
+          - 눌림 거래량/돌파봉: 45% 이하
+          - 눌림 거래량/20봉평균: 85% 이하
+          - 돌파선 지지 허용: 2.5%
+          - 저거래량 확인: 연속 2봉
+          - 재돌파 거래량: 300% 이상
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip PUMA_STOCK_PRO_v2.2
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "2.2.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip",
+            "notes": "v2.2: 공구리 기간 고정을 제거하고 실제 수평 지지·저항 왕복구간을 자동 탐지. 돌파/눌림/재돌파는 강화조건을 모두 통과한 최초 확정봉에만 표시. 확률은 현재와 동일한 확정단계만 비교하고 표본수·95%신뢰구간·신뢰도를 함께 표시.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v2.2.0"
+          git push
