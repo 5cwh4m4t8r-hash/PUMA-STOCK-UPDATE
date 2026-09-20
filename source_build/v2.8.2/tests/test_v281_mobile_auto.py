@@ -25,11 +25,11 @@ def wait_ping(base):
     raise AssertionError("mobile bridge did not start")
 
 
-def test_mobile_auto_start_is_pc_gated_but_stop_is_always_available(tmp_path: Path):
+def test_order_and_auto_use_same_single_persistent_unlock(tmp_path: Path):
     bridge=MobileBridge(config_path=tmp_path/"mobile.json")
     port=free_port()
     bridge.publish({
-        "version":"2.8.1",
+        "version":"2.8.2",
         "auto":{"enabled":False,"scope":"ALL","settings":{}},
         "selected":{"code":"001520","name":"동양","chart":{"candles":[]}},
     })
@@ -39,42 +39,57 @@ def test_mobile_auto_start_is_pc_gated_but_stop_is_always_available(tmp_path: Pa
     try:
         wait_ping(base)
 
-        denied=requests.post(
+        order_locked=requests.post(
+            base+"/api/command",
+            headers=headers,
+            json={"type":"order","side":"BUY","code":"001520","qty":1,"order_type":"market"},
+            timeout=1,
+        )
+        auto_locked=requests.post(
             base+"/api/command",
             headers=headers,
             json={"type":"auto_start","scope":"ALL"},
             timeout=1,
         )
-        assert denied.status_code == 403
+        assert order_locked.status_code == 403
+        assert auto_locked.status_code == 403
 
-        bridge.set_auto_enabled(True)
-        accepted=requests.post(
+        bridge.unlock_live()
+
+        order_ok=requests.post(
+            base+"/api/command",
+            headers=headers,
+            json={"type":"order","side":"BUY","code":"001520","qty":1,"order_type":"market"},
+            timeout=1,
+        )
+        auto_ok=requests.post(
             base+"/api/command",
             headers=headers,
             json={"type":"auto_start","scope":"ALL"},
             timeout=1,
         )
-        assert accepted.status_code == 202
-        rid=accepted.json()["request_id"]
-        status=requests.get(base+"/api/command/"+rid,headers=headers,timeout=1).json()
-        assert status["status"] == "pending"
+        assert order_ok.status_code == 202
+        assert auto_ok.status_code == 202
 
-        bridge.set_auto_enabled(False)
-        stop=requests.post(
+        bridge.lock_live()
+        stop_ok=requests.post(
             base+"/api/command",
             headers=headers,
             json={"type":"auto_stop"},
             timeout=1,
         )
-        assert stop.status_code == 202
+        assert stop_ok.status_code == 202
     finally:
         bridge.stop()
 
 
-def test_state_exposes_mobile_auto_permission(tmp_path: Path):
+def test_state_exposes_single_live_unlock_only(tmp_path: Path):
     bridge=MobileBridge(config_path=tmp_path/"mobile.json")
-    bridge.publish({"version":"2.8.1"})
-    assert bridge.state()["mobile_auto_enabled"] is False
-    bridge.set_auto_enabled(True)
-    bridge.publish({"version":"2.8.1"})
-    assert bridge.state()["mobile_auto_enabled"] is True
+    bridge.publish({"version":"2.8.2"})
+    state=bridge.state()
+    assert state["mobile_live_unlocked"] is False
+    assert "mobile_order_enabled" not in state
+    assert "mobile_auto_enabled" not in state
+    bridge.unlock_live()
+    bridge.publish({"version":"2.8.2"})
+    assert bridge.state()["mobile_live_unlocked"] is True
