@@ -64,15 +64,18 @@ class FocusDataThread(QThread):
                 payload['errors'].append(f'{kind}: {exc}')
                 done[kind] = True
 
-        def snapshot(complete):
+        def snapshot(complete, include_revision=True):
+            # First-paint previews do not need an all-bars revision hash.
+            # On low-power laptops that hash can delay the chart more than painting it.
+            revision = data_revision(payload['minute'], payload['daily']) if include_revision else ''
             return {**payload, 'errors': list(payload['errors']), 'complete': complete,
-                    'loaded_at': time.time(), 'revision': data_revision(payload['minute'], payload['daily'])}
+                    'loaded_at': time.time(), 'revision': revision}
 
         try:
             # The visible timeframe reaches the GUI after ONE response.
             for kind in order:
                 receive(kind)
-                self.preview.emit({**snapshot(False), 'preview_kind': kind,
+                self.preview.emit({**snapshot(False, include_revision=False), 'preview_kind': kind,
                                    'preview_candles': normalize_candles(payload[kind])})
             if not self.isInterruptionRequested() and hasattr(broker, 'get_stock_info'):
                 try:
