@@ -1,0 +1,88 @@
+name: Publish PUMA v1.8
+
+on:
+  push:
+    paths:
+      - "release/v1.8.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v1.8
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip -d work
+          cp source_build/v1.8/test_accumulation_v18.py work/PUMA_STOCK_PRO_v1.7/tests/test_accumulation_v18.py
+          python scripts/upgrade_v17_to_v18.py
+
+          cd work/PUMA_STOCK_PRO_v1.7
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v1.8' puma_trader/ui.py
+          grep -q 'class StrategySummaryBox' puma_trader/ui.py
+          grep -q 'setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)' puma_trader/ui.py
+          ! grep -q 'dreason_short' puma_trader/ui.py
+          ! grep -q 'focus_danta_signal.setToolTip' puma_trader/ui.py
+          grep -q 'raw_candidate' puma_trader/swing.py
+          grep -q 'idx - group\[-1\] <= 20' puma_trader/swing.py
+          grep -q 'required_acc = max(2' puma_trader/swing.py
+          grep -q '매집확정' puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "1.8.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v1.7 work/PUMA_STOCK_PRO_v1.8
+          cat > work/PUMA_STOCK_PRO_v1.8/CHANGELOG_v1.8.txt <<'EOF'
+          PUMA STOCK PRO v1.8.0
+
+          매집봉 오탐 개선
+          - 단독 1회 조건충족 봉은 더 이상 '매집'으로 확정 표시하지 않음
+          - 고거래량 + 긴 윗꼬리 또는 장대음봉을 1차 '매집후보'로만 기록
+          - 긴 윗꼬리 조건 강화: 전체폭 비중 + 몸통 대비 우세 + 아래꼬리보다 명확히 긴 경우
+          - 장대음봉 조건 강화: 충분한 몸통 + 종가가 봉 하단부에 위치
+          - 후보가 20봉 이내에 2회 이상 반복되는 그룹만 '매집확정/매집구간'으로 판정
+          - 역매공파 점수에도 확정 매집만 반영
+          - 상세에는 확정 봉 수와 후보 봉 수를 구분해서 표시
+          - 차트 라벨도 '매집' 대신 '매집확정'으로 표시
+
+          하단 전략3종 분석
+          - 단타/역매공파/밥그릇3번 카드의 ... 말줄임 제거
+          - 마우스 오버 툴팁 제거
+          - 각 카드 자체에 세로 스크롤바 적용
+          - 단계/점수/유사구간확률/PUMA판단/이유 전체 문장을 카드 안에서 스크롤로 확인
+          - 저해상도에서도 카드 높이는 제한하고 내부 스크롤로 전체 내용을 볼 수 있게 변경
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip PUMA_STOCK_PRO_v1.8
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "1.8.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip",
+            "notes": "v1.8: 매집봉 오탐 감소. 단독 후보는 매집으로 확정하지 않고 20봉 내 2회 이상 반복될 때만 매집확정/구간으로 처리. 하단 전략3종은 말줄임과 hover 툴팁을 없애고 카드 내부 세로 스크롤로 전체 분석을 확인하도록 변경.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v1.8.0"
+          git push
