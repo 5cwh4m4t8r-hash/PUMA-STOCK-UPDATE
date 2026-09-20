@@ -1,0 +1,14 @@
+{
+  "version": "2.8.2",
+  "sha256": "bc02f04456f1109125b1db31fde54b3b2b3bf48cb4190b436c31f038ea366841",
+  "tests": "full pytest suite including persistent one-time mobile live unlock",
+  "source": "source_build/v2.8.2",
+  "features": [
+    "one-time mobile PUMA LIVE unlock",
+    "unlock persists across PUMA restarts",
+    "no repeated LIVE ORDER or LIVE START on mobile",
+    "no extra PC live unlock requirement for mobile path",
+    "shared unlock for manual orders and auto trading",
+    "token regeneration relocks mobile live trading"
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "version": "2.8.1",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.1_UPDATE.zip",
-  "notes": "v2.8.1: PUMA STOCK MOBILE 자동매매 제어 추가. 전체 후보/선택 종목 자동매매 시작·중지, 투입금·익절·손절·트레일링·최대 보유·일일 주문수 설정을 모바일에서 제어합니다.",
-  "sha256": "8ba6902e17da315a2d7dcf7d9fa05ab1ce757e8a510082a8aa5856a87857ede7"
+  "version": "2.8.2",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.2_UPDATE.zip",
+  "notes": "v2.8.2: 모바일 실전 잠금 최초 1회 방식. 모바일에서 PUMA LIVE를 한 번 입력하면 수동주문/자동매매 모두 재확인 없이 사용하며 재시작 후에도 유지됩니다.",
+  "sha256": "bc02f04456f1109125b1db31fde54b3b2b3bf48cb4190b436c31f038ea366841"
 }
