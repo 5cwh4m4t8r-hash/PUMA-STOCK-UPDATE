@@ -59,6 +59,7 @@ from .market_path import analyze_market_path
 from .swing_chart import SwingChart
 from .updater import CURRENT_VERSION, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply
 from .secure_credentials import load_credentials, save_credentials, clear_credentials, CredentialError
+from .mobile_bridge import MobileBridge
 
 DARK = """
 QMainWindow, QWidget { background: #0b1626; color: #e8eef7; font-family: 'Malgun Gothic'; }
@@ -606,7 +607,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.7.7")
+        self.setWindowTitle("PUMA STOCK PRO v2.8.0")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -680,6 +681,13 @@ class MainWindow(QMainWindow):
         self.focus_data_code: str = ""
         self._strategy_refresh_after_focus: bool = False
 
+        # Mobile companion bridge. HTTP thread never touches Qt widgets directly.
+        self.mobile_bridge = MobileBridge(self)
+        self.mobile_bridge.commandReceived.connect(self._on_mobile_command)
+        self.mobile_publish_timer = QTimer(self)
+        self.mobile_publish_timer.setInterval(750)
+        self.mobile_publish_timer.timeout.connect(self._publish_mobile_snapshot)
+
         # CPU analysis workers. Heavy calculations never run in the GUI event loop.
         self.focus_analysis_thread: FocusAnalysisThread | None = None
         self.focus_analysis_pending: dict | None = None
@@ -706,7 +714,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.7.7")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.8.0")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -729,6 +737,7 @@ class MainWindow(QMainWindow):
         self.manual_widget = self._manual_order_tab()
 
         self.connection_widget = self._connection_tab()
+        self.mobile_widget = self._mobile_tab()
         self.update_widget = self._update_tab()
         self.tabs.addTab(self.focus_widget, "통합 트레이딩")
         self.tabs.addTab(self.hero_widget, "조건검색")
@@ -736,6 +745,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.strategy_widget, "단타 분석")
         self.tabs.addTab(self.manual_widget, "직접 주문")
         self.tabs.addTab(self.connection_widget, "설정 · 키움연결")
+        self.tabs.addTab(self.mobile_widget, "모바일 연동")
         self.tabs.addTab(self.update_widget, "업데이트")
         self.tabs.currentChanged.connect(self._on_tab_changed)
         outer.addWidget(self.tabs)
@@ -745,6 +755,10 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, self._restore_ui_layout)
         if getattr(self, "auto_connect_box", None) is not None and self.auto_connect_box.isChecked():
             QTimer.singleShot(900, self.auto_connect_saved)
+        self.mobile_publish_timer.start()
+        self._publish_mobile_snapshot()
+        if getattr(self, "mobile_auto_box", None) is not None and self.mobile_auto_box.isChecked():
+            QTimer.singleShot(1200, self._mobile_start)
 
     def _dashboard_tab(self):
         w = QWidget()
@@ -3803,6 +3817,369 @@ class MainWindow(QMainWindow):
         if self.log_table.rowCount() > 400:
             self.log_table.removeRow(self.log_table.rowCount() - 1)
 
+    # ---------- 모바일 연동 ----------
+    def _mobile_tab(self):
+        w = QWidget()
+        root = QVBoxLayout(w)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(10)
+
+        info = QGroupBox("PUMA STOCK MOBILE · 아이폰/안드로이드")
+        form = QGridLayout(info)
+
+        title = QLabel("PC의 PUMA 엔진을 휴대폰에서 그대로 연동합니다.")
+        title.setStyleSheet("font-size:16px;font-weight:900;color:#ffffff")
+        form.addWidget(title, 0, 0, 1, 4)
+
+        desc = QLabel(
+            "같은 Wi-Fi에서 아이폰 Safari로 아래 주소에 접속한 뒤 연결코드 6자리를 입력하세요. "
+            "Safari 공유 → 홈 화면에 추가를 누르면 앱처럼 설치됩니다. "
+            "키움 App Key/Secret은 휴대폰으로 전송하지 않습니다."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color:#9eb4c9")
+        form.addWidget(desc, 1, 0, 1, 4)
+
+        self.mobile_url_label = QLabel("서버 중지")
+        self.mobile_url_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mobile_url_label.setStyleSheet("font-size:18px;font-weight:900;color:#6fc4ff;padding:8px")
+        form.addWidget(QLabel("접속 주소"), 2, 0)
+        form.addWidget(self.mobile_url_label, 2, 1, 1, 2)
+
+        copy_url = QPushButton("주소 복사")
+        copy_url.clicked.connect(lambda: QApplication.clipboard().setText(
+            self.mobile_bridge.url() if self.mobile_bridge.running else self.mobile_url_label.text()
+        ))
+        form.addWidget(copy_url, 2, 3)
+
+        self.mobile_token_label = QLabel(self.mobile_bridge.token)
+        self.mobile_token_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mobile_token_label.setAlignment(Qt.AlignCenter)
+        self.mobile_token_label.setStyleSheet(
+            "font-size:30px;font-weight:900;letter-spacing:8px;color:#ffd65a;"
+            "background:#101f33;border:1px solid #35506d;border-radius:8px;padding:10px"
+        )
+        form.addWidget(QLabel("연결코드"), 3, 0)
+        form.addWidget(self.mobile_token_label, 3, 1, 1, 2)
+        regen = QPushButton("코드 재발급")
+        regen.clicked.connect(self._mobile_regenerate_token)
+        form.addWidget(regen, 3, 3)
+
+        self.mobile_port = QSpinBox()
+        self.mobile_port.setRange(1024, 65535)
+        self.mobile_port.setValue(self.mobile_bridge.port)
+        form.addWidget(QLabel("포트"), 4, 0)
+        form.addWidget(self.mobile_port, 4, 1)
+
+        self.mobile_auto_box = QCheckBox("PUMA 실행 시 모바일 서버 자동 시작")
+        self.mobile_auto_box.setChecked(bool(self.ui_state.value("mobile/autoStart", False, type=bool)))
+        self.mobile_auto_box.toggled.connect(
+            lambda checked: self.ui_state.setValue("mobile/autoStart", bool(checked))
+        )
+        form.addWidget(self.mobile_auto_box, 4, 2, 1, 2)
+
+        buttons = QHBoxLayout()
+        start = QPushButton("▶ 모바일 서버 시작")
+        start.setObjectName("startBtn")
+        stop = QPushButton("■ 모바일 서버 중지")
+        stop.setObjectName("stopBtn")
+        start.clicked.connect(self._mobile_start)
+        stop.clicked.connect(self._mobile_stop)
+        buttons.addWidget(start)
+        buttons.addWidget(stop)
+        form.addLayout(buttons, 5, 0, 1, 4)
+
+        self.mobile_status_label = QLabel("서버 중지 · 휴대폰 연결 없음")
+        self.mobile_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+        form.addWidget(self.mobile_status_label, 6, 0, 1, 4)
+        root.addWidget(info)
+
+        security = QGroupBox("보안 · 모바일 주문")
+        sec = QVBoxLayout(security)
+        self.mobile_order_box = QCheckBox("모바일에서 수동 주문 요청 허용")
+        self.mobile_order_box.setChecked(False)
+        self.mobile_order_box.toggled.connect(self._mobile_order_permission_changed)
+        sec.addWidget(self.mobile_order_box)
+
+        warn = QLabel(
+            "기본값은 OFF입니다. ON으로 바꿔도 실전 주문은 PC에서 LIVE 1차 잠금이 먼저 해제되어 있어야 하고, "
+            "휴대폰에서도 LIVE ORDER를 다시 입력해야 전송됩니다. 자동매매 시작/중지는 모바일에서 허용하지 않습니다."
+        )
+        warn.setWordWrap(True)
+        warn.setStyleSheet("color:#f4c95d")
+        sec.addWidget(warn)
+        root.addWidget(security)
+
+        features = QGroupBox("모바일 제공 기능")
+        fv = QVBoxLayout(features)
+        feature_text = QLabel(
+            "• 조건검색 편입/이탈 및 단타·스윙·밥그릇 분류\n"
+            "• 종목 선택 시 PC 통합 트레이딩 화면도 같은 종목으로 연동\n"
+            "• 일봉 / 5분봉 차트 전환\n"
+            "• EMA112/224/448, 4종 화살표, 수박 표시\n"
+            "• 단타 / 역매공파 / 밥그릇3 분석 결과\n"
+            "• PUMA 관리 보유종목 / 주문·신호 로그\n"
+            "• PC 허용 시 시장가·지정가·스톱지정가 수동 주문"
+        )
+        feature_text.setWordWrap(True)
+        feature_text.setStyleSheet("color:#c7d8e8;line-height:1.5")
+        fv.addWidget(feature_text)
+        root.addWidget(features)
+        root.addStretch()
+        return self._scroll_wrap(w)
+
+    def _mobile_start(self):
+        try:
+            info = self.mobile_bridge.start(self.mobile_port.value())
+            self.mobile_port.setValue(int(info["port"]))
+            self.mobile_url_label.setText(str(info["url"]))
+            self.mobile_token_label.setText(str(info["token"]))
+            self.mobile_status_label.setText("모바일 서버 실행 중 · 같은 Wi-Fi에서 접속 가능")
+            self.mobile_status_label.setStyleSheet("font-weight:900;color:#61ff8f")
+            self.log("PUMA MOBILE", "SERVER", "-", f"모바일 서버 시작 {info['url']}")
+            self._publish_mobile_snapshot()
+        except Exception as exc:
+            self.mobile_status_label.setText(f"시작 실패: {exc}")
+            self.mobile_status_label.setStyleSheet("font-weight:900;color:#ff6b78")
+            QMessageBox.critical(self, "모바일 서버 시작 실패", str(exc))
+
+    def _mobile_stop(self):
+        self.mobile_bridge.stop()
+        self.mobile_url_label.setText("서버 중지")
+        self.mobile_status_label.setText("서버 중지 · 휴대폰 연결 없음")
+        self.mobile_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+
+    def _mobile_regenerate_token(self):
+        token = self.mobile_bridge.regenerate_token()
+        self.mobile_token_label.setText(token)
+        self.log("PUMA MOBILE", "PAIR", "-", "모바일 연결코드 재발급")
+
+    def _mobile_order_permission_changed(self, checked: bool):
+        self.mobile_bridge.set_orders_enabled(bool(checked))
+        state = "허용" if checked else "차단"
+        self.mobile_status_label.setText(
+            f"모바일 서버 {'실행 중' if self.mobile_bridge.running else '중지'} · 주문 {state}"
+        )
+        self._publish_mobile_snapshot()
+
+    @staticmethod
+    def _mobile_number(value):
+        try:
+            x = float(str(value).replace(",", "").replace("원", "").replace("%", "").strip())
+            if x != x or x in (float("inf"), float("-inf")):
+                return 0.0
+            return x
+        except Exception:
+            return 0.0
+
+    def _mobile_chart_payload(self):
+        # 모바일 차트는 현재 PC에서 선택한 일봉/5분봉 모드와 동기화한다.
+        series = self.focus_daily_series if self.focus_chart_mode == "DAY" else self.focus_danta_series
+        series = series or {}
+        candles = list(series.get("candles") or [])
+        limit = 180 if self.focus_chart_mode == "DAY" else 220
+        start = max(0, len(candles) - limit)
+        trimmed = []
+        for row in candles[start:]:
+            trimmed.append({
+                "date": str(row.get("date") or ""),
+                "open": self._mobile_number(row.get("open")),
+                "high": self._mobile_number(row.get("high")),
+                "low": self._mobile_number(row.get("low")),
+                "close": self._mobile_number(row.get("close")),
+                "volume": self._mobile_number(row.get("volume")),
+            })
+
+        out = {"candles": trimmed}
+        numeric_keys = ("ema112", "ema224", "ema448")
+        flag_keys = ("signal_pink", "signal_blue", "signal_red", "signal_black", "watermelon_display")
+        for key in numeric_keys:
+            arr = list(series.get(key) or [])
+            out[key] = [
+                (self._mobile_number(v) if v is not None else None)
+                for v in arr[start:start + len(trimmed)]
+            ]
+            if len(out[key]) < len(trimmed):
+                out[key] = [None] * (len(trimmed) - len(out[key])) + out[key]
+        for key in flag_keys:
+            arr = list(series.get(key) or [])
+            vals = arr[start:start + len(trimmed)]
+            if len(vals) < len(trimmed):
+                vals = [False] * (len(trimmed) - len(vals)) + vals
+            out[key] = [bool(v) for v in vals]
+        return out
+
+    def _publish_mobile_snapshot(self):
+        if self._closing:
+            return
+        try:
+            candidates = []
+            for code, item in self.condition_candidates.items():
+                scores = dict(item.get("scores") or {})
+                candidates.append({
+                    "code": str(code),
+                    "name": str(item.get("name") or code),
+                    "active": bool(item.get("active")),
+                    "classification": str(item.get("classification") or "분석중"),
+                    "detail": str(item.get("class_detail") or "-"),
+                    "entered_at": str(item.get("entered_at") or "-"),
+                    "scores": {
+                        "danta": int(scores.get("danta", 0) or 0),
+                        "swing": int(scores.get("swing", 0) or 0),
+                        "bowl": int(scores.get("bowl", 0) or 0),
+                    },
+                })
+            candidates.sort(key=lambda x: (not x["active"], x["name"], x["code"]))
+
+            price = 0.0
+            if self.focus_daily_analysis is not None:
+                price = self._mobile_number(getattr(self.focus_daily_analysis, "current_price", 0))
+            if price <= 0 and getattr(self, "focus_price", None) is not None:
+                price = self._mobile_number(self.focus_price.text())
+
+            positions = []
+            for code, pos in self.engine.positions.items():
+                current = 0.0
+                row = self.row_by_code.get(code)
+                if row is not None and row < self.market_table.rowCount():
+                    cell = self.market_table.item(row, 3)
+                    current = self._mobile_number(cell.text() if cell else 0)
+                if current <= 0:
+                    current = self._mobile_number(getattr(pos, "entry_price", 0))
+                entry = self._mobile_number(getattr(pos, "entry_price", 0))
+                pnl = ((current / entry - 1) * 100.0) if entry > 0 else 0.0
+                positions.append({
+                    "code": str(code),
+                    "name": str(getattr(pos, "name", code)),
+                    "qty": int(getattr(pos, "qty", 0) or 0),
+                    "avg_price": entry,
+                    "current_price": current,
+                    "pnl_pct": round(pnl, 2),
+                })
+
+            logs = []
+            if getattr(self, "log_table", None) is not None:
+                for row in range(min(80, self.log_table.rowCount())):
+                    vals = []
+                    for col in range(5):
+                        cell = self.log_table.item(row, col)
+                        vals.append(cell.text() if cell else "")
+                    logs.append({
+                        "time": vals[0], "stock": vals[1], "kind": vals[2],
+                        "price": vals[3], "text": vals[4],
+                    })
+
+            connected = isinstance(self.broker, KiwoomRestBroker) and bool(getattr(self.broker, "token", ""))
+            live = isinstance(self.broker, KiwoomRestBroker) and bool(getattr(self.broker, "real", False))
+            state = {
+                "version": CURRENT_VERSION,
+                "updated_at": datetime.now().strftime("%H:%M:%S"),
+                "connected": connected,
+                "live": live,
+                "real_armed": bool(self.real_armed),
+                "status": self.conn_label.text() if getattr(self, "conn_label", None) is not None else "-",
+                "mode": self.mode_label.text() if getattr(self, "mode_label", None) is not None else "-",
+                "candidates": candidates,
+                "positions": positions,
+                "logs": logs,
+                "selected": {
+                    "code": self.selected_code,
+                    "name": self.selected_name,
+                    "price": price,
+                    "chart_mode": self.focus_chart_mode,
+                    "stage": self.focus_stage.text() if getattr(self, "focus_stage", None) is not None else "데이터 대기",
+                    "analysis": {
+                        "danta": self.focus_danta_signal.toPlainText() if getattr(self, "focus_danta_signal", None) is not None else "-",
+                        "swing": self.focus_swing_signal.toPlainText() if getattr(self, "focus_swing_signal", None) is not None else "-",
+                        "bowl": self.focus_bowl_signal.toPlainText() if getattr(self, "focus_bowl_signal", None) is not None else "-",
+                    },
+                    "chart": self._mobile_chart_payload(),
+                },
+            }
+            self.mobile_bridge.publish(state)
+        except Exception:
+            # 모바일 스냅샷 실패가 메인 트레이딩 UI에 영향을 주면 안 된다.
+            pass
+
+    def _on_mobile_command(self, request_id: str, payload: object):
+        data = payload if isinstance(payload, dict) else {}
+        command = str(data.get("type") or "").strip()
+        try:
+            if command == "select_stock":
+                code = str(data.get("code") or "").strip()
+                name = str(data.get("name") or code).strip()
+                if not code or len(code) > 12:
+                    raise ValueError("종목코드가 올바르지 않습니다.")
+                self.open_focus_stock(code, name or code)
+                self.mobile_bridge.complete_command(
+                    request_id,
+                    {"message": f"{name or code} 선택", "code": code},
+                )
+                return
+
+            if command == "set_chart_mode":
+                mode = str(data.get("mode") or "").upper()
+                if mode not in ("DAY", "MIN"):
+                    raise ValueError("차트 모드는 DAY 또는 MIN만 가능합니다.")
+                idx = self.focus_chart_mode_combo.findData(mode)
+                if idx < 0:
+                    raise ValueError("차트 모드를 찾을 수 없습니다.")
+                self.focus_chart_mode_combo.setCurrentIndex(idx)
+                self.mobile_bridge.complete_command(
+                    request_id, {"message": f"{mode} 차트 전환", "mode": mode}
+                )
+                return
+
+            if command == "order":
+                if not self.mobile_bridge.orders_enabled:
+                    raise PermissionError("PC에서 모바일 주문 허용을 켜야 합니다.")
+                side = str(data.get("side") or "").upper()
+                code = str(data.get("code") or "").strip()
+                qty = int(data.get("qty") or 0)
+                order_type = str(data.get("order_type") or "market")
+                price = int(float(data.get("price") or 0))
+                cond_price = int(float(data.get("cond_price") or 0))
+                if side not in ("BUY", "SELL"):
+                    raise ValueError("매수/매도 구분이 올바르지 않습니다.")
+                if not code or qty < 1 or qty > 10_000_000:
+                    raise ValueError("종목코드 또는 주문수량이 올바르지 않습니다.")
+                if order_type not in ("market", "limit", "stop_limit"):
+                    raise ValueError("지원하지 않는 주문방식입니다.")
+                if order_type == "limit" and price <= 0:
+                    raise ValueError("지정가는 주문가격이 필요합니다.")
+                if order_type == "stop_limit" and (price <= 0 or cond_price <= 0):
+                    raise ValueError("스톱지정가는 가격과 조건가격이 필요합니다.")
+
+                if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
+                    if not self.real_armed:
+                        raise PermissionError("PC에서 실전 LIVE 1차 잠금을 먼저 해제하세요.")
+                    phrase = str(data.get("live_confirm") or "").strip().upper()
+                    if phrase != "LIVE ORDER":
+                        raise PermissionError("실전 주문 확인문구가 올바르지 않습니다.")
+
+                resp = self.broker.place_order(side, code, qty, order_type, price, cond_price)
+                name = self.name_cache.get(code) or (
+                    self.selected_name if code == self.selected_code else code
+                )
+                self.log(
+                    name, f"MOBILE {side}",
+                    f"{price:,}" if price else "시장가",
+                    str(resp.get("return_msg", resp)),
+                )
+                self.mobile_bridge.complete_command(
+                    request_id,
+                    {
+                        "message": str(resp.get("return_msg") or "주문 요청 처리"),
+                        "ord_no": str(resp.get("ord_no") or ""),
+                    },
+                )
+                self._publish_mobile_snapshot()
+                return
+
+            raise ValueError("지원하지 않는 모바일 명령입니다.")
+        except Exception as exc:
+            self.mobile_bridge.complete_command(request_id, error=str(exc))
+
     def closeEvent(self, event):
         if not self._closing:
             self._closing = True
@@ -3810,6 +4187,8 @@ class MainWindow(QMainWindow):
             self.stop_auto()
             self.stop_condition_stream()
             self.name_lookup_timer.stop()
+            self.mobile_publish_timer.stop()
+            self.mobile_bridge.stop()
             self.classification_queue.clear()
             self.focus_analysis_pending = None
             self.danta_analysis_pending = False
