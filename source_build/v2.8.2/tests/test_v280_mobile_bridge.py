@@ -15,74 +15,92 @@ def free_port():
     return port
 
 
-def test_mobile_bridge_auth_state_and_order_lock(tmp_path: Path):
+def wait_ping(base):
+    for _ in range(40):
+        try:
+            if requests.get(base+"/api/ping",timeout=.3).ok:
+                return
+        except Exception:
+            time.sleep(.03)
+    raise AssertionError("mobile bridge did not start")
+
+
+def test_mobile_bridge_auth_and_single_live_lock(tmp_path: Path):
     bridge=MobileBridge(config_path=tmp_path/"mobile.json")
     port=free_port()
     bridge.publish({
-        "version":"2.8.0",
+        "version":"2.8.2",
         "selected":{"code":"001520","name":"동양","chart":{"candles":[]}},
     })
     info=bridge.start(port)
     base=f"http://127.0.0.1:{info['port']}"
+    headers={"X-Puma-Token":bridge.token}
     try:
-        for _ in range(30):
-            try:
-                if requests.get(base+"/api/ping",timeout=.3).ok:
-                    break
-            except Exception:
-                time.sleep(.03)
+        wait_ping(base)
 
         r=requests.get(base+"/api/state",timeout=1)
         assert r.status_code == 401
 
-        headers={"X-Puma-Token":bridge.token}
-        r=requests.get(base+"/api/state",headers=headers,timeout=1)
-        assert r.status_code == 200
-        assert r.json()["selected"]["code"] == "001520"
+        state=requests.get(base+"/api/state",headers=headers,timeout=1).json()
+        assert state["selected"]["code"] == "001520"
+        assert state["mobile_live_unlocked"] is False
 
-        r=requests.post(
+        denied=requests.post(
             base+"/api/command",
             headers=headers,
             json={"type":"order","side":"BUY","code":"001520","qty":1,"order_type":"market"},
             timeout=1,
         )
-        assert r.status_code == 403
+        assert denied.status_code == 403
 
-        r=requests.post(
+        unlock=requests.post(
             base+"/api/command",
             headers=headers,
-            json={"type":"select_stock","code":"001520","name":"동양"},
+            json={"type":"unlock_live","phrase":"PUMA LIVE"},
             timeout=1,
         )
-        assert r.status_code == 202
-        rid=r.json()["request_id"]
-        status=requests.get(base+"/api/command/"+rid,headers=headers,timeout=1).json()
-        assert status["status"] == "pending"
+        assert unlock.status_code == 202
     finally:
         bridge.stop()
 
 
-def test_mobile_bridge_token_persists(tmp_path: Path):
+def test_mobile_live_unlock_persists_and_token_regen_relocks(tmp_path: Path):
     path=tmp_path/"mobile.json"
     a=MobileBridge(config_path=path)
     token=a.token
+    assert a.live_unlocked is False
+    a.unlock_live()
+    assert a.live_unlocked is True
+
     b=MobileBridge(config_path=path)
     assert b.token == token
-    assert len(token) == 6 and token.isdigit()
+    assert b.live_unlocked is True
+
+    new_token=b.regenerate_token()
+    assert new_token != token
+    assert b.live_unlocked is False
+
+    c=MobileBridge(config_path=path)
+    assert c.token == new_token
+    assert c.live_unlocked is False
 
 
-def test_pwa_assets_are_served(tmp_path: Path):
+def test_pwa_assets_include_one_time_unlock_ui(tmp_path: Path):
     bridge=MobileBridge(config_path=tmp_path/"mobile.json")
     port=free_port()
     bridge.start(port)
     base=f"http://127.0.0.1:{port}"
     try:
+        wait_ping(base)
         html=requests.get(base+"/",timeout=1).text
-        assert "PUMA STOCK MOBILE" in html
-        manifest=requests.get(base+"/manifest.webmanifest",timeout=1).json()
-        assert manifest["display"] == "standalone"
         js=requests.get(base+"/app.js",timeout=1).text
-        assert "submitOrder" in js
-        assert "setChartMode" in js
+        manifest=requests.get(base+"/manifest.webmanifest",timeout=1).json()
+        assert "PUMA STOCK MOBILE" in html
+        assert "실전 기능 최초 1회 잠금 해제" in html
+        assert "unlockLive" in js
+        assert "PUMA LIVE" in js
+        assert "LIVE ORDER" not in js
+        assert "LIVE START" not in js
+        assert manifest["display"] == "standalone"
     finally:
         bridge.stop()
