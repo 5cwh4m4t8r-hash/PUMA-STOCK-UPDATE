@@ -96,14 +96,22 @@ class SwingSettings:
     box_search_lookback: int = 160
     box_width_pct: float = 30.0
     box_min_coverage: float = 0.68
-    box_min_touches: int = 2
-    box_min_alternations: int = 2
-    box_touch_tolerance_pct: float = 2.5
-    box_max_drift_pct: float = 7.5
+    box_min_touches: int = 3
+    box_min_alternations: int = 3
+    box_touch_tolerance_pct: float = 2.0
+    box_max_drift_pct: float = 5.0
+    box_max_directionality: float = 0.50
     breakout_volume_ratio: float = 3.0
     pullback_volume_max_ratio: float = 0.60
     pullback_base_volume_max_ratio: float = 1.00
     pullback_support_tolerance_pct: float = 3.0
+    pullback_ma_touch_tolerance_pct: float = 2.0
+    long_ma_break_buffer_pct: float = 0.15
+    bottom_drawdown_pct: float = 10.0
+    bottom_lookback: int = 240
+    bottom_exclude_recent: int = 20
+    bowl_below_lookback: int = 100
+    bowl_min_below_closes: int = 70
     pullback_confirm_bars: int = 1
     rebreak_volume_ratio: float = 3.0
     path_max_pullback_bars: int = 12
@@ -403,7 +411,6 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     current = closes[last]
     bdist = ((current / bval - 1) * 100) if bval else 999.0
     bnear = bool(bval and abs(bdist) <= settings.blue_near_pct)
-    pullback = detect_breakout_pullback(candles)
 
     stage = '장기 역배열 확인'
     score = 0
@@ -420,26 +427,21 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         else:
             score += 10
             stage = '전고점언덕 저항 확인'
-    breakout = bool(box and box.get('breakout_idx', -1) >= 0)
+    breakout = bool(core_path.get('breakout_idx', -1) >= 0)
     if breakout:
         score += 15
-    accepted = bool(box and box.get('accepted'))
+    accepted = bool(breakout and core_path.get('support_hold'))
     if accepted:
         score += 15
-        stage = '파란점선 / 최종 타점 대기'
     if bnear:
         score += 10
-        if accepted:
-            stage = '최종 신호(수박/화살표) 수식 대기'
-    if pullback.get('confirmed'):
-        score += 10
-        if not accepted:
-            stage = '기준봉 후 거래량 감소 눌림 · 진입구간 관찰'
+    if core_path.get('stage_key') == 'PULLBACK':
+        score += 15
     if core_path.get('active'):
         score += 25
         stage = str(core_path.get('stage') or stage)
-    elif core_path.get('stage') == '박스 상단 돌파 대기' and box:
-        stage = '공구리 확인 · 거래량 300% 돌파 대기'
+    elif box and not breakout:
+        stage = '공구리 확인 · 바닥/밥그릇3에서 112·224 동반 돌파 대기'
     score = min(100, score)
 
     reasons = [
@@ -450,12 +452,10 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
             if box and box.get('structure_type') == '공구리'
             else ('전고점언덕 확인' if box else '공구리 미확인')
         ),
-        ('상단 안착 확인' if accepted else '상단 안착 대기'),
+        (str(core_path.get('stage') or '112·224 동반 돌파 대기')),
     ]
     if bnear:
         reasons.append(f'파란점선 근접 {bdist:+.2f}%')
-    if pullback.get('confirmed'):
-        reasons.append('기준봉 후 거래량 감소 눌림 확인')
     if core_path.get('active'):
         reasons.insert(0, str(core_path.get('stage')))
 
@@ -468,41 +468,48 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         '매집봉/구간': (f'확정 {len(acc_idx)}봉 · 후보 {len(raw_acc_idx)}봉' if acc_idx else f'확정 없음 · 후보 {len(raw_acc_idx)}봉'),
         '공구리(박스권)': (
             (
-                f"확인 · 기간 자동 {box.get('period',0)}봉 · "
+                f"확인 · 실제 수평구간 {box.get('period',0)}봉 · "
                 f"지지 {box.get('low',0):,.0f} / 저항 {box.get('high',0):,.0f} · "
                 f"상단 {box.get('top_touches',0)}회 / 하단 {box.get('bottom_touches',0)}회 · "
                 f"왕복 {box.get('alternations',0)}회 · 기울기 {box.get('drift_pct',0):.1f}%"
             )
             if box and box.get('structure_type') == '공구리'
             else (
-                f"공구리 미확인 · 전고점언덕 저항 {box.get('high',0):,.0f} 확인"
+                f"공구리 미확인 · 전고점 저항 {box.get('high',0):,.0f} 확인"
                 if box else '미확인'
             )
         ),
-        '공통 수급·돌파 경로': (
+        '단테식 돌파·눌림 경로': (
             f"{'활성' if core_path.get('active') else '대기'} · {core_path.get('stage','-')} · "
             f"{core_path.get('reason','-')}"
         ),
-        '박스 상단 돌파': (
-            f"확인 · 거래량 {core_path.get('breakout_volume_ratio',0):.2f}배"
-            if breakout else '대기 · 거래량 3.00배 이상 필요'
+        '112/224 동반 돌파': (
+            f"확인 · {core_path.get('context_name','-')} · "
+            f"{core_path.get('breakout_ma_period',0)}EMA + "
+            f"{'공구리 상단' if core_path.get('structure_type')=='공구리' else '전고점'}"
+            if breakout else '대기 · 바닥권/밥그릇3 + 112/224 상향돌파 + 공구리/전고점 동시 돌파 필요'
         ),
-        '상단 박스 안착': '확인' if accepted else '대기',
+        '112/224 눌림': (
+            f"확인 · 음봉 {core_path.get('pullback_ma_period',0)}EMA 접촉 · "
+            f"거래량/돌파봉 {core_path.get('pullback_volume_ratio',1):.2f} · "
+            f"20봉평균대비 {core_path.get('pullback_base_volume_ratio',1):.2f}"
+            if core_path.get('pullback_idx',-1) >= 0
+            else '대기 · 돌파 후 음봉이 112/224EMA까지 눌리고 거래량 감소 필요'
+        ),
         '재돌파': (
             f"확인 · 거래량 {core_path.get('rebreak_volume_ratio',0):.2f}배"
             if core_path.get('stage') == '확정 재돌파'
-            else '대기 · 눌림 후 거래량 3.00배 재확대 필요'
+            else '대기 · 확정 눌림 이후 재상승 필요'
         ),
         '파란점선': (f'{bval:,.0f} / 거리 {bdist:+.2f}%' if bval else '데이터 부족'),
         '화살표 신호': arrow_reason,
-        '기준봉 눌림': (f"확인 · {pullback['reason']} · 품질 {pullback['quality']}/100" if pullback.get('confirmed') else f"미확인 · {pullback.get('reason','-')}"),
     }
     analysis = SwingAnalysis(
         stage=stage, score=score, reverse_order=reverse,
         accumulation_indices=acc_idx, accumulation_count=len(acc_idx),
         box_found=bool(box), box_low=(box or {}).get('low', 0.0), box_high=(box or {}).get('high', 0.0),
         box_start=(box or {}).get('start', -1), box_end=(box or {}).get('end', -1),
-        breakout_index=(box or {}).get('breakout_idx', -1), breakout=breakout, accepted=accepted,
+        breakout_index=core_path.get('breakout_idx', -1), breakout=breakout, accepted=accepted,
         blue_value=bval, blue_distance_pct=bdist, blue_near=bnear,
         current_price=current, details=details,
     )
@@ -511,11 +518,13 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         'ema5': e5, 'ema20': e20, 'ema60': e60, 'ema112': e112, 'ema224': e224, 'ema448': e448,
         'blue': blue, 'acc_flags': acc_flags, 'acc_meta': acc_meta,
         'box': box,
-        'pullback': pullback,
+        'pullback': core_path,
         'core_path': core_path,
         'path_breakout': market_path.get('path_breakout', []),
         'path_pullback': market_path.get('path_pullback', []),
         'path_rebreakout': market_path.get('path_rebreakout', []),
+        'path_breakout_ma': market_path.get('path_breakout_ma', []),
+        'path_pullback_ma': market_path.get('path_pullback_ma', []),
     }
     series.update(ichimoku_cloud(candles))
     series.update(arrow_series)
