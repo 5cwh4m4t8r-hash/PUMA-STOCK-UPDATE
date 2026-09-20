@@ -1,0 +1,28 @@
+name: Snapshot PUMA v1.4 chart
+on:
+  push:
+    paths:
+      - "release/snapshot-v14-chart.json"
+permissions:
+  contents: write
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/puma_v14 source/v1.4
+          mkdir -p /tmp/puma_v14 source/v1.4/puma_trader
+          unzip -q releases/PUMA_STOCK_PRO_v1.4_UPDATE.zip -d /tmp/puma_v14
+          cp /tmp/puma_v14/PUMA_STOCK_PRO_v1.4/puma_trader/swing_chart.py source/v1.4/puma_trader/swing_chart.py
+          cp /tmp/puma_v14/PUMA_STOCK_PRO_v1.4/puma_trader/updater.py source/v1.4/puma_trader/updater.py
+          cp /tmp/puma_v14/PUMA_STOCK_PRO_v1.4/puma_trader/__init__.py source/v1.4/puma_trader/__init__.py
+          cp /tmp/puma_v14/PUMA_STOCK_PRO_v1.4/puma_trader/ui.py source/v1.4/puma_trader/ui.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/v1.4
+          git commit -m "Snapshot PUMA v1.4 chart"
+          git push
