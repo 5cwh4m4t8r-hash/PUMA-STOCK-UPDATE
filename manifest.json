@@ -1,6 +1,6 @@
 {
-  "version": "0.5.0",
-  "url": "https://github.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/archive/refs/heads/main.zip",
-  "notes": "PUMA STOCK PRO 업데이트 서버 연결 완료. 현재 v0.5는 최신 상태입니다. 이후 배포 버전은 이 서버에서 확인합니다.",
-  "sha256": ""
+  "version": "0.6.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.6_UPDATE.zip",
+  "notes": "v0.6: 과거 차트 탐색/확대축소/좌우 이동/구간분석, 오돌이·역매공파·밥그릇3번 통합 전략판, 밥그릇3번 엔진 추가.",
+  "sha256": "08c228c7ec98092d91ddec193023943124c68e04060388b4edb4cb45f4000f9d"
 }
