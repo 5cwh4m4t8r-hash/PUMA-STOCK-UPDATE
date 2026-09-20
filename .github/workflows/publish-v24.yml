@@ -1,0 +1,90 @@
+name: Publish PUMA v2.4
+
+on:
+  push:
+    paths:
+      - "release/v2.4.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v2.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip -d work
+          python scripts/upgrade_v23_to_v24.py
+
+          cd work/PUMA_STOCK_PRO_v2.3
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v2.4' puma_trader/ui.py
+          grep -q "('signal_black', QColor('#050505'), 3)" puma_trader/swing_chart.py
+          grep -q 'lane_gap = 13.0' puma_trader/swing_chart.py
+          grep -q '검정 화살표는 아직 사용자 원본 수식' puma_trader/signals.py
+          ! grep -q "EMA5(5선)" puma_trader/swing_chart.py
+          ! grep -q "일목 선행스팬1·2" puma_trader/swing_chart.py
+          ! grep -q "PUMA수박확정" puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "2.4.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v2.3 work/PUMA_STOCK_PRO_v2.4
+          cat > work/PUMA_STOCK_PRO_v2.4/CHANGELOG_v2.4.txt <<'EOF'
+          PUMA STOCK PRO v2.4.0
+
+          차트 상단 정리
+          - EMA5/20/60/112/224/448 이름 범례 숨김
+          - 기준선26 / 파란점선 이름 범례 숨김
+          - 일목 선행스팬 이름 숨김
+          - PUMA 수박확정 텍스트 숨김
+          - 종목명/봉 정보와 차트 조작 안내만 상단 유지
+          - 실제 선/구름/수박 모양은 그대로 표시
+
+          화살표 4종 가시성
+          - 분홍 / 파랑 / 빨강 / 검정 4개 전용 렌더 lane 적용
+          - 같은 봉에 여러 화살표가 겹쳐도 서로 다른 높이에 표시
+          - 화살표 크기 확대
+          - 모든 화살표에 두꺼운 흰 외곽선 적용
+          - 검정 화살표에 흰 중앙 포인트 추가
+          - 검정 배경에서도 검정 화살표 윤곽 식별 가능
+          - 확대/축소 상태와 관계없이 신호 발생 시 표시
+
+          검정 화살표 수식
+          - 렌더링과 signal_black 데이터 경로는 완성
+          - 사용자 원본 영웅문 수식이 아직 제공되지 않아 발생조건은 임의로 만들지 않음
+          - 수식 입력 시 별도 구조 변경 없이 즉시 연결 가능
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip PUMA_STOCK_PRO_v2.4
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "2.4.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip",
+            "notes": "v2.4: 차트 상단 지표명 범례를 숨겨 정리하고 분홍/파랑/빨강/검정 4종 화살표를 전용 lane과 흰 외곽선으로 크게 표시. 검정 화살표 수식은 사용자 원본식 제공 전까지 임의 생성하지 않음.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v2.4.0"
+          git push
