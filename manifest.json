@@ -3,4 +3,4 @@
   "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip",
   "notes": "v2.7.1: Intel Celeron N5095A + RAM 12GB 최적화. RAM 캐시는 유지하고 CPU 동시작업·차트 렌더링·조건검색 백그라운드 경쟁을 줄였습니다. 분석 기준과 주문 로직은 변경하지 않았습니다.",
   "sha256": "c37a9d966223ba26df0438ba7e4aff46744d723b514a92ef9f553699628e0a06"
-}\n
+}
