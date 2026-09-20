@@ -1,0 +1,127 @@
+name: Publish PUMA v2.0
+
+on:
+  push:
+    paths:
+      - "release/v2.0.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v2.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip -d work
+          cp source_build/v2.0/entry_signal.py work/PUMA_STOCK_PRO_v1.9/puma_trader/entry_signal.py
+          cp source_build/v2.0/watermelon_proxy.py work/PUMA_STOCK_PRO_v1.9/puma_trader/watermelon_proxy.py
+          cp source_build/v2.0/probability.py work/PUMA_STOCK_PRO_v1.9/puma_trader/probability.py
+          cp source_build/v2.0/test_v20.py work/PUMA_STOCK_PRO_v1.9/tests/test_v20.py
+          mkdir -p work/PUMA_STOCK_PRO_v1.9/knowledge
+          cp knowledge/DANTA_PUBLIC_PLAYBOOK_v1.md work/PUMA_STOCK_PRO_v1.9/knowledge/
+          python scripts/upgrade_v19_to_v20.py
+
+          cd work/PUMA_STOCK_PRO_v1.9
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v2.0' puma_trader/ui.py
+          grep -q '핵심 진입 신호' puma_trader/ui.py
+          grep -q 'evaluate_core_entry' puma_trader/ui.py
+          grep -q '기준봉-거래량감소 눌림' puma_trader/entry_signal.py
+          grep -q '진입 대기' puma_trader/probability.py
+          grep -q 'watermelon_display' puma_trader/watermelon_proxy.py
+          grep -q 'PUMA수박확정' puma_trader/swing_chart.py
+          grep -q '20-bar cooldown' puma_trader/watermelon_proxy.py
+          grep -q 'CURRENT_VERSION = "2.0.0"' puma_trader/updater.py
+          test -f knowledge/DANTA_PUBLIC_PLAYBOOK_v1.md
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v1.9 work/PUMA_STOCK_PRO_v2.0
+          cat > work/PUMA_STOCK_PRO_v2.0/CHANGELOG_v2.0.txt <<'EOF'
+          PUMA STOCK PRO v2.0.0
+
+          핵심 진입 신호 명확화
+          - 더 이상 '현재 핵심 신호가 활성화되지 않았습니다'라는 추상 문구만 표시하지 않음
+          - 각 전략별 핵심 진입 신호 이름과 충족/미충족 조건을 직접 표시
+
+          단타/오돌이 핵심
+          - 08:50~10:00
+          - 기준선26 위 유지
+          - EMA5 상승전환/상승유지
+          - 고점돌파 또는 기준선/EMA20 눌림지지
+          - 5분 거래량 최근20봉 대비 1.2배 이상
+          - EMA20 위 유지
+
+          역매공파 핵심
+          - 장기 역배열 112<224<448
+          - 매집확정 2봉 이상
+          - 공구리/박스 확인
+          - 최근5봉 중 3봉 이상 EMA112 안착
+          - 파란점선 설정 근접범위 안
+          - YTN형 '강한 기준봉 -> 거래량 감소 눌림'은 역매공파와 별개 독립 유효 신호로 인정
+
+          밥그릇3번 핵심
+          - 장기간 224EMA 아래
+          - 224EMA 상향돌파
+          - 224EMA 위 안착
+          - 224EMA 눌림/지지
+          - 현재가가 224EMA 위 0~8% 과이격 전
+
+          PUMA 수박근사 엄격화
+          - 후보 1/2단계는 차트에서 완전히 숨김
+          - 장기이평 수렴 7.5% 이내
+          - 최근 224EMA 돌파
+          - 최근5봉 중 4봉 이상 224EMA 위 안착
+          - 224EMA 부근 눌림
+          - 선행 거래량 20봉 평균 1.8배 이상
+          - 현재 눌림 거래량 20봉 평균 이하
+          - 사용자 화살표 또는 장기이평 초수렴 확인
+          - 종합점수 85점 이상
+          - 위 조건을 모두 통과할 때만 큰 '수박확정' 마커 표시
+          - 동일 구간에서는 20봉 동안 중복 수박 표시 억제
+
+          확률/판단 문구
+          - 진입 신호가 없으면 '진입 대기'로 표시
+          - 어떤 핵심 조건이 부족한지 바로 뒤에 명시
+          - 핵심 신호가 활성일 때만 과거 유사신호 통계를 진입 적합도 판단에 사용
+          - 통계는 과거 빈도이며 미래 수익을 보장하지 않음
+
+          학습 베이스
+          - 공개 주식단테 강의/복기 내용을 정리한 knowledge/DANTA_PUBLIC_PLAYBOOK_v1.md 포함
+          - 단타/기준선, 오돌이, 256, 이평때리기, 밥그릇3번, 역매공파,
+            지분, 공구리, 하이힐, 파동/다이빙/데드 및 사용자 화살표를 구분 기록
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip PUMA_STOCK_PRO_v2.0
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "2.0.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip",
+            "notes": "v2.0: 전략별 핵심 진입 신호를 명확히 표시하고 미충족 조건을 직접 설명. YTN형 기준봉-거래량감소 눌림을 독립 유효신호로 인정. 수박은 85점 이상 복합조건을 모두 충족한 확정구간만 20봉당 1회 표시.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v2.0.0"
+          git push
