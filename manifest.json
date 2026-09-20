@@ -1,6 +1,6 @@
 {
-  "version": "0.8.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.8_UPDATE.zip",
-  "notes": "v0.8: 해상도 최적화/최대화 고정 시작, 통합 트레이딩 종목 클릭 즉시 표시 버그 수정, 선택종목을 전략 상세·고급주문·역매공파 상세에 즉시 연동.",
-  "sha256": "8d61ca9ac0ae7138e053a070512b1798118141ab5c821b7bfb96ea3e7b627afb"
+  "version": "0.9.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.9_UPDATE.zip",
+  "notes": "v0.9: 오른쪽 패널 눌림/가림 수정, 역매공파 중복 탭 제거 및 메인 통합 유지, 별도 PUMA 단타 분석 화면 추가(5분봉·기준선·거래량·돌파/눌림 점수화).",
+  "sha256": "cc40d42861d4411c2c1f25d3e3c10ab116a54e34ffde5de0aedb09c38111dc2f"
 }
