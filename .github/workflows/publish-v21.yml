@@ -1,0 +1,123 @@
+name: Publish PUMA v2.1
+
+on:
+  push:
+    paths:
+      - "release/v2.1.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v2.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip -d work
+          cp source_build/v2.1/market_path.py work/PUMA_STOCK_PRO_v2.0/puma_trader/market_path.py
+          cp source_build/v2.1/test_market_path.py work/PUMA_STOCK_PRO_v2.0/tests/test_market_path.py
+          python scripts/upgrade_v20_to_v21.py
+
+          cd work/PUMA_STOCK_PRO_v2.0
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v2.1' puma_trader/ui.py
+          grep -q 'def analyze_market_path' puma_trader/market_path.py
+          grep -q 'box_period_min: int = 60' puma_trader/swing.py
+          grep -q 'box_period_max: int = 112' puma_trader/swing.py
+          grep -q 'breakout_volume_ratio: float = 3.0' puma_trader/swing.py
+          grep -q 'rebreak_volume_ratio: float = 3.0' puma_trader/swing.py
+          grep -q '공통 수급·돌파 경로' puma_trader/ui.py
+          grep -q '공구리(박스권) · 60~112봉 동적 탐지' puma_trader/ui.py
+          grep -q '눌림 거래량/돌파봉 ≤' puma_trader/ui.py
+          grep -q 'path_rebreakout' puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "2.1.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v2.0 work/PUMA_STOCK_PRO_v2.1
+          cat > work/PUMA_STOCK_PRO_v2.1/CHANGELOG_v2.1.txt <<'EOF'
+          PUMA STOCK PRO v2.1.0
+
+          최상위 공통 매매경로
+          - 모든 기법 위에 공통 핵심구조를 배치:
+            수급 유입 -> 전고점/전고점언덕/박스상단 돌파
+            -> 거래량이 죽는 눌림
+            -> 거래량이 다시 붙는 재돌파
+          - 기법 이름보다 이 공통 수급·가격 구조를 먼저 판단
+          - 단타/스윙/중장기 분석 모두 동일 공통경로를 계산
+          - 핵심진입신호에도 공통경로를 최우선 표시
+
+          공구리(박스권)
+          - 고정 18봉 박스 제거
+          - 60~112봉 범위에서 동적으로 가장 안정적인 박스 탐지
+          - 순간 긴 꼬리가 박스 전체를 왜곡하지 않도록 가격분포 기반 상·하단 계산
+          - 박스 내 종가 체류율 기본 70% 이상
+          - 상단/하단 각각 기본 3회 이상 접촉
+          - 기본 최대 박스폭 25%
+          - 전형적 박스가 없으면 반복된 전고점 언덕을 보조 저항으로 탐지
+          - 차트에 실제 탐지 기간(예: 공구리 84봉)과 돌파기준선 표시
+
+          거래량/돌파
+          - 매집 후보 거래량 기본 300% 이상
+          - 박스/전고점 상향돌파 거래량 기본 최근20봉 평균 300% 이상
+          - 돌파봉 종가는 봉 상단 60% 이상 위치 조건
+          - 돌파 버퍼 기본 0.2%
+
+          좋은 눌림
+          - 돌파 후 박스상단/이전저항을 종가 기준 허용범위 안에서 유지
+          - 최근 눌림 거래량 평균이 돌파봉 거래량의 55% 이하
+          - 박스상단 지지 허용오차 기본 3%
+          - 조건 충족 시 '돌파 후 거래량 감소 눌림' 활성
+
+          재돌파
+          - 눌림이 먼저 확인된 뒤 직전 돌파 이후의 고점을 다시 상향돌파
+          - 재돌파 거래량도 최근20봉 평균 300% 이상을 기본값으로 사용
+          - 조건 충족 시 '거래량 동반 재돌파' 활성
+
+          역매공파 설정
+          - 거래량 평균대비 3.0배
+          - 매집 Lookback 112
+          - 공구리 최소60 / 최대112봉
+          - 박스 내 종가비율 0.70
+          - 상·하단 접촉 최소3회
+          - 접촉허용 2.5%
+          - 돌파 거래량 3.0배
+          - 눌림 거래량/돌파봉 0.55 이하
+          - 박스상단 지지 허용 3.0%
+          - 재돌파 거래량 3.0배
+          - 눌림 추적 최대12봉
+          - 나머지 값은 화면에서 직접 조정 후 저장 가능
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip PUMA_STOCK_PRO_v2.1
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "2.1.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip",
+            "notes": "v2.1: 모든 기법을 수급→전고점/박스상단 거래량300% 돌파→거래량감소 눌림→거래량300% 재돌파의 공통경로로 통합. 공구리는 60~112봉 동적 박스로 변경하고 역매공파 설정에서 관련 수치를 전부 조정 가능하게 함.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.1_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v2.1.0"
+          git push
