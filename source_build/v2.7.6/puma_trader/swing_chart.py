@@ -479,8 +479,9 @@ class SwingChart(QWidget):
                     p.drawEllipse(QPointF(xx+dx, cy+dy), 1.0, 1.6)
                 p.setBrush(Qt.NoBrush)
 
-        # 화살표 4종: 같은 봉에 겹쳐도 가로로 펼쳐 모두 식별되게 표시.
-        # 검정은 다크 차트에서 묻히지 않도록 금색 halo + 흰 테두리 + 검정 코어.
+        # 화살표 4종: 영웅문처럼 신호가 발생한 '정확한 봉의 x좌표'에 세로 적층.
+        # 같은 봉 신호를 좌우로 펼치면 다른 날짜처럼 보이므로 수평 오프셋은 사용하지 않는다.
+        # 시인성은 흰 halo / 검정은 금색 halo로 확보한다.
         sig_defs = [
             ('signal_pink',  QColor('#ff2fcf'), '분'),
             ('signal_blue',  QColor('#2774ff'), '파'),
@@ -497,69 +498,72 @@ class SwingChart(QWidget):
             if not active:
                 continue
 
-            center_x = x(i)
-            spread = 21.0
-            first_x = center_x - spread * (len(active) - 1) / 2.0
+            xx = x(i)  # 절대 다른 봉으로 보이지 않게 모든 신호가 동일 x좌표 사용
             low_y = y(candle['low'])
             high_y = y(candle['high'])
-            arrow_top = low_y + 12.0
-            place_below = arrow_top + 30.0 <= price_rect.bottom()
-            if not place_below:
-                arrow_top = max(price_rect.top() + 8.0, high_y - 34.0)
+            spacing = 21.0
+            stack_h = 30.0 + spacing * max(0, len(active) - 1)
+
+            # 기본은 캔들 아래. 아래 공간이 부족하면 캔들 위에 같은 x로 세로 적층.
+            place_below = low_y + stack_h <= price_rect.bottom()
+            if place_below:
+                first_apex = low_y + 10.0
+            else:
+                first_apex = high_y - 10.0
 
             for idx, (key, sig_color, sig_label) in enumerate(active):
-                xx = first_x + idx * spread
-
                 if place_below:
-                    apex = arrow_top
-                    tail_y = apex + 19.0
+                    apex = first_apex + idx * spacing
+                    tail_y = apex + 16.0
                     outer = QPolygonF([
                         QPointF(xx, apex),
-                        QPointF(xx - 8.5, apex + 12.0),
-                        QPointF(xx + 8.5, apex + 12.0),
+                        QPointF(xx - 8.5, apex + 11.0),
+                        QPointF(xx + 8.5, apex + 11.0),
                     ])
                     inner = QPolygonF([
                         QPointF(xx, apex + 2.0),
-                        QPointF(xx - 5.8, apex + 10.0),
-                        QPointF(xx + 5.8, apex + 10.0),
+                        QPointF(xx - 5.8, apex + 9.0),
+                        QPointF(xx + 5.8, apex + 9.0),
                     ])
-                    text_y = tail_y + 12.0
+                    text_rect_y = tail_y + 3.0
+                    stem_end = apex + 6.0
                 else:
-                    apex = arrow_top + 22.0
-                    tail_y = apex - 19.0
+                    # 위에 놓더라도 화살표 자체는 '매수 상향' 모양을 유지.
+                    apex = first_apex - idx * spacing
+                    tail_y = apex + 16.0
                     outer = QPolygonF([
                         QPointF(xx, apex),
-                        QPointF(xx - 8.5, apex - 12.0),
-                        QPointF(xx + 8.5, apex - 12.0),
+                        QPointF(xx - 8.5, apex + 11.0),
+                        QPointF(xx + 8.5, apex + 11.0),
                     ])
                     inner = QPolygonF([
-                        QPointF(xx, apex - 2.0),
-                        QPointF(xx - 5.8, apex - 10.0),
-                        QPointF(xx + 5.8, apex - 10.0),
+                        QPointF(xx, apex + 2.0),
+                        QPointF(xx - 5.8, apex + 9.0),
+                        QPointF(xx + 5.8, apex + 9.0),
                     ])
-                    text_y = tail_y - 4.0
+                    text_rect_y = tail_y + 3.0
+                    stem_end = apex + 6.0
 
                 halo = QColor('#ffd84a') if key == 'signal_black' else QColor('#ffffff')
-                p.setPen(QPen(halo, 3.4))
+                p.setPen(QPen(halo, 3.2))
                 p.setBrush(halo)
                 p.drawPolygon(outer)
-                p.drawLine(QPointF(xx, tail_y), QPointF(xx, apex + (6 if place_below else -6)))
+                p.drawLine(QPointF(xx, tail_y), QPointF(xx, stem_end))
 
-                # White separator around every color, especially black.
-                p.setPen(QPen(QColor('#ffffff'), 1.8))
+                p.setPen(QPen(QColor('#ffffff'), 1.6))
                 p.setBrush(sig_color)
                 p.drawPolygon(inner)
-                p.drawLine(QPointF(xx, tail_y - (2 if place_below else -2)),
-                           QPointF(xx, apex + (6 if place_below else -6)))
+                p.drawLine(QPointF(xx, tail_y - 1.5), QPointF(xx, stem_end))
 
                 if key == 'signal_black':
                     p.setPen(QPen(QColor('#ffd84a'), 1.2))
                     p.setBrush(QColor('#050505'))
-                    p.drawEllipse(QPointF(xx, apex + (7 if place_below else -7)), 2.0, 2.0)
+                    p.drawEllipse(QPointF(xx, apex + 6.0), 2.0, 2.0)
 
+                # 라벨도 같은 봉의 x좌표를 유지하되 우측으로 아주 조금만 붙여 식별성 확보.
                 p.setFont(QFont('Malgun Gothic', 8, QFont.Bold))
                 p.setPen(QColor('#ffd84a') if key == 'signal_black' else sig_color)
-                p.drawText(int(xx - 9), int(text_y), 18, 13, Qt.AlignCenter, sig_label)
+                p.drawText(int(xx + 7), int(text_rect_y - 8), 18, 13, Qt.AlignLeft, sig_label)
                 p.setBrush(Qt.NoBrush)
 
         # 사용자 영웅문 화면의 시각 체계를 PUMA 어두운 배경에 맞게 재현.
