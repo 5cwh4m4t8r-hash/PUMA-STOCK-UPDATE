@@ -1,0 +1,26 @@
+name: Snapshot PUMA v1.1 source
+on:
+  push:
+    paths:
+      - "release/snapshot-v11.json"
+permissions:
+  contents: write
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf source/v1.1 /tmp/puma_v11
+          mkdir -p /tmp/puma_v11 source/v1.1
+          unzip -q releases/PUMA_STOCK_PRO_v1.1_UPDATE.zip -d /tmp/puma_v11
+          cp -r /tmp/puma_v11/PUMA_STOCK_PRO_v1.1/puma_trader source/v1.1/
+          cp /tmp/puma_v11/PUMA_STOCK_PRO_v1.1/app.py source/v1.1/app.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/v1.1
+          git commit -m "Snapshot PUMA v1.1 source"
+          git push
