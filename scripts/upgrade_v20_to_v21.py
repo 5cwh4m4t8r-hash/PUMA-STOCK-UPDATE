@@ -519,4 +519,12 @@ prob_path.write_text(prob, encoding="utf-8")
 chart_path.write_text(chart, encoding="utf-8")
 updater_path.write_text(updater, encoding="utf-8")
 (pkg / "puma_trader" / "__init__.py").write_text('__version__ = "2.1.0"\n', encoding="utf-8")
+
+# Migrate old test fixture to the new user-requested 300% accumulation threshold.
+legacy_acc_test = pkg / "tests" / "test_accumulation_v18.py"
+if legacy_acc_test.exists():
+    txt = legacy_acc_test.read_text(encoding="utf-8")
+    txt = txt.replace('"volume": 2800', '"volume": 3800')
+    legacy_acc_test.write_text(txt, encoding="utf-8")
+
 print("PUMA v2.1 unified market-path patch applied")
