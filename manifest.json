@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.1_UPDATE.zip",
-  "notes": "v1.1: 조건검색 종목 단타/스윙/중장기 자동분류, 메인에 단타 재통합(상세분석 유지), 차트 하단 PUMA 수박형 밴드, 숫자/시간 입력을 마우스휠 없는 직접입력+드롭다운 방식으로 변경.",
-  "sha256": "b487428feb85477ff497e30191875ed5c6e7067e5ee2e2fdf5eb0051e27c9954"
+  "version": "1.2.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.2_UPDATE.zip",
+  "notes": "v1.2: 단타는 5분봉 고정 유지. 통합/단타상세에서 거래일별 선택·전일/다음일 이동, 전체 5분봉 날짜 경계선 표시, 과거 날짜 복기 시 미래 데이터 차단, 5분봉 과거 조회 범위 확대.",
+  "sha256": "8512c74f41ee711e5ff5c7fa9a4068b7c12af1ad4fb8dae91947f21278b35af3"
 }
