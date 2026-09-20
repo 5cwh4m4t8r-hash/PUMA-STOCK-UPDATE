@@ -45,14 +45,26 @@ def update_config_path() -> Path:
     return app_root() / "config" / "update.json"
 
 
+DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/manifest.json"
+
+
 def load_update_config() -> dict:
     p = update_config_path()
     if not p.exists():
-        return {"manifest_url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/manifest.json"}
+        return {"manifest_url": DEFAULT_MANIFEST_URL}
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(p.read_text(encoding="utf-8"))
+        url = str(data.get("manifest_url") or "").strip()
+        if not url:
+            # v2.7 shipped with an empty manifest_url. Self-heal old preserved config.
+            data["manifest_url"] = DEFAULT_MANIFEST_URL
+            try:
+                p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+        return data
     except Exception:
-        return {"manifest_url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/manifest.json"}
+        return {"manifest_url": DEFAULT_MANIFEST_URL}
 
 
 def save_update_config(data: dict) -> None:
@@ -62,9 +74,7 @@ def save_update_config(data: dict) -> None:
 
 
 def fetch_manifest(manifest_url: str, timeout: int = 12) -> UpdateInfo:
-    manifest_url = (manifest_url or "").strip()
-    if not manifest_url:
-        raise ValueError("업데이트 서버 주소가 아직 설정되지 않았습니다.")
+    manifest_url = (manifest_url or DEFAULT_MANIFEST_URL).strip()
     req = urllib.request.Request(manifest_url, headers={"User-Agent": "PUMA-STOCK-UPDATER/2.7.1"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         raw = r.read()
