@@ -1,0 +1,11 @@
+{
+  "version": "2.7.7",
+  "sha256": "3aca9c96f6209b2751ef9a50d7fea1c7ffae295094b5419e23589f91e1b561ab",
+  "tests": "full pytest suite",
+  "source": "source_build/v2.7.7",
+  "features": [
+    "Hero-compatible SAR state machine",
+    "exact candle arrow stacking",
+    "Hero-style cumulative EAVG"
+  ]
+}

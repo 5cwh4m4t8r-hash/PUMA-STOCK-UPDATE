@@ -1,6 +1,6 @@
 {
-  "version": "2.7.6",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.6_UPDATE.zip",
-  "notes": "v2.7.6: 영웅문 화살표 위치 1차 정합. 같은 봉의 화살표를 동일 x좌표에 세로 적층하고 EAVG를 첫 과거값부터 누적하는 방식으로 수정했습니다. SAR 원식 값은 유지합니다.",
-  "sha256": "b41b5a598f52e5b535ea9d5c3326fa0f610d1b7620dbf92a9acb2e1a03444a78"
+  "version": "2.7.7",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.7_UPDATE.zip",
+  "notes": "v2.7.7: 영웅문 화살표 발생일 정합을 위해 SAR 계산을 영웅문 호환 상태 머신 방식으로 교체했습니다. 원식과 af/maxAF 값은 그대로 유지합니다.",
+  "sha256": "3aca9c96f6209b2751ef9a50d7fea1c7ffae295094b5419e23589f91e1b561ab"
 }
