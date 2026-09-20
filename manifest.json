@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.3_UPDATE.zip",
-  "notes": "v1.3: 일봉 날짜 경계선 제거(5분봉 날짜 구분만 유지), 조건검색 종목명 열 확대/굵은 표시/조회 우선순위 개선으로 가독성 강화.",
-  "sha256": "d860a83d0901c9c8c6fc337a19a8513066084da970d872a8f7fb71d649186fdb"
+  "version": "1.4.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.4_UPDATE.zip",
+  "notes": "v1.4: 영웅문 일봉/분봉 참고 1차 반영. 일목 선행스팬1·2 파란 구름대 추가, 잘못 만든 임시 수박바 제거, 고급주문→직접주문, 분석 결과마다 간단한 이유 표시.",
+  "sha256": "b6298af75b79f6449adc3b86a3f768f6a6f6eb217bab31b4a9c82ec8b919ef00"
 }
