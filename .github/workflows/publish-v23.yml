@@ -1,0 +1,120 @@
+name: Publish PUMA v2.3
+
+on:
+  push:
+    paths:
+      - "release/v2.3.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v2.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v2.2_UPDATE.zip -d work
+          cp source_build/v2.3/market_path.py work/PUMA_STOCK_PRO_v2.2/puma_trader/market_path.py
+          cp source_build/v2.3/test_market_path_v23.py work/PUMA_STOCK_PRO_v2.2/tests/test_market_path_v23.py
+          python scripts/upgrade_v22_to_v23.py
+          mkdir -p work/PUMA_STOCK_PRO_v2.2/knowledge
+          cp knowledge/DANTA_PUBLIC_PLAYBOOK_v1.md work/PUMA_STOCK_PRO_v2.2/knowledge/
+
+          cd work/PUMA_STOCK_PRO_v2.2
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v2.3' puma_trader/ui.py
+          grep -q 'box_min_coverage: float = 0.68' puma_trader/swing.py
+          grep -q 'box_min_touches: int = 2' puma_trader/swing.py
+          grep -q 'pullback_volume_max_ratio: float = 0.60' puma_trader/swing.py
+          grep -q 'path_duplicate_suppress_bars: int = 8' puma_trader/swing.py
+          grep -q 'def _volume_strength' puma_trader/market_path.py
+          grep -q 'stage":"확정 돌파"' puma_trader/market_path.py
+          grep -q 'stage":"확정 눌림"' puma_trader/market_path.py
+          grep -q 'stage":"확정 재돌파"' puma_trader/market_path.py
+          grep -q '공통 경로 품질' puma_trader/ui.py
+          ! grep -q 'if label and n <= 180' puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "2.3.0"' puma_trader/updater.py
+          test -f knowledge/DANTA_PUBLIC_PLAYBOOK_v1.md
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v2.2 work/PUMA_STOCK_PRO_v2.3
+          cat > work/PUMA_STOCK_PRO_v2.3/CHANGELOG_v2.3.txt <<'EOF'
+          PUMA STOCK PRO v2.3.0
+
+          주식단테 공개 강의 재검토
+          - 공개 자료에서 박스/매물대를 돌파할 때 거래량이 크게 터져야 하고
+            전일 대비 약 300% 수준을 핵심 예시로 설명하는 점을 재반영
+          - 돌파 후 눌림에서는 거래량이 확 줄어야 한다는 원칙 재반영
+          - 눌림 뒤 다시 고개를 들거나 거래량이 다시 붙는 재돌파를 중요 구간으로 분리
+          - 비공개/유료 검색식은 복제하지 않으며 공개 원리만 PUMA 방식으로 수치화
+
+          박스권
+          - 기간 자동 판정 유지
+          - 박스 종가 체류율 기본 68%로 조정
+          - 상/하단 독립 접촉 기본 2회 이상
+          - 상↔하 왕복 2회 이상 유지
+          - 기울기 최대 7.5%로 조정
+          - 실제 횡보인데 과도한 필터 때문에 누락되는 사례 감소
+
+          돌파
+          - 박스/전고점 언덕 저항을 종가로 처음 넘는 봉을 탐지
+          - 거래량강도는 전봉 대비와 최근20봉 평균 대비를 둘 다 계산
+          - 둘 중 강한 기준이 300% 이상이면 거래량 확인
+          - 박스 돌파의 캔들 몸통/종가 위치 조건을 완화하되 양봉/상단종가 조건은 유지
+          - 동일 저항대 중복 억제 20봉 -> 8봉
+          - 확정 이벤트는 차트에서 항상 ✓돌파 표시
+
+          눌림
+          - 돌파 후 박스상단/돌파선을 종가로 지켜야 함
+          - 박스상단 4% 이내 재접근 또는 고점대비 2% 이상 실제 조정
+          - 현재봉 거래량이 돌파봉의 60% 이하 + 20봉 평균 이하이면 확인
+          - 또는 최근2봉 평균이 돌파봉의 70% 이하 + 20봉 평균 이하이면 확인
+          - 조건을 처음 만족한 봉에만 ✓눌림 1회 표시
+          - 확정 눌림은 최대 4봉 동안 현재 타점으로 유지
+
+          재돌파
+          - 확정 눌림 이후 직전 고점을 종가로 재돌파
+          - 전봉 또는 20봉 평균 대비 거래량강도 300% 이상
+          - 양봉 및 종가 위치 확인
+          - 최초 확정봉에만 ✓재돌파 표시
+
+          확률/판단
+          - 현재 공통경로 품질점수를 별도로 계산
+          - 전략 점수 대신 공통경로 품질을 우선해 확률판단
+          - 현재 확정단계와 동일한 과거 이벤트만 비교
+          - 표본수, 적중률, Wilson 95% 구간, 신뢰도를 함께 표시
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip PUMA_STOCK_PRO_v2.3
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "2.3.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip",
+            "notes": "v2.3: 단테 공개강의의 박스돌파→저거래량 눌림 원칙을 재반영. 유효 돌파/눌림 누락을 줄이도록 과도한 필터를 완화하면서 돌파 거래량강도 300%와 눌림 거래량 감소는 유지. 차트 라벨은 확정 이벤트마다 표시하고 공통경로 품질점수를 확률판단에 사용.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.3_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v2.3.0"
+          git push
