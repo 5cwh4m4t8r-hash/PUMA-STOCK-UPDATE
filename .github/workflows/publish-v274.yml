@@ -1,0 +1,75 @@
+name: Publish PUMA STOCK PRO v2.7.4
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'source_build/v2.7.4/**'
+      - '.github/workflows/publish-v274.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  test-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: ${{ github.workspace }}/source_build/v2.7.4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: source_build/v2.7.4/requirements.txt
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install dependencies
+        run: python -m pip install -r source_build/v2.7.4/requirements.txt pytest
+      - name: Compile all Python sources
+        run: python -m compileall -q source_build/v2.7.4
+      - name: Run full test suite
+        run: python -m pytest -q source_build/v2.7.4/tests
+      - name: Build update ZIP and manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/PUMA_STOCK_PRO_v2.7.4
+          cp -a source_build/v2.7.4 /tmp/PUMA_STOCK_PRO_v2.7.4
+          find /tmp/PUMA_STOCK_PRO_v2.7.4 -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf {} +
+          find /tmp/PUMA_STOCK_PRO_v2.7.4 -name '*.pyc' -delete
+          mkdir -p releases release
+          rm -f releases/PUMA_STOCK_PRO_v2.7.4_UPDATE.zip
+          (cd /tmp && zip -qr "$GITHUB_WORKSPACE/releases/PUMA_STOCK_PRO_v2.7.4_UPDATE.zip" PUMA_STOCK_PRO_v2.7.4)
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.7.4_UPDATE.zip | awk '{print $1}')
+          export SHA
+          python - <<'PY'
+          import json, os
+          sha=os.environ['SHA']
+          manifest={
+              'version':'2.7.4',
+              'url':'https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.4_UPDATE.zip',
+              'notes':'v2.7.4: 검정 화살표를 사용자가 제공한 영웅문 원식으로 교체. 기존 성능 최적화/화살표 시인성/수박 개선은 유지합니다.',
+              'sha256':sha,
+          }
+          body=json.dumps(manifest,ensure_ascii=False,indent=2)+chr(10)
+          open('manifest.json','w',encoding='utf-8').write(body)
+          open('manifest-v271.json','w',encoding='utf-8').write(body)
+          release={'version':'2.7.4','sha256':sha,'tests':'full pytest suite','source':'source_build/v2.7.4'}
+          open('release/v2.7.4.json','w',encoding='utf-8').write(json.dumps(release,ensure_ascii=False,indent=2)+chr(10))
+          PY
+      - name: Publish tested update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'PUMA Update Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add releases/PUMA_STOCK_PRO_v2.7.4_UPDATE.zip manifest.json manifest-v271.json release/v2.7.4.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Publish PUMA STOCK PRO v2.7.4 exact black arrow formula'
+          git push
