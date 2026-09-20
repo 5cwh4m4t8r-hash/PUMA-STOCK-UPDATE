@@ -117,74 +117,44 @@ ui = once(ui,
 "danta core detail")
 
 # ---------- summary cards explicitly show core signal ----------
-ui = once(ui,
-'''            self.focus_danta_signal.setText(
-                f"단타 DAY · 5분봉\n"
-                f"단계: {danta_analysis.stage}\n"
-                f"점수: {danta_analysis.score}/100\n"
-                f"유사구간 확률: {dprob}\n"
-                f"판단: {djudge}\n"
-                f"이유: {dreason}"
-            )
-''',
-'''            dcore = danta_analysis.details.get("핵심 진입 신호", "-")
-            self.focus_danta_signal.setText(
-                f"단타 DAY · 5분봉\n"
-                f"핵심: {dcore}\n"
-                f"단계: {danta_analysis.stage}\n"
-                f"점수: {danta_analysis.score}/100\n"
-                f"유사구간 확률: {dprob}\n"
-                f"판단: {djudge}\n"
-                f"이유: {dreason}"
-            )
-''',
-"danta core card")
+ui = once(
+    ui,
+    '            dprob = danta_analysis.details.get("유사구간 확률", "-")\n            self.focus_danta_signal.setText(\n',
+    '            dprob = danta_analysis.details.get("유사구간 확률", "-")\n            dcore = danta_analysis.details.get("핵심 진입 신호", "-")\n            self.focus_danta_signal.setText(\n',
+    "danta core variable",
+)
+ui = once(
+    ui,
+    '                f"단타 DAY · 5분봉\\n"\n                f"단계: {danta_analysis.stage}\\n"',
+    '                f"단타 DAY · 5분봉\\n"\n                f"핵심: {dcore}\\n"\n                f"단계: {danta_analysis.stage}\\n"',
+    "danta core line",
+)
 
-ui = once(ui,
-'''            self.focus_swing_signal.setText(
-                f"역매공파 SWING\n"
-                f"단계: {swing_analysis.stage}\n"
-                f"점수: {swing_analysis.score}/100\n"
-                f"유사구간 확률: {sprob}\n"
-                f"판단: {sjudge}\n"
-                f"이유: {sreason}"
-            )
-''',
-'''            score_core = swing_analysis.details.get("핵심 진입 신호", "-")
-            self.focus_swing_signal.setText(
-                f"역매공파 SWING\n"
-                f"핵심: {score_core}\n"
-                f"단계: {swing_analysis.stage}\n"
-                f"점수: {swing_analysis.score}/100\n"
-                f"유사구간 확률: {sprob}\n"
-                f"판단: {sjudge}\n"
-                f"이유: {sreason}"
-            )
-''',
-"swing core card")
+ui = once(
+    ui,
+    '            sprob = swing_analysis.details.get("유사구간 확률", "-")\n            self.focus_swing_signal.setText(\n',
+    '            sprob = swing_analysis.details.get("유사구간 확률", "-")\n            score_core = swing_analysis.details.get("핵심 진입 신호", "-")\n            self.focus_swing_signal.setText(\n',
+    "swing core variable",
+)
+ui = once(
+    ui,
+    '                f"역매공파 SWING\\n"\n                f"단계: {swing_analysis.stage}\\n"',
+    '                f"역매공파 SWING\\n"\n                f"핵심: {score_core}\\n"\n                f"단계: {swing_analysis.stage}\\n"',
+    "swing core line",
+)
 
-ui = once(ui,
-'''            self.focus_bowl_signal.setText(
-                f"밥그릇 3번 LONG\n"
-                f"단계: {bowl_analysis.stage}\n"
-                f"점수: {bowl_analysis.score}/100\n"
-                f"유사구간 확률: {bprob}\n"
-                f"판단: {bjudge}\n"
-                f"이유: {breason}"
-            )
-''',
-'''            bcore = bowl_analysis.details.get("핵심 진입 신호", "-")
-            self.focus_bowl_signal.setText(
-                f"밥그릇 3번 LONG\n"
-                f"핵심: {bcore}\n"
-                f"단계: {bowl_analysis.stage}\n"
-                f"점수: {bowl_analysis.score}/100\n"
-                f"유사구간 확률: {bprob}\n"
-                f"판단: {bjudge}\n"
-                f"이유: {breason}"
-            )
-''',
-"bowl core card")
+ui = once(
+    ui,
+    '            bprob = bowl_analysis.details.get("유사구간 확률", "-")\n            self.focus_bowl_signal.setText(\n',
+    '            bprob = bowl_analysis.details.get("유사구간 확률", "-")\n            bcore = bowl_analysis.details.get("핵심 진입 신호", "-")\n            self.focus_bowl_signal.setText(\n',
+    "bowl core variable",
+)
+ui = once(
+    ui,
+    '                f"밥그릇 3번 LONG\\n"\n                f"단계: {bowl_analysis.stage}\\n"',
+    '                f"밥그릇 3번 LONG\\n"\n                f"핵심: {bcore}\\n"\n                f"단계: {bowl_analysis.stage}\\n"',
+    "bowl core line",
+)
 
 # Make core signal visually meaningful in swing/bowl loops automatically (keys read details).
 # Increase card height slightly because the explicit core line is now visible.
