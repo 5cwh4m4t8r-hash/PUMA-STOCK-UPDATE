@@ -254,16 +254,35 @@ def analyze_market_path(candles: list[dict], settings: Any = None) -> dict:
         events.append(item)
 
     if not events:
-        current_box = find_box_before(candles, n - 1, settings)
+        # A valid box may have ended several bars ago while price is testing
+        # or drifting above it without the required 300% volume. Keep the most
+        # recent valid 60~112-bar box visible instead of losing the structure.
+        current_box = None
+        latest_box_end = n - 1
+        scan_back = min(50, max(0, n - min_period))
+        for back in range(scan_back + 1):
+            end_idx = n - 1 - back
+            candidate = find_box_before(candles, end_idx, settings)
+            if candidate:
+                current_box = candidate
+                latest_box_end = end_idx
+                break
+
         current = dict(default_current)
         if current_box:
+            level = float(current_box["high"])
+            avg_now = _avg_prior_volume(candles, n - 1, 20)
+            now_vr = float(candles[-1]["volume"]) / avg_now if avg_now else 0.0
+            price_above = float(candles[-1]["close"]) > level * (1.0 + breakout_buffer)
+            stage = "가격 돌파 / 거래량 미달" if price_above else "박스 상단 돌파 대기"
+            reason = (
+                f"공구리 {current_box['period']}봉 · "
+                f"{current_box['low']:,.0f}~{current_box['high']:,.0f} · "
+                f"현재 거래량 {now_vr:.2f}배 / 필요 {breakout_ratio_req:.2f}배"
+            )
             current.update({
-                "stage": "박스 상단 돌파 대기",
-                "reason": (
-                    f"공구리 {current_box['period']}봉 · "
-                    f"{current_box['low']:,.0f}~{current_box['high']:,.0f} · "
-                    f"상단 돌파 거래량 {breakout_ratio_req:.1f}배 대기"
-                ),
+                "stage": stage,
+                "reason": reason,
                 "box_high": current_box["high"],
                 "box_low": current_box["low"],
                 "structure_type": current_box["structure_type"],
