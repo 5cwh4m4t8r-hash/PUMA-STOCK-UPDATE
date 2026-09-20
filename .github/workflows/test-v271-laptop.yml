@@ -52,4 +52,4 @@ jobs:
           PY
       - name: Tests
         working-directory: source_build/v2.7
-        run: pytest -q tests
+        run: python -m pytest -q tests
