@@ -1,6 +1,6 @@
 {
-  "version": "2.7.5",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.5_UPDATE.zip",
-  "notes": "v2.7.5: 공구리·돌파·눌림 정의 전면 수정. 공구리는 실제 지지/저항 반복 왕복만, 돌파는 바닥권/밥그릇3에서 112/224와 공구리/전고점 동시 돌파만, 눌림은 이후 음봉이 112/224까지 내려오며 거래량이 감소한 경우만 표시합니다.",
-  "sha256": "f60652084f4ac28b24daa7cb83ca467d4b074cd844b701c68af340ebf7846e98"
+  "version": "2.7.6",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.6_UPDATE.zip",
+  "notes": "v2.7.6: 영웅문 화살표 위치 1차 정합. 같은 봉의 화살표를 동일 x좌표에 세로 적층하고 EAVG를 첫 과거값부터 누적하는 방식으로 수정했습니다. SAR 원식 값은 유지합니다.",
+  "sha256": "b41b5a598f52e5b535ea9d5c3326fa0f610d1b7620dbf92a9acb2e1a03444a78"
 }

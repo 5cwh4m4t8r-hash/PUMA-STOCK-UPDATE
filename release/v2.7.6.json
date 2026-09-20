@@ -1,0 +1,10 @@
+{
+  "version": "2.7.6",
+  "sha256": "b41b5a598f52e5b535ea9d5c3326fa0f610d1b7620dbf92a9acb2e1a03444a78",
+  "tests": "full pytest suite",
+  "source": "source_build/v2.7.6",
+  "features": [
+    "exact-candle vertical arrow stacking",
+    "Hero-style cumulative EAVG"
+  ]
+}
