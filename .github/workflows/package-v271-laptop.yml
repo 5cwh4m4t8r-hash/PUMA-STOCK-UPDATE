@@ -1,0 +1,31 @@
+name: package-v271-laptop
+
+on:
+  push:
+    branches:
+      - puma-v2.7.1-laptop-opt
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build update zip
+        run: |
+          rm -rf dist
+          mkdir -p dist/PUMA_STOCK_PRO_v2.7.1
+          cp -a source_build/v2.7/. dist/PUMA_STOCK_PRO_v2.7.1/
+          rm -rf dist/PUMA_STOCK_PRO_v2.7.1/__pycache__
+          find dist/PUMA_STOCK_PRO_v2.7.1 -type d -name __pycache__ -prune -exec rm -rf {} +
+          find dist/PUMA_STOCK_PRO_v2.7.1 -type d -name .pytest_cache -prune -exec rm -rf {} +
+          cd dist
+          zip -qr PUMA_STOCK_PRO_v2.7.1_UPDATE.zip PUMA_STOCK_PRO_v2.7.1
+          sha256sum PUMA_STOCK_PRO_v2.7.1_UPDATE.zip > PUMA_STOCK_PRO_v2.7.1_UPDATE.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PUMA_STOCK_PRO_v2.7.1_UPDATE
+          path: |
+            dist/PUMA_STOCK_PRO_v2.7.1_UPDATE.zip
+            dist/PUMA_STOCK_PRO_v2.7.1_UPDATE.sha256
+          if-no-files-found: error
