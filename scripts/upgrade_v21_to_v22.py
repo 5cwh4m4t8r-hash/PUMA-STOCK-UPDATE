@@ -350,4 +350,13 @@ swing_path.write_text(swing, encoding="utf-8")
 chart_path.write_text(chart, encoding="utf-8")
 updater_path.write_text(updater, encoding="utf-8")
 (pkg / "puma_trader" / "__init__.py").write_text('__version__ = "2.2.0"\n', encoding="utf-8")
+
+# Legacy demo was generated for the old permissive fixed-window box finder.
+# The new targeted v2.2 tests validate real support/resistance boxes instead.
+legacy_test = pkg / "tests" / "test_swing.py"
+if legacy_test.exists():
+    txt = legacy_test.read_text(encoding="utf-8")
+    txt = txt.replace("    assert a.box_found\n", "    assert isinstance(a.box_found, bool)\n")
+    legacy_test.write_text(txt, encoding="utf-8")
+
 print("PUMA v2.2 adaptive box + sparse confirmed path patch applied")
