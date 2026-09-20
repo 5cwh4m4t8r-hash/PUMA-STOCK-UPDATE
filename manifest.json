@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.5_UPDATE.zip",
-  "notes": "v1.5: 사용자 영웅문 수식 기준 분홍/파랑/빨강 매수 화살표 3종 반영. 파랑은 SAR + BBandsUp(40,2.2) + EMA112 동시조건을 정확히 적용. 일봉/5분봉 공통 표시.",
-  "sha256": "2c21a39dda974853ee577115235ac9936c4f241d664112d3a9f27fc7f6783685"
+  "version": "1.6.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.6_UPDATE.zip",
+  "notes": "v1.6: 공개 차트/강의 기반 PUMA 수박근사 1~3단계와 수박형 마커 추가, 과거 유사신호 실측 적중률/95%구간/PUMA 진입판단 추가, 모든 입력 콤보·숫자·시간·날짜 마우스휠 값변경 전수 차단.",
+  "sha256": "a5aeaf1a6a3bed1a24c0d47a64533ca25ca610cf75b3e1f70cb45dd47e4824ff"
 }
