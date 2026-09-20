@@ -1,0 +1,110 @@
+name: Publish PUMA v1.9
+
+on:
+  push:
+    paths:
+      - "release/v1.9.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v1.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v1.8_UPDATE.zip -d work
+          cp source_build/v1.9/test_v19.py work/PUMA_STOCK_PRO_v1.8/tests/test_v19.py
+          python scripts/upgrade_v18_to_v19.py
+
+          cd work/PUMA_STOCK_PRO_v1.8
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v1.9' puma_trader/ui.py
+          grep -q 'def detect_breakout_pullback' puma_trader/swing.py
+          grep -q '기준봉 눌림' puma_trader/ui.py
+          grep -q 'accumulation_cluster_window' puma_trader/swing.py
+          grep -q 'PUMA 표준값 적용' puma_trader/ui.py
+          grep -q "'ema224':'#050505'" puma_trader/swing_chart.py
+          grep -q "'ema448':'#9aa0a6'" puma_trader/swing_chart.py
+          grep -q "QColor('#d9dde3'), 5.0" puma_trader/swing_chart.py
+          grep -q "signal_black" puma_trader/swing_chart.py
+          grep -q '작은껍질=접근' puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "1.9.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v1.8 work/PUMA_STOCK_PRO_v1.9
+          cat > work/PUMA_STOCK_PRO_v1.9/CHANGELOG_v1.9.txt <<'EOF'
+          PUMA STOCK PRO v1.9.0
+
+          YTN형 기준봉-눌림 일반 분석
+          - 특정 종목 하드코딩 없이 최근 12봉 안에서 강한 기준봉 탐지
+          - 기준봉: 전일 대비 +18% 이상, 과거20봉 평균 대비 거래량 3배 이상, 고가 부근 강한 종가
+          - 이후 2~6봉 눌림에서 기준봉 시가 위 유지, 고점 대비 5~35% 조정, 거래량 피크 대비 45% 이하 감소 확인
+          - 조건 충족 시 '기준봉 후 거래량 감소 눌림 · 진입구간 관찰' 표시
+          - 역매공파 상세에 '기준봉 눌림' 항목 추가
+          - 이 신호는 매집봉으로 둔갑시키지 않고 별도 패턴으로 표시
+
+          이동평균 시각 체계
+          - 사용자 영웅문 화면 기준으로 5/20/60/112/224/448 색상과 굵기 재정리
+          - EMA5 노랑 2.3pt
+          - EMA20 빨강 2.1pt
+          - EMA60 초록 2.1pt
+          - EMA112 갈색/주황 2.5pt
+          - EMA224 검정 3.2pt + 밝은 5pt 외곽선
+          - EMA448 회색 1.8pt 점선
+          - 파란점선 로열블루 3.2pt 점선
+          - 분봉 기준선26은 연노랑 5pt + 빨강 1pt 중심선
+          - 어두운 배경에서도 검정 224선이 사라지지 않도록 외곽선 적용
+
+          화살표 가시성
+          - 모든 매수 화살표에 밝은 외곽선을 먼저 그려 어두운 배경 대비 강화
+          - 별도 검정 신호 수식이 연결될 경우 사용할 signal_black 렌더링 지원
+          - 검정 화살표 자체의 발생 조건은 사용자가 수식을 주기 전까지 임의 생성하지 않음
+
+          역매공파 설정
+          - EMA 112/224/448 기준을 설정화면에 명시
+          - 거래량 평균기간 20
+          - 평균대비 거래량 2.0배
+          - 윗꼬리/전체폭 0.42
+          - 윗꼬리/몸통 1.35
+          - 장대음봉 몸통/전체폭 0.58
+          - 매집 lookback 90, 최소 후보2, 반복간격20봉
+          - 공구리 18봉, 최대폭14%, 돌파버퍼0.2%
+          - 안착 확인8봉/최소4종가/허용오차1.0%
+          - 파란점선 26/2.6/shift26, 근접3.0%
+          - 'PUMA 표준값 적용' 버튼 추가
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip PUMA_STOCK_PRO_v1.9
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "1.9.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip",
+            "notes": "v1.9: YTN처럼 급등 기준봉 이후 거래량이 줄며 기준가 위를 지키는 눌림을 별도 패턴으로 분석. 영웅문 화면 기준 EMA5/20/60/112/224/448 색·굵기 재정리, 검정선/화살표 외곽선 대비 강화, 역매공파 설정 수치 전체 노출 및 PUMA 표준값 버튼 추가.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v1.9_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v1.9.0"
+          git push
