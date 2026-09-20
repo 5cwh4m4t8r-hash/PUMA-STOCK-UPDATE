@@ -60,6 +60,14 @@ def _total_memory_gb() -> float:
 def detect_device_profile() -> DeviceProfile:
     cpu = max(1, int(os.cpu_count() or 1))
     mem = _total_memory_gb()
+    forced = str(os.environ.get("PUMA_PERFORMANCE_MODE") or "").strip().lower()
+    if forced in {"very_low", "ultra", "legacy"}:
+        return DeviceProfile(cpu, mem, True, True, 4, 8, 3, 1000, 80)
+    if forced in {"low", "laptop", "eco"}:
+        return DeviceProfile(cpu, mem, True, False, 6, 12, 4, 650, 110)
+    if forced in {"normal", "desktop", "full"}:
+        return DeviceProfile(cpu, mem, False, False, 12, 24, 6, 80, 220)
+
     very_low = bool((mem and mem <= 4.75 and cpu <= 4) or cpu <= 2)
     low = bool(very_low or (mem and mem <= 8.25 and cpu <= 4))
     if very_low:
