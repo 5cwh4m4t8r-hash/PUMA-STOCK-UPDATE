@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.4_UPDATE.zip",
-  "notes": "v1.4: 영웅문 일봉/분봉 참고 1차 반영. 일목 선행스팬1·2 파란 구름대 추가, 잘못 만든 임시 수박바 제거, 고급주문→직접주문, 분석 결과마다 간단한 이유 표시.",
-  "sha256": "b6298af75b79f6449adc3b86a3f768f6a6f6eb217bab31b4a9c82ec8b919ef00"
+  "version": "1.4.1",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.4.1_UPDATE.zip",
+  "notes": "v1.4.1: 거래량 막대 색상 수정. 직전 봉보다 거래량 증가=빨강, 감소=파랑, 동일=회색. 캔들 등락색과 거래량 증감색을 분리.",
+  "sha256": "ac6b2f8100a07e3f4370c13f49384883196c3dad21ab0bf66d47999cb648e4e7"
 }
