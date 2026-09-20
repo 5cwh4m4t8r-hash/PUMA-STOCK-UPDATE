@@ -1,6 +1,6 @@
 {
-  "version": "0.6.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.6_UPDATE.zip",
-  "notes": "v0.6: 과거 차트 탐색/확대축소/좌우 이동/구간분석, 오돌이·역매공파·밥그릇3번 통합 전략판, 밥그릇3번 엔진 추가.",
-  "sha256": "08c228c7ec98092d91ddec193023943124c68e04060388b4edb4cb45f4000f9d"
+  "version": "0.7.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.7_UPDATE.zip",
+  "notes": "v0.7: 통합 트레이딩 화면을 기본 화면으로 변경, 조건검색 결과를 차트 옆에 통합, 키움 App Key/Secret Windows DPAPI 보안저장, 실행 시 자동연결, 상단 빠른연결 버튼 추가. 실전 자동연결 후에도 실전주문 잠금은 자동 해제되지 않습니다.",
+  "sha256": "2cfc7c88abc3d46ef85215f361585506869fe79d2d26f05633143c4407bb4e3c"
 }
