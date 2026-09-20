@@ -1,6 +1,6 @@
 {
-  "version": "1.6.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.6_UPDATE.zip",
-  "notes": "v1.6: 공개 차트/강의 기반 PUMA 수박근사 1~3단계와 수박형 마커 추가, 과거 유사신호 실측 적중률/95%구간/PUMA 진입판단 추가, 모든 입력 콤보·숫자·시간·날짜 마우스휠 값변경 전수 차단.",
-  "sha256": "a5aeaf1a6a3bed1a24c0d47a64533ca25ca610cf75b3e1f70cb45dd47e4824ff"
+  "version": "1.7.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip",
+  "notes": "v1.7: 전략3종 글씨 잘림 수정, 직접주문 조건가격 0목록 제거/현재가 주변 호가 목록화, 전역 휠 오작동 차단, 일봉 EMA5 복구, 분봉 기준선26 가시성 강화, 거래량 확대, 수박 숫자 제거 및 수박모양 가시성 강화.",
+  "sha256": "ce9d48836c487b27515d9b7146fc8bd461810f07ccfed870024b89eeb8f466ed"
 }
