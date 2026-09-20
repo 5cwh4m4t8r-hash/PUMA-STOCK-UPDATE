@@ -4,4 +4,4 @@
   "tests": "full pytest suite",
   "source": "source_build/v2.7.1",
   "target_profile": "Intel Celeron N5095A / 12GB RAM"
-}\n
+}
