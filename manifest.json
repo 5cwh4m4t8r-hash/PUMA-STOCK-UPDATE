@@ -1,6 +1,6 @@
 {
-  "version": "0.9.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.9_UPDATE.zip",
-  "notes": "v0.9: 오른쪽 패널 눌림/가림 수정, 역매공파 중복 탭 제거 및 메인 통합 유지, 별도 PUMA 단타 분석 화면 추가(5분봉·기준선·거래량·돌파/눌림 점수화).",
-  "sha256": "cc40d42861d4411c2c1f25d3e3c10ab116a54e34ffde5de0aedb09c38111dc2f"
+  "version": "1.0.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.0_UPDATE.zip",
+  "notes": "v1.0: UI 전면 개편. 메인 우측 눌림 해결(분석/역매공파설정/주문/자동매매 탭), 단타 하단 설정 탭화, 화면 해상도 자동배치와 분할비율 기억, 역매공파 설정 영구저장, 단타 패턴점수와 검색시간 분리.",
+  "sha256": "4a1e79f4fe5ca2d341d56767adf66605d7c5db27c51a2c68c4ad44a3cb07245d"
 }
