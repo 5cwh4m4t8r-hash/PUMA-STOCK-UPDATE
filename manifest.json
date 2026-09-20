@@ -1,6 +1,6 @@
 {
-  "version": "2.7.2",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.2_UPDATE.zip",
-  "notes": "v2.7.2: N5095A 2차 속도 최적화. 점진 분석 중 중복 차트 재렌더를 제거하고 실제 API/분석/렌더/전체 시간을 화면과 로그에 표시합니다. 분석 기준과 주문 로직은 변경하지 않았습니다.",
-  "sha256": "d49b9135dec90e2e99a7ee1e40767bd133d65277eadad634cc3069d76d1eb334"
+  "version": "2.7.3",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.7.3_UPDATE.zip",
+  "notes": "v2.7.3: 화살표 4종 시인성 개선, 검정 PUMA 근사 신호 추가, 수박근사를 바닥권·EMA112/224 눌림/재돌파 중심으로 재배치. 분석/주문 기준은 유지합니다.",
+  "sha256": "8771761a6675fe39da33d800db488cd1757f77151c1831733605b474b3651f81"
 }

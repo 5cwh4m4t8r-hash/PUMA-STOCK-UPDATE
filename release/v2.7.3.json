@@ -1,0 +1,13 @@
+{
+  "version": "2.7.3",
+  "sha256": "8771761a6675fe39da33d800db488cd1757f77151c1831733605b474b3651f81",
+  "tests": "full pytest suite",
+  "source": "source_build/v2.7.3",
+  "target_profile": "Intel Celeron N5095A / 12GB RAM",
+  "features": [
+    "4-arrow high visibility renderer",
+    "black arrow PUMA proxy",
+    "watermelon proxy v2",
+    "signal-candle anchored watermelon"
+  ]
+}
