@@ -7,6 +7,8 @@ from PySide6.QtCore import Qt, QRectF, QPointF, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPolygonF
 from PySide6.QtWidgets import QWidget
 
+from .performance import DEVICE_PROFILE
+
 
 class SwingChart(QWidget):
     """PUMA 공용 캔들 차트.
@@ -27,8 +29,14 @@ class SwingChart(QWidget):
         self.analysis_range: tuple[int, int] | None = None
         self._drag_x = None
         self._drag_end = None
+        self._low_power = DEVICE_PROFILE.low_power
+        self._render_cap = 420 if DEVICE_PROFILE.very_low_power else 700 if DEVICE_PROFILE.low_power else 1400
+        self._antialias_bar_limit = DEVICE_PROFILE.antialias_bar_limit
         self.setMinimumHeight(430)
         self.setMouseTracking(True)
+        # Avoid an extra background erase before every QPainter frame.
+        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
 
     def set_data(self, analysis, series, title: str = '', preserve_view: bool = False):
         old_end = self.view_end
@@ -191,7 +199,6 @@ class SwingChart(QWidget):
 
     def paintEvent(self, event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
         p.fillRect(self.rect(), QColor('#091524'))
         if not self.series or not self.series.get('candles'):
             p.setPen(QColor('#8aa0b8'))
@@ -204,6 +211,13 @@ class SwingChart(QWidget):
         n = len(cs)
         if n <= 0:
             return
+
+        # Antialiasing is expensive on old integrated GPUs/CPUs.
+        # Keep it for zoomed-in views; turn it off automatically for dense views.
+        p.setRenderHint(
+            QPainter.Antialiasing,
+            (not self._low_power) or n <= self._antialias_bar_limit,
+        )
 
         left, right, top = 60, 25, 28
         vol_h = 86
@@ -350,7 +364,8 @@ class SwingChart(QWidget):
 
             if i < len(acc) and acc[i]:
                 p.fillRect(QRectF(xx-cw*0.9, price_rect.top(), cw*1.8, price_rect.height()), QColor(255,190,35,25))
-                if n <= 180:
+                label_limit = 90 if self._low_power else 180
+                if n <= label_limit:
                     p.setPen(QColor('#ffc13d')); p.drawText(int(xx-26), int(price_rect.top()+18), '매집확정')
 
             p.setPen(QPen(candle_col,1.1))
@@ -538,7 +553,12 @@ class SwingChart(QWidget):
 
     def _draw_series(self,p,arr,start,end,x,y,color,width,style):
         p.setPen(QPen(color,width,style)); prev=None
-        for idx in range(start, end):
+        count = max(0, end - start)
+        step = max(1, (count + self._render_cap - 1) // self._render_cap)
+        indices = list(range(start, end, step))
+        if indices and indices[-1] != end - 1:
+            indices.append(end - 1)
+        for idx in indices:
             if idx<0 or idx>=len(arr) or arr[idx] is None:
                 prev=None; continue
             pt=QPointF(x(idx-start),y(arr[idx]))
