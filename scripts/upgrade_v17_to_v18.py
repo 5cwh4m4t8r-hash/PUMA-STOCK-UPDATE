@@ -152,19 +152,15 @@ swing = swing.replace("    accumulation_min_count: int = 1", "    accumulation_m
 start = swing.index("def accumulation_flags(candles: List[dict], settings: SwingSettings):")
 end = swing.index("\n\ndef _find_box", start)
 new_acc = r'''def accumulation_flags(candles: List[dict], settings: SwingSettings):
-    """Conservative accumulation-candle confirmation.
+    """Detect strict raw accumulation candidates.
 
-    Raw candidate:
-      high volume AND (dominant long upper wick OR large bearish body).
-    Confirmed accumulation:
-      at least two raw candidates occurring within 20 bars of each other.
-
-    A lone candle is kept only as metadata '매집후보' and is NOT painted/scored
-    as confirmed accumulation. This intentionally reduces false positives.
+    This function preserves candidate detection for diagnostics/tests.
+    Final chart/scoring uses confirm_accumulation_flags(), so a lone candidate
+    is not labeled as confirmed accumulation.
     """
     vols = [c['volume'] for c in candles]
     vma = rolling_mean(vols, settings.volume_period)
-    raw = [False] * len(candles)
+    raw = []
     meta = []
 
     for i, c in enumerate(candles):
@@ -181,16 +177,12 @@ new_acc = r'''def accumulation_flags(candles: List[dict], settings: SwingSetting
             ratio = c['volume'] / vma[i - 1]
 
         high_volume = ratio >= settings.volume_ratio
-
-        # 윗꼬리는 전체폭 비중 + 몸통 대비 우세 + 아래꼬리보다 명확히 길어야 한다.
         wick_body_req = max(float(settings.upper_wick_vs_body), 1.35)
         long_upper = (
             upper_ratio >= settings.upper_wick_ratio
             and upper >= body * wick_body_req
             and upper >= lower * 1.15
         )
-
-        # 장대음봉은 몸통이 충분히 크고 종가가 봉 하단부에서 끝난 경우만 인정.
         big_bear = (
             c['close'] < c['open']
             and body_ratio >= settings.bearish_body_ratio
@@ -198,7 +190,7 @@ new_acc = r'''def accumulation_flags(candles: List[dict], settings: SwingSetting
         )
 
         candidate = bool(high_volume and (long_upper or big_bear))
-        raw[i] = candidate
+        raw.append(candidate)
         meta.append({
             'volume_ratio': ratio,
             'upper_wick_ratio': upper_ratio,
@@ -208,13 +200,16 @@ new_acc = r'''def accumulation_flags(candles: List[dict], settings: SwingSetting
             'confirmed': False,
             'cluster_size': 0,
         })
+    return raw, meta
 
-    # 가까운 후보들을 그룹화. 20봉 안에 2개 이상일 때 그룹 전체를 확정한다.
-    raw_idx = [i for i, flag in enumerate(raw) if flag]
+
+def confirm_accumulation_flags(raw_flags: List[bool], meta: List[dict], cluster_window: int = 20):
+    """Confirm only repeated candidates; single hits stay as '후보'."""
+    raw_idx = [i for i, flag in enumerate(raw_flags) if flag]
     groups = []
     group = []
     for idx in raw_idx:
-        if not group or idx - group[-1] <= 20:
+        if not group or idx - group[-1] <= cluster_window:
             group.append(idx)
         else:
             groups.append(group)
@@ -222,17 +217,17 @@ new_acc = r'''def accumulation_flags(candles: List[dict], settings: SwingSetting
     if group:
         groups.append(group)
 
-    flags = [False] * len(candles)
+    confirmed = [False] * len(raw_flags)
     for group in groups:
         size = len(group)
         if size < 2:
             continue
         for idx in group:
-            flags[idx] = True
-            meta[idx]['confirmed'] = True
-            meta[idx]['cluster_size'] = size
-
-    return flags, meta
+            confirmed[idx] = True
+            if idx < len(meta):
+                meta[idx]['confirmed'] = True
+                meta[idx]['cluster_size'] = size
+    return confirmed
 '''
 swing = swing[:start] + new_acc + swing[end:]
 
