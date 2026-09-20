@@ -124,7 +124,7 @@ INDEX_HTML = r"""<!doctype html>
         <div><div class="k">현재 상태</div><div id="autoStatus" class="v">중지</div></div>
         <div id="autoScope" class="class-pill">-</div>
       </div>
-      <div id="autoLock" class="warning">PC에서 모바일 자동매매 제어 허용 필요</div>
+      <div id="autoLock" class="warning">모바일 실전 잠금 해제 필요</div>
       <label>대상
         <select id="autoScopeSelect">
           <option value="ALL">전체 후보</option>
@@ -156,11 +156,11 @@ INDEX_HTML = r"""<!doctype html>
       </div>
       <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
       <button class="ghost full stop-auto" onclick="stopAuto()">■ 자동매매 중지</button>
-      <div class="muted small">실전 자동매매는 PC LIVE 잠금 해제 + 모바일 LIVE START 확인이 필요합니다.</div>
+      <div class="muted small">모바일에서 실전 잠금을 최초 1회 해제하면 이후에는 추가 확인 없이 사용할 수 있습니다.</div>
     </div>
     <div class="card order-card">
       <div class="card-title">수동 주문</div>
-      <div id="orderLock" class="warning">PC에서 모바일 주문 허용 필요</div>
+      <div id="orderLock" class="warning">모바일 실전 잠금 해제 필요</div>
       <label>종목코드<input id="orderCode" maxlength="6" inputmode="numeric"></label>
       <div class="grid2">
         <label>구분<select id="orderSide"><option value="BUY">매수</option><option value="SELL">매도</option></select></label>
@@ -172,7 +172,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
       <label>조건가격(스톱)<input id="condPrice" type="number" min="0" value="0"></label>
       <button id="orderBtn" class="primary danger" onclick="submitOrder()" disabled>주문 요청</button>
-      <div class="muted small">실전 주문은 PC의 LIVE 1차 잠금이 해제되어 있어야 하며 모바일에서 LIVE ORDER 재확인을 요구합니다.</div>
+      <div class="muted small">최초 1회 실전 잠금 해제 후에는 주문마다 추가 문구 입력 없이 사용합니다.</div>
     </div>
     <div class="card">
       <div class="card-title">전체 로그</div>
@@ -185,9 +185,10 @@ INDEX_HTML = r"""<!doctype html>
       <div class="card-title">연결</div>
       <div class="kv"><span>서버</span><b id="serverUrl">-</b></div>
       <div class="kv"><span>버전</span><b id="version">-</b></div>
-      <div class="kv"><span>수동주문 허용</span><b id="orderAllowed">OFF</b></div>
-      <div class="kv"><span>자동매매 제어</span><b id="autoAllowed">OFF</b></div>
-      <button class="ghost full" onclick="logout()">연결코드 초기화</button>
+      <div class="kv"><span>실전 잠금</span><b id="liveLockState">잠김</b></div>
+      <button id="unlockLiveBtn" class="primary" onclick="unlockLive()">🔓 실전 기능 최초 1회 잠금 해제</button>
+      <button id="lockLiveBtn" class="ghost full" onclick="lockLive()">🔒 실전 잠금 다시 걸기</button>
+      <button class="ghost full" style="margin-top:7px" onclick="logout()">연결코드 초기화</button>
     </div>
     <div class="card">
       <div class="card-title">아이폰 설치</div>
@@ -292,19 +293,22 @@ function render(s){
   document.getElementById('orderCode').value=sel.code||document.getElementById('orderCode').value;
   document.getElementById('version').textContent=s.version||'-';
   document.getElementById('serverUrl').textContent=location.origin;
-  document.getElementById('orderAllowed').textContent=s.mobile_order_enabled?'ON':'OFF';
-  document.getElementById('autoAllowed').textContent=s.mobile_auto_enabled?'ON':'OFF';
+  const unlocked=!!s.mobile_live_unlocked;
+  document.getElementById('liveLockState').textContent=unlocked?'해제됨':'잠김';
+  document.getElementById('liveLockState').style.color=unlocked?'#5df29b':'#ff9a72';
+  document.getElementById('unlockLiveBtn').style.display=unlocked?'none':'block';
+  document.getElementById('lockLiveBtn').style.display=unlocked?'block':'none';
   const orderBtn=document.getElementById('orderBtn');
-  orderBtn.disabled=!s.mobile_order_enabled;
-  document.getElementById('orderLock').style.display=s.mobile_order_enabled?'none':'block';
+  orderBtn.disabled=!unlocked;
+  document.getElementById('orderLock').style.display=unlocked?'none':'block';
 
   const au=s.auto||{};
   const autoStatus=document.getElementById('autoStatus');
   autoStatus.textContent=au.enabled?'실행 중':'중지';
   autoStatus.className='v '+(au.enabled?'auto-running':'auto-stopped');
   document.getElementById('autoScope').textContent=au.enabled?(au.scope_label||'-'):'-';
-  document.getElementById('autoLock').style.display=s.mobile_auto_enabled?'none':'block';
-  document.getElementById('autoStartBtn').disabled=!s.mobile_auto_enabled;
+  document.getElementById('autoLock').style.display=unlocked?'none':'block';
+  document.getElementById('autoStartBtn').disabled=!unlocked;
   setInputValue('autoBudget',au.settings?.order_budget);
   setInputValue('autoMaxPositions',au.settings?.max_positions);
   setInputValue('autoDailyOrders',au.settings?.max_daily_orders);
@@ -375,8 +379,23 @@ function pollCommand(id){
     if(++count>20)clearInterval(t);
   },250);
 }
+async function unlockLive(){
+  const phrase=prompt('최초 1회 실전 잠금 해제입니다. PUMA LIVE 를 입력하세요.')||'';
+  if(phrase.trim().toUpperCase()!=='PUMA LIVE')return;
+  try{
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'unlock_live',phrase})});
+    pollAutoResult(r.request_id,'실전 잠금 해제');
+  }catch(e){alert('잠금 해제 실패: '+e.message)}
+}
+async function lockLive(){
+  if(!confirm('모바일 실전 잠금을 다시 걸까요?'))return;
+  try{
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'lock_live'})});
+    pollAutoResult(r.request_id,'실전 잠금');
+  }catch(e){alert('잠금 설정 실패: '+e.message)}
+}
 async function startAuto(){
-  if(!state?.mobile_auto_enabled)return;
+  if(!state?.mobile_live_unlocked){alert('설정에서 실전 잠금을 최초 1회 해제하세요.');return;}
   const scope=document.getElementById('autoScopeSelect').value;
   if(scope==='SELECTED'&&!state?.selected?.code){alert('먼저 종목을 선택하세요.');return}
   const payload={
@@ -392,15 +411,10 @@ async function startAuto(){
     stop_loss_pct:Number(document.getElementById('autoSL').value||0),
     trailing_enabled:document.getElementById('autoTrailing').checked,
     trailing_start_pct:Number(document.getElementById('autoTrailStart').value||0),
-    trailing_gap_pct:Number(document.getElementById('autoTrailGap').value||0),
-    live_confirm:''
+    trailing_gap_pct:Number(document.getElementById('autoTrailGap').value||0)
   };
   const what=scope==='SELECTED'?(payload.name||payload.code)+' 한 종목':'전체 후보';
   if(!confirm(what+' 자동매매를 시작할까요?'))return;
-  if(state.live){
-    payload.live_confirm=prompt('실전 자동매매입니다. LIVE START 를 입력하세요.')||'';
-    if(payload.live_confirm.trim().toUpperCase()!=='LIVE START')return;
-  }
   try{
     const r=await api('/api/command',{method:'POST',body:JSON.stringify(payload)});
     pollAutoResult(r.request_id,'시작');
@@ -426,7 +440,7 @@ function pollAutoResult(id,action){
   },300);
 }
 async function submitOrder(){
-  if(!state?.mobile_order_enabled)return;
+  if(!state?.mobile_live_unlocked){alert('설정에서 실전 잠금을 최초 1회 해제하세요.');return;}
   const side=document.getElementById('orderSide').value;
   const code=document.getElementById('orderCode').value.trim();
   const qty=Number(document.getElementById('orderQty').value||0);
@@ -436,13 +450,8 @@ async function submitOrder(){
   if(!code||qty<1){alert('종목코드와 수량을 확인하세요.');return}
   const label=side==='BUY'?'매수':'매도';
   if(!confirm(code+' '+qty+'주 '+label+' 주문을 요청할까요?'))return;
-  let live_confirm='';
-  if(state.live){
-    live_confirm=prompt('실전 주문입니다. LIVE ORDER 를 입력하세요.')||'';
-    if(live_confirm.trim().toUpperCase()!=='LIVE ORDER')return;
-  }
   try{
-    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'order',side,code,qty,order_type,price,cond_price,live_confirm})});
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'order',side,code,qty,order_type,price,cond_price})});
     pollOrderResult(r.request_id);
   }catch(e){alert('주문 요청 실패: '+e.message)}
 }
@@ -552,11 +561,10 @@ class MobileBridge(QObject):
         self._command_lock = threading.RLock()
         self._server: _ReusableHTTPServer | None = None
         self._thread: threading.Thread | None = None
-        self._orders_enabled = False
-        self._auto_enabled = False
         cfg = self._load_config()
         self.port = int(cfg.get("port", 8765) or 8765)
         self.token = str(cfg.get("token") or self._new_token())
+        self._live_unlocked = bool(cfg.get("live_unlocked", False))
         if len(self.token) != 6 or not self.token.isdigit():
             self.token = self._new_token()
         self._save_config()
@@ -575,7 +583,11 @@ class MobileBridge(QObject):
         try:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             self.config_path.write_text(
-                json.dumps({"port": self.port, "token": self.token}, ensure_ascii=False, indent=2) + "\n",
+                json.dumps({
+                    "port": self.port,
+                    "token": self.token,
+                    "live_unlocked": bool(self._live_unlocked),
+                }, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
         except Exception:
@@ -586,21 +598,21 @@ class MobileBridge(QObject):
         return self._server is not None and self._thread is not None and self._thread.is_alive()
 
     @property
-    def orders_enabled(self) -> bool:
-        return bool(self._orders_enabled)
+    def live_unlocked(self) -> bool:
+        return bool(self._live_unlocked)
 
-    def set_orders_enabled(self, enabled: bool):
-        self._orders_enabled = bool(enabled)
+    def unlock_live(self):
+        self._live_unlocked = True
+        self._save_config()
 
-    @property
-    def auto_enabled(self) -> bool:
-        return bool(self._auto_enabled)
-
-    def set_auto_enabled(self, enabled: bool):
-        self._auto_enabled = bool(enabled)
+    def lock_live(self):
+        self._live_unlocked = False
+        self._save_config()
 
     def regenerate_token(self) -> str:
         self.token = self._new_token()
+        # 새 연결코드는 새 모바일 페어링으로 간주하여 실전 잠금도 다시 건다.
+        self._live_unlocked = False
         self._save_config()
         return self.token
 
@@ -622,8 +634,7 @@ class MobileBridge(QObject):
 
     def publish(self, state: dict):
         safe = json.loads(json.dumps(state, ensure_ascii=False, default=str))
-        safe["mobile_order_enabled"] = bool(self._orders_enabled)
-        safe["mobile_auto_enabled"] = bool(self._auto_enabled)
+        safe["mobile_live_unlocked"] = bool(self._live_unlocked)
         with self._state_lock:
             self._state = safe
 
@@ -769,12 +780,10 @@ class MobileBridge(QObject):
                     return self._json(400, {"error": "잘못된 요청입니다."})
 
                 command_type = str(payload.get("type") or "").strip()
-                if command_type not in ("select_stock", "set_chart_mode", "order", "auto_start", "auto_stop"):
+                if command_type not in ("select_stock", "set_chart_mode", "order", "auto_start", "auto_stop", "unlock_live", "lock_live"):
                     return self._json(400, {"error": "지원하지 않는 명령입니다."})
-                if command_type == "order" and not bridge.orders_enabled:
-                    return self._json(403, {"error": "PC에서 모바일 주문 허용을 켜야 합니다."})
-                if command_type == "auto_start" and not bridge.auto_enabled:
-                    return self._json(403, {"error": "PC에서 모바일 자동매매 제어 허용을 켜야 합니다."})
+                if command_type in ("order", "auto_start") and not bridge.live_unlocked:
+                    return self._json(403, {"error": "모바일에서 실전 잠금을 최초 1회 해제하세요."})
                 rid = bridge.queue_command(payload)
                 return self._json(202, {"accepted": True, "request_id": rid})
 
