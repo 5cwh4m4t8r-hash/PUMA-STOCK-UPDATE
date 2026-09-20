@@ -90,7 +90,7 @@ INDEX_HTML = r"""<!doctype html>
     </div>
     <div class="card chart-card">
       <div class="chart-toolbar">
-        <span>일봉 · EMA112/224/448 · 화살표/수박</span>
+        <div><button id="dayBtn" class="mini active-mini" onclick="setChartMode('DAY')">일봉</button><button id="minBtn" class="mini" onclick="setChartMode('MIN')">5분</button></div>
         <span id="chartCount" class="muted">0봉</span>
       </div>
       <canvas id="chartCanvas"></canvas>
@@ -177,7 +177,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 main{max-width:760px;margin:0 auto;padding:12px}.page{display:none}.page.active{display:block}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px;box-shadow:0 5px 18px rgba(0,0,0,.18)}.card-title{font-weight:900;margin-bottom:9px}.k{font-size:11px;color:var(--muted)}.v{font-size:17px;font-weight:900}.price{font-size:21px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}.analysis{white-space:pre-wrap;margin:0;color:#f4d46b;font:700 12px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:13px;color:#68f29c}
 .page-head,.stock-head,.chart-toolbar,.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:7px}.stock-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;background:#0b1b2c;border:1px solid #203b58;border-radius:10px}.stock-row:active{transform:scale(.995);background:#142f4e}.stock-title{font-weight:900}.stock-meta{font-size:11px;color:var(--muted);margin-top:3px}.class-pill{align-self:center;padding:5px 7px;border-radius:7px;background:#15395d;color:#6dc6ff;font-size:11px;font-weight:900}.inactive{opacity:.55}.log-row{display:grid;grid-template-columns:52px 70px 1fr;gap:7px;padding:7px 0;border-bottom:1px solid rgba(78,111,145,.25);font-size:11px}.log-kind{font-weight:900;color:#72bfff}.warning{background:#4a3011;color:#ffd77c;border:1px solid #7a5520;border-radius:9px;padding:9px;margin-bottom:10px;font-size:12px;font-weight:800}
 button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2{gap:8px}
-.chart-card{padding:10px}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
+.chart-card{padding:10px}.mini{padding:5px 9px;margin-right:5px;font-size:10px;background:#102a46;border:1px solid #315a84}.active-mini{background:#1c65a6;color:#fff}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(7,17,29,.97);border-top:1px solid var(--line);backdrop-filter:blur(16px)}nav button{background:none;border-radius:0;color:#829db7;font-size:11px;padding:8px 2px}nav button.active{color:#65baff;border-top:2px solid #4da9ff}
 .overlay{position:fixed;inset:0;z-index:100;background:rgba(3,9,16,.94);display:flex;align-items:center;justify-content:center;padding:24px}.overlay.hidden{display:none}.pair-card{width:min(400px,100%);padding:25px;background:#10233a;border:1px solid #315273;border-radius:20px;text-align:center}.pair-card .logo{font-size:54px}.pair-card h1{font-size:21px}.pair-card input{text-align:center;font-size:28px;letter-spacing:9px;font-weight:900;margin:14px 0}.pair-card button{margin-bottom:8px}
 @media(max-width:390px){main{padding:9px}.grid2{gap:7px}.card{padding:11px}.chart-card{margin-left:-2px;margin-right:-2px}#chartCanvas{height:270px}}
@@ -259,6 +259,9 @@ function render(s){
   renderPositions(s.positions||[]);
   renderLogs(s.logs||[]);
   const chart=sel.chart||{};
+  const cm=sel.chart_mode||'DAY';
+  document.getElementById('dayBtn').classList.toggle('active-mini',cm==='DAY');
+  document.getElementById('minBtn').classList.toggle('active-mini',cm==='MIN');
   document.getElementById('chartCount').textContent=(chart.candles?.length||0)+'봉';
   if(document.getElementById('stock').classList.contains('active')) drawChart(chart);
 }
@@ -284,6 +287,12 @@ function renderLogs(xs){
   const html=xs.map(x=>'<div class="log-row"><span>'+esc(x.time)+'</span><span class="log-kind">'+esc(x.kind)+'</span><span>'+esc(x.stock)+' · '+esc(x.text)+'</span></div>').join('');
   document.getElementById('logs').innerHTML=html||'<div class="muted">로그 없음</div>';
   document.getElementById('homeLogs').innerHTML=xs.slice(0,6).map(x=>'<div class="log-row"><span>'+esc(x.time)+'</span><span class="log-kind">'+esc(x.kind)+'</span><span>'+esc(x.stock)+' · '+esc(x.text)+'</span></div>').join('')||'<div class="muted">로그 없음</div>';
+}
+async function setChartMode(mode){
+  try{
+    const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'set_chart_mode',mode})});
+    pollCommand(r.request_id);
+  }catch(e){alert('차트 전환 실패: '+e.message)}
 }
 async function selectStock(code,name){
   try{
@@ -637,7 +646,7 @@ class MobileBridge(QObject):
                     return self._json(400, {"error": "잘못된 요청입니다."})
 
                 command_type = str(payload.get("type") or "").strip()
-                if command_type not in ("select_stock", "order"):
+                if command_type not in ("select_stock", "set_chart_mode", "order"):
                     return self._json(400, {"error": "지원하지 않는 명령입니다."})
                 if command_type == "order" and not bridge.orders_enabled:
                     return self._json(403, {"error": "PC에서 모바일 주문 허용을 켜야 합니다."})
