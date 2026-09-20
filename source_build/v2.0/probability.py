@@ -109,7 +109,7 @@ def estimate_from_flags(
         return ProbabilityEstimate(
             probability=None, samples=0, wins=0, losses=0, unresolved=unresolved,
             lower95=None, upper95=None, horizon_bars=horizon, tp_pct=tp, sl_pct=sl,
-            verdict="통계 판단 유보",
+            verdict="판단 유보",
             reason="완료된 과거 유사 사례가 없습니다.",
         )
 
