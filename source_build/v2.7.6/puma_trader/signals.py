@@ -11,15 +11,22 @@ RED = "#ff2e2e"
 
 
 def _ema(values: List[float], period: int) -> List[Optional[float]]:
-    out: List[Optional[float]] = [None] * len(values)
-    if period <= 0 or len(values) < period:
+    """영웅문 EAVG 호환 방식.
+
+    첫 유효값 자체를 첫 지수평균으로 두고 이후 모든 봉을
+    alpha=2/(period+1)로 누적한다. 기간만큼 기다린 뒤 SMA를 seed로
+    쓰는 일반 라이브러리 방식은 장기 112/224/448 교차 시점을
+    영웅문과 다르게 만들 수 있어 사용하지 않는다.
+    """
+    n = len(values)
+    out: List[Optional[float]] = [None] * n
+    if period <= 0 or n == 0:
         return out
-    seed = sum(values[:period]) / period
-    out[period - 1] = seed
     k = 2.0 / (period + 1.0)
-    prev = seed
-    for i in range(period, len(values)):
-        prev = values[i] * k + prev * (1.0 - k)
+    prev = float(values[0])
+    out[0] = prev
+    for i in range(1, n):
+        prev = float(values[i]) * k + prev * (1.0 - k)
         out[i] = prev
     return out
 
