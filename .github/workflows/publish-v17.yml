@@ -1,0 +1,104 @@
+name: Publish PUMA v1.7
+
+on:
+  push:
+    paths:
+      - "release/v1.7.json"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and verify v1.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf work
+          mkdir -p work releases
+          unzip -q releases/PUMA_STOCK_PRO_v1.6_UPDATE.zip -d work
+          python scripts/upgrade_v16_to_v17.py
+
+          cd work/PUMA_STOCK_PRO_v1.6
+          python -m py_compile app.py puma_trader/*.py
+          python -m pip install -q pytest
+          PYTHONPATH=. python -m pytest -q
+
+          grep -q 'PUMA STOCK PRO v1.7' puma_trader/ui.py
+          grep -q 'class PriceComboBox' puma_trader/ui.py
+          grep -q 'app.installEventFilter(self)' puma_trader/ui.py
+          grep -q 'lab.setWordWrap(True)' puma_trader/ui.py
+          grep -q 'signals.setMinimumHeight(170)' puma_trader/ui.py
+          grep -q "'ema5': e5" puma_trader/swing.py
+          grep -q "'ema5':2.8" puma_trader/swing_chart.py
+          grep -q "'kijun':5.0" puma_trader/swing_chart.py
+          grep -q 'vol_h = 86' puma_trader/swing_chart.py
+          grep -q 'watermelon_h = 34' puma_trader/swing_chart.py
+          grep -q '거래량  ↑빨강 / ↓파랑' puma_trader/swing_chart.py
+          ! grep -q "drawText(int(xx-3).*str(stage)" puma_trader/swing_chart.py
+          grep -q 'CURRENT_VERSION = "1.7.0"' puma_trader/updater.py
+          cd ../..
+
+          mv work/PUMA_STOCK_PRO_v1.6 work/PUMA_STOCK_PRO_v1.7
+          cat > work/PUMA_STOCK_PRO_v1.7/CHANGELOG_v1.7.txt <<'EOF'
+          PUMA STOCK PRO v1.7.0
+
+          통합 트레이딩 전략 3종
+          - 하단 단타/역매공파/밥그릇3번 카드 최소 높이 확대
+          - 자동 줄바꿈 적용
+          - 확률/판단/이유는 화면용 짧은 문구로 압축
+          - 전체 문구는 마우스 툴팁으로 확인
+          - 통합판정 문구도 줄바꿈 대응
+          - 저해상도에서도 분석 글씨가 잘리지 않도록 레이아웃 비중 수정
+
+          직접 주문 가격 입력
+          - 일반 숫자 목록 대신 PriceComboBox 적용
+          - 조건가격 드롭다운의 0/100/1000 식 불필요한 값 제거
+          - 현재가를 기준으로 실제 주변 호가 25개만 표시
+          - 가격대별 호가단위로 자동 정규화
+          - 주문가격/조건가격 직접 입력 가능
+          - 스톱지정가에서 조건가격 미입력 시 주문 차단
+
+          휠 오작동
+          - 개별 위젯 차단 외에 QApplication 전역 이벤트 필터 추가
+          - 모든 콤보/숫자/날짜/시간 입력에서 휠 값 변경 차단
+          - 차트 확대/축소 휠만 유지
+
+          차트
+          - 일봉 EMA5(5선) 계산을 실제 시리즈에 복구
+          - EMA5 노랑, 2.8px, 다른 이평보다 나중에 그려 가시성 강화
+          - 5분봉 기준선26 흰색, 5px로 강화
+          - 기준선 공식은 (최근26 최고가 + 최근26 최저가)/2
+          - 거래량 패널 높이 확대 및 '증가 빨강/감소 파랑' 범례 표시
+          - PUMA 수박근사 영역 확대
+          - 수박 단계 숫자 제거
+          - 1/2/3단계를 수박 크기·붉은 속·씨앗·강조링으로 구분
+          EOF
+
+          rm -f releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip
+          cd work
+          zip -qr ../releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip PUMA_STOCK_PRO_v1.7
+          cd ..
+          unzip -t releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip >/dev/null
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip | awk '{print $1}')
+          cat > manifest.json <<EOF
+          {
+            "version": "1.7.0",
+            "url": "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip",
+            "notes": "v1.7: 전략3종 글씨 잘림 수정, 직접주문 조건가격 0목록 제거/현재가 주변 호가 목록화, 전역 휠 오작동 차단, 일봉 EMA5 복구, 분봉 기준선26 가시성 강화, 거래량 확대, 수박 숫자 제거 및 수박모양 가시성 강화.",
+            "sha256": "$SHA"
+          }
+          EOF
+
+      - name: Commit release
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v1.7_UPDATE.zip manifest.json
+          git commit -m "Publish PUMA STOCK PRO v1.7.0"
+          git push
