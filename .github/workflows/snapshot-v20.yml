@@ -1,0 +1,26 @@
+name: Snapshot PUMA v2.0 source
+on:
+  push:
+    paths:
+      - "release/snapshot-v20.json"
+permissions:
+  contents: write
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf source/v2.0 /tmp/puma_v20
+          mkdir -p /tmp/puma_v20 source/v2.0
+          unzip -q releases/PUMA_STOCK_PRO_v2.0_UPDATE.zip -d /tmp/puma_v20
+          cp -r /tmp/puma_v20/PUMA_STOCK_PRO_v2.0/puma_trader source/v2.0/
+          cp /tmp/puma_v20/PUMA_STOCK_PRO_v2.0/app.py source/v2.0/app.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/v2.0
+          git commit -m "Snapshot PUMA v2.0 source"
+          git push
