@@ -1,0 +1,13 @@
+{
+  "version": "2.8.1",
+  "sha256": "8ba6902e17da315a2d7dcf7d9fa05ab1ce757e8a510082a8aa5856a87857ede7",
+  "tests": "full pytest suite including mobile auto permission/stop tests",
+  "source": "source_build/v2.8.1",
+  "features": [
+    "mobile auto trading start/stop",
+    "all candidates or selected-stock scope",
+    "mobile risk parameter sync to existing TradeEngine",
+    "PC-gated mobile auto permission",
+    "LIVE START confirmation for real auto trading"
+  ]
+}

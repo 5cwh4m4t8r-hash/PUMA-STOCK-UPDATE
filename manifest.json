@@ -1,6 +1,6 @@
 {
-  "version": "2.8.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.0_UPDATE.zip",
-  "notes": "v2.8.0: PUMA STOCK MOBILE 1차 연동. 아이폰/안드로이드 설치형 모바일 앱(PWA), 조건검색/차트/3종 분석/잔고/로그/PC허용 수동주문을 같은 Wi-Fi에서 연동합니다.",
-  "sha256": "2a9c25954494547de7b676e9c86a20c3c0db75beeca476300bcc008ccc43911f"
+  "version": "2.8.1",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.1_UPDATE.zip",
+  "notes": "v2.8.1: PUMA STOCK MOBILE 자동매매 제어 추가. 전체 후보/선택 종목 자동매매 시작·중지, 투입금·익절·손절·트레일링·최대 보유·일일 주문수 설정을 모바일에서 제어합니다.",
+  "sha256": "8ba6902e17da315a2d7dcf7d9fa05ab1ce757e8a510082a8aa5856a87857ede7"
 }
