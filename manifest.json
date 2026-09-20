@@ -1,6 +1,6 @@
 {
-  "version": "2.4.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.4_UPDATE.zip",
-  "notes": "v2.4: 차트 상단 지표명 범례를 숨겨 정리하고 분홍/파랑/빨강/검정 4종 화살표를 전용 lane과 흰 외곽선으로 크게 표시. 검정 화살표 수식은 사용자 원본식 제공 전까지 임의 생성하지 않음.",
-  "sha256": "b4e25892992ba4c11bfe8cdd08fc0cb8b07c8991177a1f4ccf33595094ade0f3"
+  "version": "2.5.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.5_UPDATE.zip",
+  "notes": "v2.5: 응답없음/속도 긴급 수정. 키움 REST 호출을 GUI 스레드에서 분리하고, 거래량 300% 후보봉에서만 무거운 박스탐색을 수행. 동일 공통경로 분석 캐시 및 단타탭 데이터 재사용으로 중복 계산/통신 제거.",
+  "sha256": "6948d50a9ff3cbf9bccbc79c09df0f36dba5e3f23db39e077703e9e2908e1199"
 }
