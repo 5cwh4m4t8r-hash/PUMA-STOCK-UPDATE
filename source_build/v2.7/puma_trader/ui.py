@@ -359,11 +359,15 @@ class CandidateClassifier(QThread):
             check_cancelled()
             bowl, bs = analyze_bowl(daily, self.bowl_settings)
             prepared = None
-            if self.context_key and not self.lightweight:
-                tp, sl = self.context_key[-2:]
-                danta, ds = _enrich_analysis_pure(danta, ds, "DAY", self.swing_settings, tp, sl)
-                swing, ss = _enrich_analysis_pure(swing, ss, "SWING", self.swing_settings, tp, sl)
-                bowl, bs = _enrich_analysis_pure(bowl, bs, "LONG", self.swing_settings, tp, sl)
+            if self.context_key:
+                if not self.lightweight:
+                    tp, sl = self.context_key[-2:]
+                    danta, ds = _enrich_analysis_pure(danta, ds, "DAY", self.swing_settings, tp, sl)
+                    swing, ss = _enrich_analysis_pure(swing, ss, "SWING", self.swing_settings, tp, sl)
+                    bowl, bs = _enrich_analysis_pure(bowl, bs, "LONG", self.swing_settings, tp, sl)
+                # Low-power mode still keeps the core pre-analysis so clicking a
+                # candidate opens immediately. Only probability/backtest enrichment
+                # is deferred until that stock is actually selected.
                 source = dict(code=self.code, info=info, minute=minute, daily=daily,
                     daily_pages=2, complete=False, loaded_at=loaded_at, errors=[], revision=data_revision(minute, daily))
                 result = dict(code=self.code, request_id=-1, context_key=self.context_key, source_payload=source,
