@@ -1,6 +1,6 @@
 {
-  "version": "0.7.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.7_UPDATE.zip",
-  "notes": "v0.7: 통합 트레이딩 화면을 기본 화면으로 변경, 조건검색 결과를 차트 옆에 통합, 키움 App Key/Secret Windows DPAPI 보안저장, 실행 시 자동연결, 상단 빠른연결 버튼 추가. 실전 자동연결 후에도 실전주문 잠금은 자동 해제되지 않습니다.",
-  "sha256": "2cfc7c88abc3d46ef85215f361585506869fe79d2d26f05633143c4407bb4e3c"
+  "version": "0.8.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v0.8_UPDATE.zip",
+  "notes": "v0.8: 해상도 최적화/최대화 고정 시작, 통합 트레이딩 종목 클릭 즉시 표시 버그 수정, 선택종목을 전략 상세·고급주문·역매공파 상세에 즉시 연동.",
+  "sha256": "8d61ca9ac0ae7138e053a070512b1798118141ab5c821b7bfb96ea3e7b627afb"
 }
