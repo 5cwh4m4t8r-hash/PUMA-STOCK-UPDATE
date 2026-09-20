@@ -12,7 +12,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-CURRENT_VERSION = "2.7.7"
+CURRENT_VERSION = "2.8.0"
 
 
 def _vtuple(v: str):
@@ -75,7 +75,7 @@ def save_update_config(data: dict) -> None:
 
 def fetch_manifest(manifest_url: str, timeout: int = 12) -> UpdateInfo:
     manifest_url = (manifest_url or DEFAULT_MANIFEST_URL).strip()
-    req = urllib.request.Request(manifest_url, headers={"User-Agent": "PUMA-STOCK-UPDATER/2.7.7"})
+    req = urllib.request.Request(manifest_url, headers={"User-Agent": "PUMA-STOCK-UPDATER/2.8.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         raw = r.read()
     data = json.loads(raw.decode("utf-8-sig"))
@@ -89,7 +89,7 @@ def fetch_manifest(manifest_url: str, timeout: int = 12) -> UpdateInfo:
 def download_package(info: UpdateInfo, progress_cb=None) -> Path:
     tmpdir = Path(tempfile.mkdtemp(prefix="puma_update_"))
     target = tmpdir / f"PUMA_STOCK_PRO_v{info.version}.zip"
-    req = urllib.request.Request(info.url, headers={"User-Agent": "PUMA-STOCK-UPDATER/2.7.7"})
+    req = urllib.request.Request(info.url, headers={"User-Agent": "PUMA-STOCK-UPDATER/2.8.0"})
     with urllib.request.urlopen(req, timeout=45) as r, target.open("wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         done = 0
