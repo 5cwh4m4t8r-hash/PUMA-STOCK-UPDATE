@@ -16,5 +16,5 @@ def test_black_proxy_can_fire_on_ema448_cross():
         })
     s = build_arrow_signals(candles)
     assert len(s["signal_black"]) == len(candles)
-    # The proxy is no longer hard-coded False for the entire series.
-    assert any(s["signal_black"]) or s["signal_black"][-1] is False
+    # The proxy must actually fire on the constructed EMA448 upward cross.
+    assert any(s["signal_black"])
