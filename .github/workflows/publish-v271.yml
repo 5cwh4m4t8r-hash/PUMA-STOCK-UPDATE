@@ -63,7 +63,7 @@ jobs:
             'notes':'v2.7.1: Intel Celeron N5095A + RAM 12GB 최적화. RAM 캐시는 유지하고 CPU 동시작업·차트 렌더링·조건검색 백그라운드 경쟁을 줄였습니다. 분석 기준과 주문 로직은 변경하지 않았습니다.',
             'sha256':sha,
           }
-          open('manifest.json','w',encoding='utf-8').write(json.dumps(manifest,ensure_ascii=False,indent=2)+'\\n')
+          open('manifest.json','w',encoding='utf-8').write(json.dumps(manifest,ensure_ascii=False,indent=2)+chr(10))
           release={
             'version':'2.7.1',
             'sha256':sha,
@@ -71,7 +71,7 @@ jobs:
             'source':'source_build/v2.7.1',
             'target_profile':'Intel Celeron N5095A / 12GB RAM',
           }
-          open('release/v2.7.1.json','w',encoding='utf-8').write(json.dumps(release,ensure_ascii=False,indent=2)+'\\n')
+          open('release/v2.7.1.json','w',encoding='utf-8').write(json.dumps(release,ensure_ascii=False,indent=2)+chr(10))
           PY
 
       - name: Publish tested update
