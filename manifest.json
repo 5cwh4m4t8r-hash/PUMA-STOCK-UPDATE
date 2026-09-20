@@ -1,6 +1,6 @@
 {
-  "version": "2.5.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.5_UPDATE.zip",
-  "notes": "v2.5: 응답없음/속도 긴급 수정. 키움 REST 호출을 GUI 스레드에서 분리하고, 거래량 300% 후보봉에서만 무거운 박스탐색을 수행. 동일 공통경로 분석 캐시 및 단타탭 데이터 재사용으로 중복 계산/통신 제거.",
-  "sha256": "6948d50a9ff3cbf9bccbc79c09df0f36dba5e3f23db39e077703e9e2908e1199"
+  "version": "2.6.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.6_UPDATE.zip",
+  "notes": "v2.6: 응답없음 2차 긴급수정. REST뿐 아니라 스윙/중장기/단타/수박/확률/박스 CPU 분석 전체를 GUI 스레드 밖으로 이동. 날짜별 단타도 비동기 처리하고 박스 탐색을 coarse→refine 방식으로 추가 고속화.",
+  "sha256": "fdc1a4a47467fcb0af907500b669b39aa4ed7ae94270d3c0bc17f9f14f32c8e6"
 }
