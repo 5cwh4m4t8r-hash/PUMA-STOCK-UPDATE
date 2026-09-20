@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.0_UPDATE.zip",
-  "notes": "v1.0: UI 전면 개편. 메인 우측 눌림 해결(분석/역매공파설정/주문/자동매매 탭), 단타 하단 설정 탭화, 화면 해상도 자동배치와 분할비율 기억, 역매공파 설정 영구저장, 단타 패턴점수와 검색시간 분리.",
-  "sha256": "4a1e79f4fe5ca2d341d56767adf66605d7c5db27c51a2c68c4ad44a3cb07245d"
+  "version": "1.1.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v1.1_UPDATE.zip",
+  "notes": "v1.1: 조건검색 종목 단타/스윙/중장기 자동분류, 메인에 단타 재통합(상세분석 유지), 차트 하단 PUMA 수박형 밴드, 숫자/시간 입력을 마우스휠 없는 직접입력+드롭다운 방식으로 변경.",
+  "sha256": "b487428feb85477ff497e30191875ed5c6e7067e5ee2e2fdf5eb0051e27c9954"
 }
