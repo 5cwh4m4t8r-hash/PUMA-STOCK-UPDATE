@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from PySide6.QtCore import QObject, Signal
+from .mobile_demo import DEMO_HTML
 
 
 INDEX_HTML = r"""<!doctype html>
@@ -735,6 +736,8 @@ class MobileBridge(QObject):
                 path = urlparse(self.path).path
                 if path == "/":
                     return self._send(200, INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
+                if path == "/demo":
+                    return self._send(200, DEMO_HTML.encode("utf-8"), "text/html; charset=utf-8")
                 if path == "/styles.css":
                     return self._send(200, STYLES_CSS.encode("utf-8"), "text/css; charset=utf-8")
                 if path == "/app.js":
