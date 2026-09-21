@@ -607,7 +607,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.8.2")
+        self.setWindowTitle("PUMA STOCK PRO v2.8.3")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -714,7 +714,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.8.2")
+        title = QLabel("🐆  PUMA STOCK PRO  v2.8.3")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -3852,6 +3852,17 @@ class MainWindow(QMainWindow):
         ))
         form.addWidget(copy_url, 2, 3)
 
+        self.mobile_demo_url_label = QLabel("서버 중지")
+        self.mobile_demo_url_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mobile_demo_url_label.setStyleSheet("font-size:16px;font-weight:900;color:#ffd65a;padding:8px")
+        form.addWidget(QLabel("작동형 데모"), 3, 0)
+        form.addWidget(self.mobile_demo_url_label, 3, 1, 1, 2)
+        copy_demo = QPushButton("데모주소 복사")
+        copy_demo.clicked.connect(lambda: QApplication.clipboard().setText(
+            f"{self.mobile_bridge.url()}/demo" if self.mobile_bridge.running else self.mobile_demo_url_label.text()
+        ))
+        form.addWidget(copy_demo, 3, 3)
+
         self.mobile_token_label = QLabel(self.mobile_bridge.token)
         self.mobile_token_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.mobile_token_label.setAlignment(Qt.AlignCenter)
@@ -3859,24 +3870,24 @@ class MainWindow(QMainWindow):
             "font-size:30px;font-weight:900;letter-spacing:8px;color:#ffd65a;"
             "background:#101f33;border:1px solid #35506d;border-radius:8px;padding:10px"
         )
-        form.addWidget(QLabel("연결코드"), 3, 0)
-        form.addWidget(self.mobile_token_label, 3, 1, 1, 2)
+        form.addWidget(QLabel("연결코드"), 4, 0)
+        form.addWidget(self.mobile_token_label, 4, 1, 1, 2)
         regen = QPushButton("코드 재발급")
         regen.clicked.connect(self._mobile_regenerate_token)
-        form.addWidget(regen, 3, 3)
+        form.addWidget(regen, 4, 3)
 
         self.mobile_port = QSpinBox()
         self.mobile_port.setRange(1024, 65535)
         self.mobile_port.setValue(self.mobile_bridge.port)
-        form.addWidget(QLabel("포트"), 4, 0)
-        form.addWidget(self.mobile_port, 4, 1)
+        form.addWidget(QLabel("포트"), 5, 0)
+        form.addWidget(self.mobile_port, 5, 1)
 
         self.mobile_auto_box = QCheckBox("PUMA 실행 시 모바일 서버 자동 시작")
         self.mobile_auto_box.setChecked(bool(self.ui_state.value("mobile/autoStart", False, type=bool)))
         self.mobile_auto_box.toggled.connect(
             lambda checked: self.ui_state.setValue("mobile/autoStart", bool(checked))
         )
-        form.addWidget(self.mobile_auto_box, 4, 2, 1, 2)
+        form.addWidget(self.mobile_auto_box, 5, 2, 1, 2)
 
         buttons = QHBoxLayout()
         start = QPushButton("▶ 모바일 서버 시작")
@@ -3887,11 +3898,11 @@ class MainWindow(QMainWindow):
         stop.clicked.connect(self._mobile_stop)
         buttons.addWidget(start)
         buttons.addWidget(stop)
-        form.addLayout(buttons, 5, 0, 1, 4)
+        form.addLayout(buttons, 6, 0, 1, 4)
 
         self.mobile_status_label = QLabel("서버 중지 · 휴대폰 연결 없음")
         self.mobile_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
-        form.addWidget(self.mobile_status_label, 6, 0, 1, 4)
+        form.addWidget(self.mobile_status_label, 7, 0, 1, 4)
         root.addWidget(info)
 
         security = QGroupBox("모바일 실전 잠금")
@@ -3929,6 +3940,7 @@ class MainWindow(QMainWindow):
             info = self.mobile_bridge.start(self.mobile_port.value())
             self.mobile_port.setValue(int(info["port"]))
             self.mobile_url_label.setText(str(info["url"]))
+            self.mobile_demo_url_label.setText(f"{info['url']}/demo")
             self.mobile_token_label.setText(str(info["token"]))
             self.mobile_status_label.setText("모바일 서버 실행 중 · 같은 Wi-Fi에서 접속 가능")
             self.mobile_status_label.setStyleSheet("font-weight:900;color:#61ff8f")
@@ -3942,6 +3954,7 @@ class MainWindow(QMainWindow):
     def _mobile_stop(self):
         self.mobile_bridge.stop()
         self.mobile_url_label.setText("서버 중지")
+        self.mobile_demo_url_label.setText("서버 중지")
         self.mobile_status_label.setText("서버 중지 · 휴대폰 연결 없음")
         self.mobile_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
 
