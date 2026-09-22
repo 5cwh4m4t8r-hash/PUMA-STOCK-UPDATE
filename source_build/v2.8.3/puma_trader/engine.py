@@ -6,6 +6,7 @@ from typing import Dict
 from .models import Position, SignalResult, StrategySettings
 from .storage import load_runtime, save_runtime
 from .strategy import evaluate_buy, evaluate_sell, in_scan_window
+from .gaboja import evaluate_gaboja
 
 
 def _num(v):
@@ -31,6 +32,8 @@ class TradeEngine:
         self.daily_order_date = datetime.now().date()
         self.daily_order_count = 0
         self.managed_qty: Dict[str, int] = {}
+        self.managed_meta: Dict[str, dict] = {}
+        self._gaboja_daily_cache: Dict[str, dict] = {}
 
     def _persist_runtime(self):
         # 실제 계좌용 상태만 영구 저장한다. 모의투자가 실전 관리상태를 덮어쓰지 않게 한다.
@@ -40,6 +43,7 @@ class TradeEngine:
             "daily_order_date": self.daily_order_date.isoformat(),
             "daily_order_count": self.daily_order_count,
             "managed_qty": self.managed_qty,
+            "managed_meta": self.managed_meta,
             "pending_orders": self.pending_orders,
         })
 
@@ -49,6 +53,8 @@ class TradeEngine:
         self.account_held_codes.clear()
         self.account_qty.clear()
         self.pending_orders.clear()
+        self.managed_meta.clear()
+        self._gaboja_daily_cache.clear()
         self.last_account_sync = None
         self.daily_order_date = datetime.now().date()
         if self.live_mode:
@@ -57,6 +63,9 @@ class TradeEngine:
             self.daily_order_count = int(runtime.get("daily_order_count", 0)) if runtime.get("daily_order_date") == today else 0
             self.managed_qty = {
                 str(k): int(v) for k, v in dict(runtime.get("managed_qty", {})).items() if int(v) > 0
+            }
+            self.managed_meta = {
+                str(k): dict(v) for k, v in dict(runtime.get("managed_meta", {})).items() if isinstance(v, dict)
             }
             restored = {}
             for code, item in dict(runtime.get("pending_orders", {})).items():
@@ -72,6 +81,7 @@ class TradeEngine:
         else:
             self.daily_order_count = 0
             self.managed_qty = {}
+            self.managed_meta = {}
 
     def set_settings(self, settings):
         self.settings = settings
@@ -88,6 +98,27 @@ class TradeEngine:
             self.daily_order_date = today
             self.daily_order_count = 0
             self._persist_runtime()
+
+    def _gaboja_daily_rows(self, code: str) -> list[dict]:
+        """Daily history is static intraday; cache it so 5-minute auto-trading stays fast.
+
+        Today's OHLCV is rebuilt from live 5-minute bars inside evaluate_gaboja(),
+        so a 10-minute daily-history cache does not delay intraday volume/breakout checks.
+        """
+        now = datetime.now()
+        day = now.strftime("%Y%m%d")
+        cached = self._gaboja_daily_cache.get(code)
+        if cached and cached.get("day") == day:
+            age = (now - cached.get("at", now)).total_seconds()
+            if age < 600:
+                return list(cached.get("rows") or [])
+
+        getter = getattr(self.broker, "get_daily_candles", None)
+        if not getter:
+            return []
+        rows = getter(code, max_pages=6)
+        self._gaboja_daily_cache[code] = {"day": day, "at": now, "rows": list(rows or [])}
+        return list(rows or [])
 
     def can_open(self, code):
         self._roll_daily_counter()
@@ -147,6 +178,11 @@ class TradeEngine:
             requested = max(1, int(pending.get("qty", 0) or 0))
             if item["qty"] >= requested:
                 self.managed_qty[code] = requested
+                self.managed_meta[code] = {
+                    "stop_price": float(pending.get("stop_price", 0) or 0),
+                    "entry_kind": str(pending.get("entry_kind", "")),
+                    "partial_taken": False,
+                }
                 self.pending_orders.pop(code, None)
 
         # PUMA가 관리하도록 기록된 종목만 positions에 반영한다.
@@ -163,6 +199,7 @@ class TradeEngine:
                     self.cooldowns[code] = now + timedelta(minutes=self.settings.cooldown_min)
                 self.positions.pop(code, None)
                 self.managed_qty.pop(code, None)
+                self.managed_meta.pop(code, None)
                 continue
 
             seen_managed.add(code)
@@ -170,6 +207,7 @@ class TradeEngine:
             entry = item["entry"] or item["current"]
             current = item["current"] or entry
             old = self.positions.get(code)
+            meta = dict(self.managed_meta.get(code) or {})
             high = max(current, entry, old.highest_price if old else 0)
             self.positions[code] = Position(
                 code=code,
@@ -179,9 +217,12 @@ class TradeEngine:
                 highest_price=high,
                 opened_at=old.opened_at if old else now.isoformat(timespec="seconds"),
                 broker_order_no=old.broker_order_no if old else "ACCOUNT",
+                stop_price=float(meta.get("stop_price", getattr(old, "stop_price", 0)) or 0),
+                entry_kind=str(meta.get("entry_kind", getattr(old, "entry_kind", "")) or ""),
+                partial_taken=bool(meta.get("partial_taken", getattr(old, "partial_taken", False))),
             )
 
-        # 매도 주문 확인: 주문 전 계좌수량에서 PUMA 매도수량만큼 줄었으면 완료로 본다.
+        # 매도 주문 확인. +4% 1차 익절은 절반만 줄이고, 손절/트레일링/종가청산은 전량 정리한다.
         for code, pending in list(self.pending_orders.items()):
             if pending.get("side") != "SELL":
                 continue
@@ -190,9 +231,26 @@ class TradeEngine:
             now_qty = int(self.account_qty.get(code, 0) or 0)
             if now_qty <= max(0, before - sold_qty):
                 self.pending_orders.pop(code, None)
-                self.positions.pop(code, None)
-                self.managed_qty.pop(code, None)
-                self.cooldowns[code] = now + timedelta(minutes=self.settings.cooldown_min)
+                full_exit = bool(pending.get("full_exit", True))
+                remaining = max(0, int(pending.get("remaining_qty", 0) or 0))
+                if full_exit or remaining <= 0:
+                    self.positions.pop(code, None)
+                    self.managed_qty.pop(code, None)
+                    self.managed_meta.pop(code, None)
+                    self.cooldowns[code] = now + timedelta(minutes=self.settings.cooldown_min)
+                else:
+                    self.managed_qty[code] = remaining
+                    meta = dict(self.managed_meta.get(code) or {})
+                    meta.update({
+                        "stop_price": float(pending.get("stop_price", meta.get("stop_price", 0)) or 0),
+                        "entry_kind": str(pending.get("entry_kind", meta.get("entry_kind", "")) or ""),
+                        "partial_taken": bool(pending.get("partial_taken_after", True)),
+                    })
+                    self.managed_meta[code] = meta
+                    pos = self.positions.get(code)
+                    if pos:
+                        pos.qty = remaining
+                        pos.partial_taken = True
 
         # 계좌에 일부만 들어온 매수는 포지션 표시만 하되 pending을 유지해 추가 주문을 막는다.
         for code, pending in self.pending_orders.items():
@@ -206,7 +264,11 @@ class TradeEngine:
             entry = item["entry"] or item["current"]
             current = item["current"] or entry
             self.positions[code] = Position(
-                code, item["name"], qty, entry, max(entry, current), now.isoformat(timespec="seconds"), str(pending.get("ord_no", ""))
+                code, item["name"], qty, entry, max(entry, current), now.isoformat(timespec="seconds"),
+                str(pending.get("ord_no", "")),
+                float(pending.get("stop_price", 0) or 0),
+                str(pending.get("entry_kind", "") or ""),
+                False,
             )
 
         self._persist_runtime()
@@ -216,7 +278,7 @@ class TradeEngine:
             "managed_positions": len(self.positions),
         }
 
-    def _submit_buy(self, code: str, name: str, current: float, reason: str):
+    def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = ""):
         qty = int(self.settings.order_budget // current)
         if qty < 1:
             return {"code": code, "name": name, "status": "WAIT", "price": current, "signal": "종목당 투입금보다 현재가가 높음"}
@@ -225,16 +287,26 @@ class TradeEngine:
         if self.broker.__class__.__name__ != "SimBroker":
             # 앱이 재시작되어도 체결된 종목을 PUMA 포지션으로 복구할 수 있도록 주문수량을 먼저 기록.
             self.managed_qty[code] = qty
+            self.managed_meta[code] = {
+                "stop_price": float(stop_price or 0),
+                "entry_kind": str(entry_kind or ""),
+                "partial_taken": False,
+            }
             self.pending_orders[code] = {
                 "side": "BUY",
                 "qty": qty,
                 "ord_no": str(resp.get("ord_no", "")),
                 "created_at": datetime.now(),
+                "stop_price": float(stop_price or 0),
+                "entry_kind": str(entry_kind or ""),
             }
             self._persist_runtime()
             return {"code": code, "name": name, "status": "BUY_SENT", "price": current, "signal": reason, "order": resp}
 
-        pos = Position(code, name, qty, current, current, datetime.now().isoformat(timespec="seconds"), str(resp.get("ord_no", "")))
+        pos = Position(
+            code, name, qty, current, current, datetime.now().isoformat(timespec="seconds"),
+            str(resp.get("ord_no", "")), float(stop_price or 0), str(entry_kind or ""), False
+        )
         self.positions[code] = pos
         self._persist_runtime()
         return {"code": code, "name": name, "status": "BUY", "price": current, "signal": reason, "order": resp}
@@ -249,6 +321,11 @@ class TradeEngine:
                 "ord_no": str(resp.get("ord_no", "")),
                 "created_at": datetime.now(),
                 "account_qty_before": int(self.account_qty.get(code, pos.qty)),
+                "remaining_qty": 0,
+                "full_exit": True,
+                "stop_price": float(getattr(pos, "stop_price", 0) or 0),
+                "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
+                "partial_taken_after": bool(getattr(pos, "partial_taken", False)),
             }
             self._persist_runtime()
             return {"code": code, "name": pos.name, "status": "SELL_SENT", "price": current, "signal": reason, "order": resp}
@@ -257,6 +334,48 @@ class TradeEngine:
         self.cooldowns[code] = datetime.now() + timedelta(minutes=self.settings.cooldown_min)
         self._persist_runtime()
         return {"code": code, "name": pos.name, "status": "SELL", "price": current, "signal": reason, "order": resp}
+
+    def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str):
+        sell_qty = max(1, int(pos.qty) // 2)
+        if sell_qty >= int(pos.qty):
+            return self._submit_sell(code, pos, current, reason + " · 1주라 전량")
+
+        remaining = int(pos.qty) - sell_qty
+        resp = self.broker.sell_market(code, sell_qty)
+        self.daily_order_count += 1
+
+        if self.broker.__class__.__name__ != "SimBroker":
+            self.pending_orders[code] = {
+                "side": "SELL",
+                "qty": sell_qty,
+                "ord_no": str(resp.get("ord_no", "")),
+                "created_at": datetime.now(),
+                "account_qty_before": int(self.account_qty.get(code, pos.qty)),
+                "remaining_qty": remaining,
+                "full_exit": False,
+                "stop_price": float(getattr(pos, "stop_price", 0) or 0),
+                "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
+                "partial_taken_after": True,
+            }
+            self._persist_runtime()
+            return {
+                "code": code, "name": pos.name, "status": "PARTIAL_SELL_SENT",
+                "price": current, "signal": reason, "order": resp,
+            }
+
+        pos.qty = remaining
+        pos.partial_taken = True
+        self.managed_qty[code] = remaining
+        self.managed_meta[code] = {
+            "stop_price": float(getattr(pos, "stop_price", 0) or 0),
+            "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
+            "partial_taken": True,
+        }
+        self._persist_runtime()
+        return {
+            "code": code, "name": pos.name, "status": "PARTIAL_SELL",
+            "price": current, "signal": reason, "order": resp,
+        }
 
     def process(self, code, name, require_buy_filter: bool = True):
         self._roll_daily_counter()
@@ -284,20 +403,37 @@ class TradeEngine:
 
         if code in self.positions:
             pos = self.positions[code]
+            pnl = pos.pnl_pct(current)
+
+            # 가보자: +4% 최초 도달 시 절반 익절. 잔량은 기존 트레일링/종가청산으로 추적.
+            if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
+                if self.daily_order_count >= self.settings.max_daily_orders:
+                    return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
+                return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%")
+
             should_sell, reason = evaluate_sell(pos, current, self.settings)
             if self.enabled and should_sell:
                 if self.daily_order_count >= self.settings.max_daily_orders:
                     return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
                 return self._submit_sell(code, pos, current, reason)
-            return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": f"{reason} / {pos.pnl_pct(current):+.2f}%"}
+            return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": f"{reason} / {pnl:+.2f}%"}
 
-        if require_buy_filter:
-            sig = evaluate_buy(candles, self.settings)
-        else:
-            sig = SignalResult(True, "영웅문4 조건식 편입", current_price=current)
+        # 신규매수는 후보 공급원이 무엇이든 '가보자' 두 타점만 허용한다.
+        # 영웅문 조건검색은 종목을 공급할 뿐, 편입 자체가 매수 신호가 되지 않는다.
+        daily_rows = self._gaboja_daily_rows(code)
+        sig = evaluate_gaboja(
+            candles,
+            daily_rows,
+            scan_start=self.settings.scan_start,
+            scan_end=self.settings.scan_end,
+        )
 
-        if self.enabled and in_scan_window(self.settings) and sig.passed and self.can_open(code) and current > 0:
-            return self._submit_buy(code, name, current, sig.reason)
+        if self.enabled and sig.passed and self.can_open(code) and current > 0:
+            return self._submit_buy(
+                code, name, current, sig.reason,
+                stop_price=sig.basis_open,
+                entry_kind=sig.entry_kind,
+            )
 
         if self.daily_order_count >= self.settings.max_daily_orders:
             return {"code": code, "name": name, "status": "LIMIT", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
@@ -311,7 +447,9 @@ class TradeEngine:
             "status": status,
             "price": current,
             "signal": sig.reason,
-            "change": sig.change_pct,
-            "volume_ratio": sig.volume_ratio,
-            "rsi": sig.rsi,
+            "change": 0.0,
+            "volume_ratio": float(getattr(sig, "day_volume_ratio", 0) or 0),
+            "rsi": None,
+            "entry_kind": str(getattr(sig, "entry_kind", "") or ""),
+            "basis_open": float(getattr(sig, "basis_open", 0) or 0),
         }
