@@ -74,6 +74,9 @@ def load_runtime() -> dict:
                 "partial_taken": bool(item.get("partial_taken", False)),
             }
 
+        managed_meta = raw.get("managed_meta", {})
+        if not isinstance(managed_meta, dict):
+            managed_meta = {}
         pending = raw.get("pending_orders", {})
         if not isinstance(pending, dict):
             pending = {}
