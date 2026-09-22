@@ -20,6 +20,21 @@ class StrategySettings:
     rsi_min: float = 50.0
     rsi_max: float = 78.0
 
+    # 가보자 단타 자동매매
+    gabozha_enabled: bool = True
+    gabozha_daily_volume_ratio: float = 3.0
+    gabozha_bb_period: int = 40
+    gabozha_bb_dev: float = 2.2
+    gabozha_young1_min_gain_pct: float = 1.0
+    gabozha_young1_volume_ratio: float = 1.2
+    gabozha_pullback_min_pct: float = 0.30
+    gabozha_pullback_max_pct: float = 2.50
+    gabozha_pullback_volume_max_ratio: float = 0.70
+    gabozha_stop_buffer_pct: float = 0.80
+    gabozha_rebreak_volume_ratio: float = 1.20
+    gabozha_half_take_profit_pct: float = 4.0
+    gabozha_daily_cache_sec: int = 30
+
     # 후보 종목 공급원
     candidate_source: str = "WATCHLIST"  # WATCHLIST / HERO4 / BOTH
     hero_condition_seq: str = ""
@@ -62,6 +77,9 @@ class Position:
     highest_price: float
     opened_at: str
     broker_order_no: str = ""
+    basis_open: float = 0.0
+    partial_taken: bool = False
+    entry_kind: str = ""
 
     def pnl_pct(self, current_price: float) -> float:
         if self.entry_price <= 0:
