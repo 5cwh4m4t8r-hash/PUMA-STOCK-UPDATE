@@ -51,7 +51,7 @@ def save_watchlist(items):
 def load_runtime() -> dict:
     """주문 안전상 필요한 최소 런타임 상태만 저장. 인증키/시크릿은 절대 저장하지 않음."""
     CONFIG_DIR.mkdir(exist_ok=True)
-    default = {"daily_order_date": "", "daily_order_count": 0, "managed_qty": {}, "pending_orders": {}}
+    default = {"daily_order_date": "", "daily_order_count": 0, "managed_qty": {}, "pending_orders": {}, "position_meta": {}}
     if not RUNTIME_PATH.exists():
         return default
     try:
@@ -78,11 +78,24 @@ def load_runtime() -> dict:
                 "created_at": str(item.get("created_at", "")),
                 "account_qty_before": max(0, int(item.get("account_qty_before", 0) or 0)),
             }
+        meta = raw.get("position_meta", {})
+        if not isinstance(meta, dict):
+            meta = {}
+        safe_meta = {}
+        for code, item in meta.items():
+            if not isinstance(item, dict):
+                continue
+            safe_meta[str(code)] = {
+                "basis_open": float(item.get("basis_open", 0) or 0),
+                "partial_taken": bool(item.get("partial_taken", False)),
+                "entry_kind": str(item.get("entry_kind", "")),
+            }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
             "daily_order_count": int(raw.get("daily_order_count", 0) or 0),
             "managed_qty": {str(k): max(0, int(v)) for k, v in managed.items() if str(k)},
             "pending_orders": safe_pending,
+            "position_meta": safe_meta,
         }
     except Exception:
         return default
@@ -103,12 +116,24 @@ def save_runtime(data: dict):
             "ord_no": str(item.get("ord_no", "")),
             "created_at": str(created),
             "account_qty_before": max(0, int(item.get("account_qty_before", 0) or 0)),
+            "partial": bool(item.get("partial", False)),
+            "remaining_managed_qty": max(0, int(item.get("remaining_managed_qty", 0) or 0)),
+        }
+    meta = {}
+    for code, item in dict(data.get("position_meta", {})).items():
+        if not isinstance(item, dict):
+            continue
+        meta[str(code)] = {
+            "basis_open": float(item.get("basis_open", 0) or 0),
+            "partial_taken": bool(item.get("partial_taken", False)),
+            "entry_kind": str(item.get("entry_kind", "")),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
         "daily_order_count": int(data.get("daily_order_count", 0) or 0),
         "managed_qty": {str(k): max(0, int(v)) for k, v in dict(data.get("managed_qty", {})).items()},
         "pending_orders": pending,
+        "position_meta": meta,
     }
     RUNTIME_PATH.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
 
