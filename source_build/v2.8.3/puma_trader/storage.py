@@ -51,7 +51,7 @@ def save_watchlist(items):
 def load_runtime() -> dict:
     """주문 안전상 필요한 최소 런타임 상태만 저장. 인증키/시크릿은 절대 저장하지 않음."""
     CONFIG_DIR.mkdir(exist_ok=True)
-    default = {"daily_order_date": "", "daily_order_count": 0, "managed_qty": {}, "pending_orders": {}}
+    default = {"daily_order_date": "", "daily_order_count": 0, "managed_qty": {}, "managed_meta": {}, "pending_orders": {}}
     if not RUNTIME_PATH.exists():
         return default
     try:
@@ -61,6 +61,19 @@ def load_runtime() -> dict:
         managed = raw.get("managed_qty", {})
         if not isinstance(managed, dict):
             managed = {}
+        managed_meta = raw.get("managed_meta", {})
+        if not isinstance(managed_meta, dict):
+            managed_meta = {}
+        safe_meta = {}
+        for code, item in managed_meta.items():
+            if not isinstance(item, dict):
+                continue
+            safe_meta[str(code)] = {
+                "stop_price": float(item.get("stop_price", 0) or 0),
+                "entry_kind": str(item.get("entry_kind", "")),
+                "partial_taken": bool(item.get("partial_taken", False)),
+            }
+
         pending = raw.get("pending_orders", {})
         if not isinstance(pending, dict):
             pending = {}
@@ -77,11 +90,17 @@ def load_runtime() -> dict:
                 "ord_no": str(item.get("ord_no", "")),
                 "created_at": str(item.get("created_at", "")),
                 "account_qty_before": max(0, int(item.get("account_qty_before", 0) or 0)),
+                "remaining_qty": max(0, int(item.get("remaining_qty", 0) or 0)),
+                "full_exit": bool(item.get("full_exit", True)),
+                "stop_price": float(item.get("stop_price", 0) or 0),
+                "entry_kind": str(item.get("entry_kind", "")),
+                "partial_taken_after": bool(item.get("partial_taken_after", False)),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
             "daily_order_count": int(raw.get("daily_order_count", 0) or 0),
             "managed_qty": {str(k): max(0, int(v)) for k, v in managed.items() if str(k)},
+            "managed_meta": safe_meta,
             "pending_orders": safe_pending,
         }
     except Exception:
@@ -90,6 +109,16 @@ def load_runtime() -> dict:
 
 def save_runtime(data: dict):
     CONFIG_DIR.mkdir(exist_ok=True)
+    managed_meta = {}
+    for code, item in dict(data.get("managed_meta", {})).items():
+        if not isinstance(item, dict):
+            continue
+        managed_meta[str(code)] = {
+            "stop_price": float(item.get("stop_price", 0) or 0),
+            "entry_kind": str(item.get("entry_kind", "")),
+            "partial_taken": bool(item.get("partial_taken", False)),
+        }
+
     pending = {}
     for code, item in dict(data.get("pending_orders", {})).items():
         if not isinstance(item, dict):
@@ -103,11 +132,17 @@ def save_runtime(data: dict):
             "ord_no": str(item.get("ord_no", "")),
             "created_at": str(created),
             "account_qty_before": max(0, int(item.get("account_qty_before", 0) or 0)),
+            "remaining_qty": max(0, int(item.get("remaining_qty", 0) or 0)),
+            "full_exit": bool(item.get("full_exit", True)),
+            "stop_price": float(item.get("stop_price", 0) or 0),
+            "entry_kind": str(item.get("entry_kind", "")),
+            "partial_taken_after": bool(item.get("partial_taken_after", False)),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
         "daily_order_count": int(data.get("daily_order_count", 0) or 0),
         "managed_qty": {str(k): max(0, int(v)) for k, v in dict(data.get("managed_qty", {})).items()},
+        "managed_meta": managed_meta,
         "pending_orders": pending,
     }
     RUNTIME_PATH.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
