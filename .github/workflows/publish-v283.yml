@@ -1,6 +1,11 @@
-name: Publish PUMA STOCK PRO v2.8.3
+name: Publish PUMA STOCK PRO v2.8.4
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'source_build/v2.8.3/**'
+      - '.github/workflows/publish-v283.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,40 +40,42 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/PUMA_STOCK_PRO_v2.8.3
-          cp -a source_build/v2.8.3 /tmp/PUMA_STOCK_PRO_v2.8.3
-          find /tmp/PUMA_STOCK_PRO_v2.8.3 -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf {} +
-          find /tmp/PUMA_STOCK_PRO_v2.8.3 -name '*.pyc' -delete
+          rm -rf /tmp/PUMA_STOCK_PRO_v2.8.4
+          cp -a source_build/v2.8.3 /tmp/PUMA_STOCK_PRO_v2.8.4
+          find /tmp/PUMA_STOCK_PRO_v2.8.4 -type d \( -name __pycache__ -o -name .pytest_cache \) -prune -exec rm -rf {} +
+          find /tmp/PUMA_STOCK_PRO_v2.8.4 -name '*.pyc' -delete
           mkdir -p releases release
-          rm -f releases/PUMA_STOCK_PRO_v2.8.3_UPDATE.zip
-          (cd /tmp && zip -qr "$GITHUB_WORKSPACE/releases/PUMA_STOCK_PRO_v2.8.3_UPDATE.zip" PUMA_STOCK_PRO_v2.8.3)
-          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.8.3_UPDATE.zip | awk '{print $1}')
+          rm -f releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip
+          (cd /tmp && zip -qr "$GITHUB_WORKSPACE/releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip" PUMA_STOCK_PRO_v2.8.4)
+          SHA=$(sha256sum releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip | awk '{print $1}')
           export SHA
           python - <<'PY'
           import json, os
           sha=os.environ['SHA']
           manifest={
-              'version':'2.8.3',
-              'url':'https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.3_UPDATE.zip',
-              'notes':'v2.8.3: 외부 호스팅 없이 PC PUMA가 직접 제공하는 작동형 모바일 데모를 추가했습니다. 모바일 연동 탭의 데모 주소를 Safari로 열어 자동매매 흐름을 버튼으로 체험할 수 있습니다.',
+              'version':'2.8.4',
+              'url':'https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip',
+              'notes':'v2.8.4: 사용자 전용 가보자 자동매매 적용. 일봉 강한 종목 선별 후 5분봉 차 눌림 또는 전고 몸통돌파만 진입, 기준봉 시가 이탈 손절, +4% 절반익절.',
               'sha256':sha,
           }
           body=json.dumps(manifest,ensure_ascii=False,indent=2)+chr(10)
           open('manifest.json','w',encoding='utf-8').write(body)
           open('manifest-v271.json','w',encoding='utf-8').write(body)
           release={
-              'version':'2.8.3',
+              'version':'2.8.4',
               'sha256':sha,
-              'tests':'full pytest suite including local interactive mobile demo HTTP tests',
+              'tests':'full pytest suite including Gaboja automatic-trading tests',
               'source':'source_build/v2.8.3',
               'features':[
-                  'built-in local interactive mobile demo',
-                  'no external demo hosting',
-                  'demo auto buy/hold/trailing/sell simulation',
-                  'demo never calls Kiwoom order API'
+                  'Gaboja daily strength filter',
+                  '5-minute pullback or body-confirmed previous-high breakout entries only',
+                  'basis-candle-open stop loss',
+                  '4-percent half profit taking with remainder trailing',
+                  'persistent Gaboja position state',
+                  'cached daily history for fast scanning'
               ]
           }
-          open('release/v2.8.3.json','w',encoding='utf-8').write(json.dumps(release,ensure_ascii=False,indent=2)+chr(10))
+          open('release/v2.8.4.json','w',encoding='utf-8').write(json.dumps(release,ensure_ascii=False,indent=2)+chr(10))
           PY
       - name: Publish tested update
         shell: bash
@@ -76,7 +83,7 @@ jobs:
           set -euo pipefail
           git config user.name 'PUMA Update Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add releases/PUMA_STOCK_PRO_v2.8.3_UPDATE.zip manifest.json manifest-v271.json release/v2.8.3.json
+          git add releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip manifest.json manifest-v271.json release/v2.8.4.json
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Publish PUMA STOCK PRO v2.8.3 local mobile demo'
+          git commit -m 'Publish PUMA STOCK PRO v2.8.4 Gaboja auto trading'
           git push
