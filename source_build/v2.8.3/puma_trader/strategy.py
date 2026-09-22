@@ -99,10 +99,18 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
     pnl = position.pnl_pct(current_price)
     position.highest_price = max(position.highest_price, current_price)
 
-    if pnl >= settings.take_profit_pct:
-        return True, f"익절 {pnl:.2f}%"
-    if pnl <= settings.stop_loss_pct:
+    # 가보자 포지션은 퍼센트 손절보다 '일봉 기준봉 시가 이탈'을 우선한다.
+    stop_price = float(getattr(position, "stop_price", 0) or 0)
+    if stop_price > 0:
+        if current_price <= stop_price:
+            return True, f"가보자 기준봉 시가 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
+    elif pnl <= settings.stop_loss_pct:
         return True, f"손절 {pnl:.2f}%"
+
+    # +4% 최초 도달은 엔진에서 절반 익절한다.
+    # 절반 익절 완료 후에는 같은 +4% 조건으로 잔량을 즉시 전량매도하지 않는다.
+    if not bool(getattr(position, "partial_taken", False)) and pnl >= settings.take_profit_pct:
+        return True, f"1차 익절 {pnl:.2f}%"
 
     if settings.trailing_enabled and pnl >= settings.trailing_start_pct:
         drop_from_high = (current_price / position.highest_price - 1) * 100 if position.highest_price else 0
