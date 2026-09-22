@@ -607,7 +607,7 @@ class DantaAnalysisThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.8.3")
+        self.setWindowTitle("PUMA STOCK PRO v2.8.4")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -1198,7 +1198,7 @@ class MainWindow(QMainWindow):
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("단타는 '단타 분석' 탭에서 별도 판정합니다. 메인 자동매매는 기존 엔진 안전잠금/리스크 제한을 그대로 사용합니다.")
+        note = QLabel("자동매매 신규진입은 가보자 전용: 장초 강한 종목 → 차 눌림 또는 전고 몸통돌파만 매수 · 기준봉 시가 이탈 손절 · +4% 절반익절.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -3677,7 +3677,7 @@ class MainWindow(QMainWindow):
         self.focus_only_code = self.selected_code
         self.engine.enabled = True
         self.timer.start()
-        self.log(self.selected_name or self.selected_code, "AUTO", "-", "선택 종목 전용 자동매매 시작")
+        self.log(self.selected_name or self.selected_code, "AUTO", "-", "선택 종목 전용 가보자 자동매매 시작")
         self.scan_one()
 
     # ---------- trading ----------
@@ -3754,7 +3754,7 @@ class MainWindow(QMainWindow):
 
         self.engine.enabled = True
         self.timer.start()
-        self.log("SYSTEM", "AUTO", "0", f"자동매매 시작 · {source}")
+        self.log("SYSTEM", "AUTO", "0", f"가보자 자동매매 시작 · {source}")
         self.scan_one()
 
     def stop_auto(self):
