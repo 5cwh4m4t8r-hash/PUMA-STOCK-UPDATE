@@ -62,6 +62,9 @@ class Position:
     highest_price: float
     opened_at: str
     broker_order_no: str = ""
+    stop_price: float = 0.0
+    entry_kind: str = ""
+    partial_taken: bool = False
 
     def pnl_pct(self, current_price: float) -> float:
         if self.entry_price <= 0:
