@@ -55,8 +55,14 @@ def _bb_upper(values: List[float], period: int = 40, dev: float = 2.2) -> List[f
     return out
 
 
-def _daily_filter(daily_rows: List[dict]) -> tuple[bool, dict]:
+def _daily_filter(daily_rows: List[dict], live_bar: dict | None = None) -> tuple[bool, dict]:
     daily = normalize_candles(daily_rows or [])
+    if live_bar:
+        live_day = _date_key(live_bar.get("date"))
+        if daily and _date_key(daily[-1].get("date")) == live_day:
+            daily[-1] = dict(live_bar)
+        elif not daily or _date_key(daily[-1].get("date")) < live_day:
+            daily.append(dict(live_bar))
     if len(daily) < 6:
         return False, {"reason": "일봉 6봉 미만"}
 
@@ -129,20 +135,32 @@ def evaluate_gaboja(
        영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
     3) 손절 기준은 일봉 기준봉 시가.
     """
-    daily_ok, d = _daily_filter(daily_rows)
+    candles = normalize_candles(minute_rows or [])
+    if not candles:
+        return GabojaSignal(False, reason="5분봉 데이터 없음")
+
+    day = _date_key(candles[-1].get("date"))
+    session = [c for c in candles if _date_key(c.get("date")) == day and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")]
+    if not session:
+        return GabojaSignal(False, reason="장중 5분봉 데이터 없음")
+
+    # 일봉은 장중 매 스캔마다 다시 받을 필요가 없다.
+    # 오늘 OHLCV는 최신 5분봉들로 합성해 거래량 300%와 돌파 여부를 실시간 갱신한다.
+    live_bar = {
+        "date": day,
+        "open": float(session[0]["open"]),
+        "high": max(float(x["high"]) for x in session),
+        "low": min(float(x["low"]) for x in session),
+        "close": float(session[-1]["close"]),
+        "volume": sum(float(x["volume"]) for x in session),
+    }
+    daily_ok, d = _daily_filter(daily_rows, live_bar)
     basis_open = float(d.get("basis_open", 0.0) or 0.0)
     day_ratio = float(d.get("day_volume_ratio", 0.0) or 0.0)
     if not daily_ok:
         return GabojaSignal(False, reason=f"가보자 일봉 선별 대기 · {d.get('reason','-')}",
-                            basis_open=basis_open, day_volume_ratio=day_ratio, details=d)
-
-    candles = normalize_candles(minute_rows or [])
-    if not candles:
-        return GabojaSignal(False, reason="5분봉 데이터 없음", basis_open=basis_open,
+                            current_price=float(session[-1]["close"]), basis_open=basis_open,
                             day_volume_ratio=day_ratio, details=d)
-
-    day = _date_key(candles[-1].get("date"))
-    session = [c for c in candles if _date_key(c.get("date")) == day and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")]
     if len(session) < 4:
         return GabojaSignal(False, reason="가보자 5분봉 구조 형성 대기", current_price=float(candles[-1]["close"]),
                             basis_open=basis_open, day_volume_ratio=day_ratio, details=d)
