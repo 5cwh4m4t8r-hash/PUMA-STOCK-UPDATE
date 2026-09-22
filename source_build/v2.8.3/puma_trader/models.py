@@ -27,6 +27,12 @@ class StrategySettings:
     hero_secondary_filter: bool = True
     hero_entry_only: bool = True
 
+    # 사용자 전용 가보자 단타
+    gabojago_enabled: bool = True
+    gabojago_daily_volume_ratio: float = 3.0
+    gabojago_min_stop_gap_pct: float = 0.5
+    gabojago_partial_profit_pct: float = 4.0
+
     # 주문 / 리스크
     order_budget: int = 500_000
     max_positions: int = 3
