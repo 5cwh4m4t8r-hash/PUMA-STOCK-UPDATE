@@ -22,6 +22,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || 'main' }}
 
       - name: Set up Python for icon conversion
         uses: actions/setup-python@v5
@@ -84,7 +85,6 @@ jobs:
           if-no-files-found: error
 
       - name: Commit launcher binary
-        if: github.event_name == 'push'
         shell: powershell
         run: |
           git config user.name "PUMA Build Bot"
@@ -95,4 +95,8 @@ jobs:
             exit 0
           }
           git commit -m "Build PUMA desktop launcher executable"
-          git push origin main
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            git push origin HEAD:${{ github.head_ref }}
+          } else {
+            git push origin HEAD:main
+          }
