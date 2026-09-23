@@ -1,6 +1,6 @@
 {
-  "version": "2.9.14",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.14_UPDATE.zip",
-  "notes": "v2.9.14: 조건검색 고정 7개/단타1 특별취급 제거. 사용자가 선택한 조건식 결과 전체를 PUMA가 단타·스윙·중장기(밥3)로 독립 재분류. 통합 트레이딩 조건검색 결과를 3개 전용 칸으로 분리하고 복수 기준 충족 종목은 여러 칸에 동시 표시. 예전 다중 조건식 저장값은 자동 복원하지 않아 특정 조건식이 자동 선택되지 않음. v2.9.13 스윙 A/B/C 및 밥3 단계 로직 유지. 가보자 매매규칙 변경 없음.",
-  "sha256": "213db6c7b2ca4d068ca31df760faea347da11005a502379bdc13864c4f254e22"
+  "version": "2.9.15",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.15_UPDATE.zip",
+  "notes": "v2.9.15: 통합 트레이딩 조건검색 결과를 한 개 리스트로 복원. 상단 전체/단타/스윙/중장기 버튼을 클릭하면 같은 리스트가 해당 분류 종목으로 즉시 전환되며 버튼에 종목 수 표시. 복수 분류 종목은 해당 필터마다 모두 표시. v2.9.14의 고정 7개/단타1 특별취급 제거 및 v2.9.13 스윙 A/B/C·밥3 로직 유지. 가보자 매매규칙 변경 없음.",
+  "sha256": "661f0f1257431203d5cf4448e0158cdf43d88bc734ce9e38ef9a0ed20c6bfd58"
 }
