@@ -1609,10 +1609,10 @@ class MainWindow(QMainWindow):
         self.swing_chart = SwingChart()
         left.addWidget(self.swing_chart, 4)
 
-        stages = QGroupBox("역매공파 상태 분석")
+        stages = QGroupBox("PUMA 스윙 상태 분석 · 사용자 검색기 3종 참고")
         sg = QGridLayout(stages)
         self.swing_stage_labels = {}
-        names = ["간단 이유", "PUMA 수박근사", "유사구간 확률", "PUMA 판단", "장기 EMA 역배열", "매집봉/구간", "공구리(박스권)", "박스 상단 돌파", "상단 박스 안착", "재돌파", "파란점선", "화살표 신호"]
+        names = ["간단 이유", "스윙검색기 종합", "스윙검색기 A · 224근접", "스윙검색기 B · 급등후눌림", "스윙검색기 C · 장기돌파", "PUMA 수박근사", "유사구간 확률", "PUMA 판단", "장기 EMA 역배열", "매집봉/구간", "공구리(박스권)", "박스 상단 돌파", "상단 박스 안착", "재돌파", "파란점선", "화살표 신호"]
         for i, name in enumerate(names):
             n = QLabel(name); n.setStyleSheet("font-weight:700")
             v = QLabel("대기")
@@ -2325,7 +2325,7 @@ class MainWindow(QMainWindow):
                 label.setStyleSheet(f"color:{'#61ff8f' if (good or near) else '#f4c95d'};font-weight:800")
             self.swing_current_stage.setText(f"현재 단계: {analysis.stage}   ·   진행점수 {analysis.score}/100")
         except Exception as exc:
-            QMessageBox.critical(self, "역매공파 분석 오류", str(exc))
+            QMessageBox.critical(self, "PUMA 스윙 분석 오류", str(exc))
 
     # ---------- settings ----------
     def _collect_settings(self) -> StrategySettings:
