@@ -162,6 +162,8 @@ def stage_and_apply(zip_path: Path, new_version: str) -> None:
         "PUMA_STOCK_PRO_ICON.svg",
         "README_KO.txt",
         "SECURITY_NOTES.txt",
+        "PUMA_STOCK_PRO.exe",
+        "PUMA_STOCK_PRO.ico",
     }
     preserve = {"config", "runtime", ".venv", "logs", "user_data", "state"}
 
@@ -219,11 +221,39 @@ def stage_and_apply(zip_path: Path, new_version: str) -> None:
             pass
 
 
-def restart_app() -> None:
-    """Replace the current PUMA process with the same Python/PythonW executable."""
-    root = app_root()
-    app = root / "app.py"
+def install_marker_path() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local"))
+    return base / "PUMA_STOCK_PRO" / "install_path.txt"
+
+
+def write_install_marker(root: Path | None = None) -> Path:
+    root = Path(root or app_root()).resolve()
+    marker = install_marker_path()
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(str(root), encoding="utf-8")
+    return marker
+
+
+def restart_app(app_path: Path | None = None, root_path: Path | None = None) -> int:
+    """Start a fresh PUMA process, then let the caller close the old GUI.
+
+    QProcess.startDetached is used instead of os.execv because os.execv is not
+    reliable for a running Windows/PySide GUI process. No helper/VBS/PowerShell
+    file is created.
+    """
+    from PySide6.QtCore import QProcess
+
+    root = Path(root_path or app_root()).resolve()
+    app = Path(app_path or (root / "app.py")).resolve()
     if not app.exists():
         raise FileNotFoundError("app.py를 찾을 수 없습니다.")
-    os.chdir(root)
-    os.execv(sys.executable, [sys.executable, str(app)])
+
+    write_install_marker(root)
+    result = QProcess.startDetached(sys.executable, [str(app)], str(root))
+    if isinstance(result, tuple):
+        started, pid = result
+    else:
+        started, pid = bool(result), 0
+    if not started:
+        raise RuntimeError("새 PUMA 프로세스를 시작하지 못했습니다.")
+    return int(pid or 0)
