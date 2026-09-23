@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Optional
 
 
@@ -24,6 +24,15 @@ class StrategySettings:
     candidate_source: str = "HERO4"  # WATCHLIST / HERO4 / BOTH
     hero_condition_seq: str = ""
     hero_condition_name: str = ""
+    hero_condition_names: list[str] = field(default_factory=lambda: [
+        "단타단타(시원놈)",
+        "5분봉_단타(시원놈)",
+        "단타1",
+        "시초가1번",
+        "시초가1-1번",
+        "시초가2번",
+        "시초가멀티",
+    ])
     hero_secondary_filter: bool = True
     hero_entry_only: bool = True
     puma_secondary_min_score: int = 3

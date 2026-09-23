@@ -195,3 +195,178 @@ class ConditionStreamThread(QThread):
             except Exception:
                 pass
             self.status.emit("영웅문 조건검색 중지")
+
+
+PUMA_DEFAULT_CONDITION_NAMES = (
+    "단타단타(시원놈)",
+    "5분봉_단타(시원놈)",
+    "단타1",
+    "시초가1번",
+    "시초가1-1번",
+    "시초가2번",
+    "시초가멀티",
+)
+
+
+def normalize_condition_name(name: str) -> str:
+    text = str(name or "").strip()
+    for ch in ("★", "☆", " ", "\t"):
+        text = text.replace(ch, "")
+    return text
+
+
+def select_puma_conditions(
+    rows: list[tuple[str, str]],
+    configured_names: Iterable[str] | None = None,
+) -> list[tuple[str, str]]:
+    """Return the configured PUMA condition bundle in server-list order.
+
+    Searcher overlap is not a requirement. Every selected condition contributes
+    its own candidates to one union pool.
+    """
+    wanted = tuple(configured_names or PUMA_DEFAULT_CONDITION_NAMES)
+    wanted_norm = {normalize_condition_name(x) for x in wanted if str(x).strip()}
+    selected = []
+    seen = set()
+    for seq, name in rows or []:
+        key = normalize_condition_name(name)
+        if key in wanted_norm and str(seq).strip() not in seen:
+            seen.add(str(seq).strip())
+            selected.append((str(seq).strip(), str(name).strip()))
+    return selected
+
+
+def update_candidate_source(
+    candidates: dict[str, dict],
+    *,
+    seq: str,
+    condition_name: str,
+    code: str,
+    stock_name: str = "",
+    active: bool,
+    entry_event: bool,
+    now: str,
+) -> dict:
+    """Merge one condition's state into the union candidate pool.
+
+    A stock from a single searcher is fully eligible. source_count is metadata
+    only and must never be used as a buy requirement.
+    """
+    code = normalize_code(code)
+    item = candidates.setdefault(code, {
+        "name": stock_name or code,
+        "active": False,
+        "entered_at": now or "-",
+        "entry_event": False,
+        "classification": "분석중",
+        "class_detail": "-",
+        "sources": {},
+    })
+    if stock_name and stock_name != code:
+        item["name"] = stock_name
+    sources = item.setdefault("sources", {})
+    skey = str(seq).strip()
+    src = dict(sources.get(skey) or {})
+    src["name"] = str(condition_name or skey)
+    src["active"] = bool(active)
+    src["entry_event"] = bool(entry_event) if active else False
+    if active:
+        src["entered_at"] = now
+        if not item.get("entered_at") or item.get("entered_at") == "-":
+            item["entered_at"] = now
+    sources[skey] = src
+
+    active_sources = [x for x in sources.values() if x.get("active")]
+    item["active"] = bool(active_sources)
+    item["entry_event"] = any(x.get("active") and x.get("entry_event") for x in sources.values())
+    item["source_count"] = len(active_sources)
+    item["seen_source_count"] = len(sources)
+    item["source_names"] = [str(x.get("name") or "") for x in active_sources]
+    return item
+
+
+class MultiConditionStreamThread(QThread):
+    """Run up to 10 Kiwoom real-time condition searches on one WebSocket session."""
+
+    status = Signal(str)
+    error = Signal(str)
+    snapshot = Signal(str, str, object)       # seq, condition_name, rows
+    entered = Signal(str, str, str, str)     # seq, condition_name, code, stock_name
+    exited = Signal(str, str, str)            # seq, condition_name, code
+
+    def __init__(self, token: str, real: bool, conditions: list[tuple[str, str]], parent=None):
+        super().__init__(parent)
+        self.token = token
+        self.real = real
+        self.conditions = [(str(seq).strip(), str(name).strip()) for seq, name in conditions][:10]
+        self.names = {seq: name for seq, name in self.conditions}
+        self._stop_requested = False
+
+    def stop(self):
+        self._stop_requested = True
+
+    def run(self):
+        try:
+            asyncio.run(self._run())
+        except Exception as exc:
+            if not self._stop_requested:
+                self.error.emit(str(exc))
+
+    async def _run(self):
+        if not self.conditions:
+            raise ConditionError("실행할 PUMA 조건식이 없습니다.")
+        url = _ws_url(self.real)
+        async with ws_connect(url, ping_interval=None, open_timeout=10) as ws:
+            await _login(ws, self.token)
+            self.status.emit(f"PUMA 조건검색 {len(self.conditions)}개 WebSocket 연결됨")
+
+            for seq, name in self.conditions:
+                await ws.send(json.dumps({
+                    "trnm": "CNSRREQ",
+                    "seq": seq,
+                    "search_type": "1",
+                    "stex_tp": "K",
+                }, ensure_ascii=False))
+
+            while not self._stop_requested:
+                try:
+                    msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                if not isinstance(msg, dict):
+                    continue
+                trnm = str(msg.get("trnm", "")).upper()
+                if trnm == "CNSRREQ":
+                    seq = str(msg.get("seq", "")).strip()
+                    name = self.names.get(seq, seq)
+                    if int(msg.get("return_code", 0) or 0) != 0:
+                        self.error.emit(f"[{seq}] {name}: {msg.get('return_msg', '실시간 조건검색 시작 실패')}")
+                        continue
+                    rows = parse_snapshot_codes(msg.get("data"))
+                    self.snapshot.emit(seq, name, rows)
+                    self.status.emit(f"[{seq}] {name} 실행 · 초기 {len(rows)}종목")
+                elif trnm == "REAL":
+                    data = msg.get("data", [])
+                    if not isinstance(data, list):
+                        continue
+                    for row in data:
+                        if not isinstance(row, dict):
+                            continue
+                        values = row.get("values") if isinstance(row.get("values"), dict) else row
+                        seq = str(values.get("841") or "").strip()
+                        action = str(values.get("843") or "").strip().upper()
+                        code = normalize_code(values.get("9001") or row.get("item") or "")
+                        if not seq or not code or action not in ("I", "D"):
+                            continue
+                        name = self.names.get(seq, seq)
+                        if action == "I":
+                            self.entered.emit(seq, name, code, "")
+                        else:
+                            self.exited.emit(seq, name, code)
+
+            for seq, _ in self.conditions:
+                try:
+                    await ws.send(json.dumps({"trnm": "CNSRCLR", "seq": seq}, ensure_ascii=False))
+                except Exception:
+                    pass
+            self.status.emit("PUMA 다중 조건검색 중지")

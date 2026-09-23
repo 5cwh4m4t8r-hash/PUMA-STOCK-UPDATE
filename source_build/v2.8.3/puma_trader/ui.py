@@ -43,7 +43,13 @@ from PySide6.QtWidgets import (
 )
 
 from .broker import BrokerError, KiwoomRestBroker, SimBroker
-from .conditions import ConditionStreamThread, fetch_condition_list
+from .conditions import (
+    MultiConditionStreamThread,
+    PUMA_DEFAULT_CONDITION_NAMES,
+    fetch_condition_list,
+    select_puma_conditions,
+    update_candidate_source,
+)
 from .engine import TradeEngine
 from .models import StrategySettings
 from .storage import load_strategy, load_watchlist, save_strategy, save_watchlist, load_swing_settings, save_swing_settings
@@ -648,7 +654,7 @@ class MainWindow(QMainWindow):
         self.settings = load_strategy()
         self.watchlist = load_watchlist()
         self.condition_candidates: dict[str, dict] = {}
-        self.condition_thread: ConditionStreamThread | None = None
+        self.condition_thread: MultiConditionStreamThread | None = None
         self.condition_list: list[tuple[str, str]] = []
         self.row_by_code: dict[str, int] = {}
         self.name_cache: dict[str, str] = {}
@@ -1611,7 +1617,7 @@ class MainWindow(QMainWindow):
 
         info = QLabel(
             "영웅문4 [0150] 조건검색에서 사용자 조건식을 먼저 저장한 뒤 사용하세요.\n"
-            "PUMA는 키움 WebSocket 조건검색으로 후보를 받고, 장중 힘을 2차 선별한 뒤 가보자 타점에서만 자동매수합니다."
+            "PUMA는 네 단타 조건식들을 동시에 실행해 결과의 합집합을 후보로 받고, 각 종목을 독립적으로 2차 선별한 뒤 가보자 타점에서만 자동매수합니다."
         )
         lay.addWidget(info)
 
@@ -1624,12 +1630,16 @@ class MainWindow(QMainWindow):
         self.hero_secondary_filter.setChecked(self.settings.hero_secondary_filter)
         self.hero_entry_only = QCheckBox("신규 편입(I) 종목만 자동매수 대상으로 사용 (권장)")
         self.hero_entry_only.setChecked(self.settings.hero_entry_only)
-        self.condition_start_btn = QPushButton("▶ 실시간 조건검색 시작")
+        self.condition_start_btn = QPushButton("▶ 네 단타 조건식들 동시 시작")
         self.condition_start_btn.setObjectName("conditionBtn")
         self.condition_start_btn.clicked.connect(self.start_condition_stream)
         self.condition_stop_btn = QPushButton("■ 조건검색 중지")
         self.condition_stop_btn.clicked.connect(self.stop_condition_stream)
-        form.addRow("저장 조건식", self.condition_combo)
+        form.addRow("수동/예비 조건식", self.condition_combo)
+        bundle = QLabel("PUMA 기본 묶음: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티")
+        bundle.setWordWrap(True)
+        bundle.setStyleSheet("color:#9eb4c9")
+        form.addRow(bundle)
         form.addRow(self.condition_refresh_btn)
         form.addRow(self.hero_secondary_filter)
         form.addRow(self.hero_entry_only)
@@ -1930,8 +1940,10 @@ class MainWindow(QMainWindow):
         parts = []
         if any(x.get("code") == code for x in self.watchlist):
             parts.append("관심")
-        if self.condition_candidates.get(code, {}).get("active"):
-            parts.append("영웅문4")
+        cond = self.condition_candidates.get(code, {})
+        if cond.get("active"):
+            count = max(1, int(cond.get("source_count", 1) or 1))
+            parts.append(f"영웅문4×{count}" if count > 1 else "영웅문4")
         if code in self.engine.positions:
             parts.append("보유")
         if code in self.engine.pending_orders:
@@ -2350,6 +2362,17 @@ class MainWindow(QMainWindow):
             return None
         return self.broker
 
+    def _puma_condition_rows(self) -> list[tuple[str, str]]:
+        names = list(getattr(self.settings, "hero_condition_names", []) or PUMA_DEFAULT_CONDITION_NAMES)
+        rows = select_puma_conditions(self.condition_list, names)
+        if rows:
+            return rows
+        # 이름이 바뀐 경우 안전한 fallback: 화면에서 직접 고른 조건식 1개만 사용.
+        data = self.condition_combo.currentData() if self.condition_combo.count() else None
+        if data and isinstance(data, tuple) and len(data) == 2:
+            return [(str(data[0]), str(data[1]))]
+        return []
+
     def refresh_conditions(self):
         broker = self._require_kiwoom()
         if broker is None:
@@ -2367,7 +2390,8 @@ class MainWindow(QMainWindow):
                 if data and str(data[0]) == str(restore):
                     self.condition_combo.setCurrentIndex(i)
                     break
-            self.condition_status.setText(f"저장 조건식 {len(rows)}개 불러옴")
+            matched = select_puma_conditions(rows, getattr(self.settings, "hero_condition_names", None))
+            self.condition_status.setText(f"저장 조건식 {len(rows)}개 · PUMA 단타 조건식 {len(matched)}개 확인")
             if not rows:
                 QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
         except Exception as exc:
@@ -2378,26 +2402,32 @@ class MainWindow(QMainWindow):
         broker = self._require_kiwoom()
         if broker is None:
             return
-        if self.condition_combo.count() == 0:
+        if not self.condition_list:
             self.refresh_conditions()
-            if self.condition_combo.count() == 0:
+            if not self.condition_list:
                 return
-        data = self.condition_combo.currentData()
-        if not data:
+
+        rows = self._puma_condition_rows()
+        if not rows:
+            QMessageBox.information(self, "조건식 없음", "PUMA에서 실행할 단타 조건식을 찾지 못했습니다.")
             return
-        seq, name = data
+        if len(rows) > 10:
+            QMessageBox.warning(self, "조건식 제한", "키움 실시간 조건검색은 한 세션에서 최대 10개까지 사용합니다.")
+            rows = rows[:10]
+
         self.stop_condition_stream()
         self.condition_candidates.clear()
         self.condition_table.setRowCount(0)
         if hasattr(self, "focus_condition_table"):
             self.focus_condition_table.setRowCount(0)
         self.classification_queue.clear()
-        self.save_settings_silent()
-        self.settings.hero_condition_seq = str(seq)
-        self.settings.hero_condition_name = str(name)
+
+        self.settings.hero_condition_names = [name for _, name in rows]
+        self.settings.hero_condition_seq = ",".join(seq for seq, _ in rows)
+        self.settings.hero_condition_name = " + ".join(name for _, name in rows)
         save_strategy(self.settings)
 
-        thread = ConditionStreamThread(broker.token, broker.real, str(seq), self)
+        thread = MultiConditionStreamThread(broker.token, broker.real, rows, self)
         thread.status.connect(self.on_condition_status)
         thread.error.connect(self.on_condition_error)
         thread.snapshot.connect(self.on_condition_snapshot)
@@ -2405,7 +2435,8 @@ class MainWindow(QMainWindow):
         thread.exited.connect(self.on_condition_exit)
         self.condition_thread = thread
         thread.start()
-        self.condition_status.setText(f"[{seq}] {name} 연결 중...")
+        names = ", ".join(name for _, name in rows)
+        self.condition_status.setText(f"PUMA 단타 조건식 {len(rows)}개 연결 중 · {names}")
 
     def stop_condition_stream(self):
         if self.condition_thread:
@@ -2424,37 +2455,74 @@ class MainWindow(QMainWindow):
         self.condition_status.setText("오류: " + text)
         self.log("HERO4", "ERROR", "-", text)
 
-    def on_condition_snapshot(self, rows):
+    def on_condition_snapshot(self, seq: str, condition_name: str, rows):
         now = datetime.now().strftime("%H:%M:%S")
         for code, name in rows:
-            self.condition_candidates[code] = {"name": name or code, "active": True, "entered_at": now, "entry_event": False, "classification": "분석중", "class_detail": "-"}
+            item = update_candidate_source(
+                self.condition_candidates,
+                seq=seq,
+                condition_name=condition_name,
+                code=code,
+                stock_name=name or code,
+                active=True,
+                entry_event=False,
+                now=now,
+            )
             self._upsert_condition_row(code)
-            self._ensure_market_row(code, name or code, "영웅문4")
+            self._ensure_market_row(code, item.get("name", code), "영웅문4")
             if not name or name == code:
                 self._queue_name_lookup(code)
             self._queue_candidate_classification(code)
 
-    def on_condition_enter(self, code: str, name: str):
+    def on_condition_enter(self, seq: str, condition_name: str, code: str, name: str):
         now = datetime.now().strftime("%H:%M:%S")
         old_name = self.condition_candidates.get(code, {}).get("name", "")
-        self.condition_candidates[code] = {"name": name or old_name or code, "active": True, "entered_at": now, "entry_event": True, "classification": "분석중", "class_detail": "-"}
+        item = update_candidate_source(
+            self.condition_candidates,
+            seq=seq,
+            condition_name=condition_name,
+            code=code,
+            stock_name=name or old_name or code,
+            active=True,
+            entry_event=True,
+            now=now,
+        )
         self._upsert_condition_row(code)
-        self._ensure_market_row(code, name or old_name or code, "영웅문4")
+        self._ensure_market_row(code, item.get("name", code), "영웅문4")
         if not name or name == code:
             self._queue_name_lookup(code)
         self._queue_candidate_classification(code)
-        self.log(name or old_name or code, "COND IN", "-", "영웅문4 조건식 신규 편입")
+        self.log(
+            item.get("name", code),
+            "COND IN",
+            "-",
+            f"{condition_name} 신규 편입 · 현재 활성 검색기 {item.get('source_count', 1)}개",
+        )
 
-    def on_condition_exit(self, code: str):
-        item = self.condition_candidates.setdefault(code, {"name": code, "entered_at": "-"})
-        item["active"] = False
+    def on_condition_exit(self, seq: str, condition_name: str, code: str):
+        now = datetime.now().strftime("%H:%M:%S")
+        item = update_candidate_source(
+            self.condition_candidates,
+            seq=seq,
+            condition_name=condition_name,
+            code=code,
+            stock_name=self.condition_candidates.get(code, {}).get("name", code),
+            active=False,
+            entry_event=False,
+            now=now,
+        )
         self._upsert_condition_row(code)
         if code in self.row_by_code:
             r = self.row_by_code[code]
             self.market_table.item(r, 2).setText(self._source_for_code(code))
-            if code not in self.engine.positions:
+            if not item.get("active") and code not in self.engine.positions:
                 self.market_table.item(r, 4).setText("조건이탈")
-        self.log(item.get("name", code), "COND OUT", "-", "영웅문4 조건식 이탈")
+        self.log(
+            item.get("name", code),
+            "COND OUT",
+            "-",
+            f"{condition_name} 이탈 · 남은 활성 검색기 {item.get('source_count', 0)}개",
+        )
 
     def _classification_color(self, label: str) -> QColor:
         label = str(label or "")
@@ -2578,7 +2646,11 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 2).setText(classification)
         self.condition_table.item(row, 2).setToolTip(detail)
         self.condition_table.item(row, 2).setForeground(self._classification_color(classification))
-        self.condition_table.item(row, 3).setText("편입" if item.get("active") else "이탈")
+        active_count = int(item.get("source_count", 0) or 0)
+        self.condition_table.item(row, 3).setText(
+            (f"편입 · {active_count}식" if active_count > 1 else "편입")
+            if item.get("active") else "이탈"
+        )
         self.condition_table.item(row, 4).setText(item.get("entered_at", "-"))
         self.condition_table.item(row, 5).setText("▶ 클릭해서 열기")
         self.condition_table.item(row, 5).setForeground(QColor("#62b8ff"))
@@ -2603,7 +2675,10 @@ class MainWindow(QMainWindow):
             self.focus_condition_table.item(frow, 2).setText(classification)
             self.focus_condition_table.item(frow, 2).setToolTip(detail)
             self.focus_condition_table.item(frow, 2).setForeground(self._classification_color(classification))
-            self.focus_condition_table.item(frow, 3).setText("편입" if item.get("active") else "이탈")
+            self.focus_condition_table.item(frow, 3).setText(
+                (f"편입 · {active_count}식" if active_count > 1 else "편입")
+                if item.get("active") else "이탈"
+            )
 
     def _focus_condition_row_clicked(self, row: int, column: int):
         item = self.focus_condition_table.item(row, 0)
