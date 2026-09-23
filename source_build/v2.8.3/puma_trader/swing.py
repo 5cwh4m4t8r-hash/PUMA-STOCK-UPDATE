@@ -5,7 +5,7 @@ from math import sqrt
 from statistics import mean
 from typing import List, Dict, Optional
 
-from .indicators import ichimoku_cloud
+from .indicators import ichimoku_cloud, hero_eavg
 from .signals import build_arrow_signals, latest_signal_reason
 from .watermelon_proxy import build_puma_watermelon
 from .market_path import analyze_market_path
@@ -20,17 +20,8 @@ def _num(v):
 
 
 def ema(values: List[float], period: int) -> List[Optional[float]]:
-    out: List[Optional[float]] = [None] * len(values)
-    if period <= 0 or len(values) < period:
-        return out
-    seed = sum(values[:period]) / period
-    out[period - 1] = seed
-    k = 2.0 / (period + 1.0)
-    prev = seed
-    for i in range(period, len(values)):
-        prev = values[i] * k + prev * (1.0 - k)
-        out[i] = prev
-    return out
+    """Shared Kiwoom-style EAVG used by chart, Bowl and signal logic."""
+    return hero_eavg(values, period)
 
 
 def rolling_mean(values: List[float], period: int) -> List[Optional[float]]:
@@ -477,6 +468,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         reasons.insert(0, f"{reference.get('best_name','검색기')} {reference_best}/100")
 
     arrow_series = build_arrow_signals(candles)
+    overlay_suppressed = bool(arrow_series.get('long_trend_suppressed_now'))
     arrow_reason = latest_signal_reason({'candles': candles, **arrow_series})
 
     details = {
@@ -524,6 +516,10 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         '스윙검색기 C · 장기돌파': str((reference.get('C') or {}).get('summary') or '-'),
         '스윙검색기 종합': f"{reference.get('best_name','-')} · {reference_best}/100 · 정확일치 {','.join(reference_exact) if reference_exact else '없음'}",
         '화살표 신호': arrow_reason,
+        '장기정배열 이격 제외': (
+            '적용 · 112>224>448 정배열 + 현재가 224EMA 대비 +8% 초과'
+            if overlay_suppressed else '미적용'
+        ),
     }
     analysis = SwingAnalysis(
         stage=stage, score=score, reverse_order=reverse,
@@ -548,6 +544,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         'path_breakout_ma': market_path.get('path_breakout_ma', []),
         'path_pullback_ma': market_path.get('path_pullback_ma', []),
         'swing_reference': reference,
+        'overlay_suppressed_long_trend': overlay_suppressed,
     }
     series.update(ichimoku_cloud(candles))
     series.update(arrow_series)
