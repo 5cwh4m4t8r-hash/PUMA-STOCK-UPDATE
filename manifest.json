@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.22",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.22_UPDATE.zip",
-    "notes":  "v2.9.22: makes condition-search loading single-click and nonblocking. If the condition list is not loaded, one click fetches it asynchronously and automatically resumes the requested action. Manual selected-condition preview fetches the full current result first, bulk-renders rows, then attaches realtime monitoring without blocking the UI. The seven day-trading searches pipeline their initial queries on one WebSocket, collect the complete paged union, and replace the candidate list atomically only after the union is ready. Duplicate start clicks are ignored, old threads no longer block the GUI, and name/classification work is deferred until after the list is visible.",
-    "sha256":  "65c01c3ff291f669ddd2ee18d550452cd471baf5ecdd9ed6218befee56c9ec9d"
+    "version":  "2.9.23",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.23_UPDATE.zip",
+    "notes":  "v2.9.23: keeps the v2.9.22 single-click nonblocking condition-search pipeline and hardens partial-failure recovery. When one or more of the seven day-search initial refreshes time out or fail after retries, successful searches are refreshed normally while the failed search keeps its previous active candidates instead of deleting them. Any partial rows already returned are merged and realtime I/D events continue reconciling the pool. This prevents transient Kiwoom errors from shrinking or blanking the combined day-trading candidate list; trading rules are unchanged.",
+    "sha256":  "040f228449a58064fa812ff4995abb8e4c3cb36a043054bc5a6d7c409529e148"
 }
