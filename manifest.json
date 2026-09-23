@@ -2,5 +2,5 @@
     "version":  "2.9.21",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.21_UPDATE.zip",
     "notes":  "v2.9.21: darkens the chart canvas to medium gray to reduce contrast with the black main UI; Ichimoku cloud fill is now opaque and concrete zones use stronger translucent fill. Bowl-3 is no longer assigned from a score-only 224 breakout: it requires EMA224 breakout followed by a real pullback that holds EMA224 or at minimum EMA112, with that support still alive and no excessive distance above EMA224. Pre-confirmation stages are not labeled Bowl-3. The 7 day-search initial union now uses complete paged general queries first, then realtime registration with pacing/retry; status separately shows initial-union and realtime registration counts so candidates such as stocks beyond the first result page are not silently missed.",
-    "sha256":  "ed71610149e999df8c3c7e8ce4fc509651f6955150e3b9d05bc1245ac58fcaba"
+    "sha256":  "d3d55a2b221259b1ac5bbe366b2e903cf046b77a05e5573675f928da73237336"
 }
