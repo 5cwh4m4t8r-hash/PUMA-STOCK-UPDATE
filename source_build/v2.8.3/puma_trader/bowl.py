@@ -73,6 +73,90 @@ def is_bowl3_confirmed_state(
     )
 
 
+def _historical_bowl3_markers(
+    candles: list[dict],
+    e112,
+    e224,
+    settings: BowlSettings,
+) -> list[dict]:
+    """Display-only historical Bowl-3-like pullback locations.
+
+    This never changes the current Bowl score/classification.  It scans every
+    loaded daily bar for the same structural sequence used by the live marker:
+    long stay below EMA224 -> body close breakout -> later pullback holding
+    EMA224 or, at minimum, EMA112.  One marker is kept per structural cycle so
+    adding newer candles does not make older confirmed-looking locations vanish.
+    """
+    n = len(candles)
+    if n <= int(settings.ema_period):
+        return []
+
+    closes = [float(c["close"]) for c in candles]
+    markers: list[dict] = []
+    cooldown_until = -1
+
+    for i in range(max(1, int(settings.ema_period)), n):
+        if i <= cooldown_until:
+            continue
+        if i >= len(e224) or e224[i] is None or e224[i - 1] is None:
+            continue
+
+        prior_start = max(int(settings.ema_period) - 1, i - int(settings.below_lookback))
+        prior = [j for j in range(prior_start, i) if e224[j] is not None]
+        enough = len(prior) >= min(int(settings.min_below_closes), int(settings.below_lookback))
+        below_count = sum(1 for j in prior if closes[j] < float(e224[j]))
+        crossed = (
+            closes[i - 1] <= float(e224[i - 1])
+            and closes[i] > float(e224[i]) * (1 + float(settings.breakout_buffer_pct) / 100.0)
+        )
+        if not (enough and below_count >= int(settings.min_below_closes) and crossed):
+            continue
+
+        # A past Bowl-3-like position is the first real pullback after the
+        # breakout that holds EMA224, or at minimum EMA112.
+        retest_limit = min(n, i + 36)
+        found_idx = -1
+        found_line = 0
+        for j in range(i + 1, retest_limit):
+            low = float(candles[j]["low"])
+            close = closes[j]
+
+            held224 = False
+            if j < len(e224) and e224[j] is not None:
+                line224 = float(e224[j])
+                held224 = (
+                    low <= line224 * (1 + float(settings.retest_tolerance_pct) / 100.0)
+                    and close >= line224 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+                )
+
+            held112 = False
+            if j < len(e112) and e112[j] is not None:
+                line112 = float(e112[j])
+                held112 = (
+                    low <= line112 * (1 + float(settings.retest_tolerance_pct) / 100.0)
+                    and close >= line112 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+                )
+
+            if held224 or held112:
+                found_idx = j
+                found_line = 224 if held224 else 112
+                break
+
+        if found_idx >= 0:
+            markers.append({
+                "index": found_idx,
+                "kind": "historical_core",
+                "label": "밥3",
+                "stage": f"과거 유사 · {found_line}EMA 눌림/안착",
+                "breakout_index": i,
+                "retest_line": found_line,
+            })
+            # Avoid several tags for repeated recrosses inside the same bowl.
+            cooldown_until = found_idx + 20
+
+    return markers
+
+
 def _directionality(values: list[float]) -> float:
     if len(values) < 3:
         return 1.0
@@ -370,7 +454,9 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         details=details,
     )
 
-    bowl3_markers = []
+    # Historical display markers are independent from the CURRENT classification.
+    # Therefore old Bowl-3-like positions remain visible when newer data arrives.
+    bowl3_markers = _historical_bowl3_markers(candles, e112, e224, settings)
     if breakout_idx < 0 and stage2_ready:
         bowl3_markers.append({
             'index': last,
@@ -393,12 +479,20 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
             'stage': '224EMA 위 유지',
         })
     if bowl3_confirmed and retest_idx >= 0:
+        # If the same bar was already found by the historical scanner, replace
+        # that display-only tag with the stronger CURRENT confirmed marker.
+        bowl3_markers = [
+            m for m in bowl3_markers
+            if int(m.get('index', -1)) != int(retest_idx)
+        ]
         bowl3_markers.append({
             'index': retest_idx,
             'kind': 'core',
             'label': f'밥3 {retest_line}안착',
             'stage': f'{retest_line}EMA 눌림/안착',
         })
+
+    bowl3_markers.sort(key=lambda m: int(m.get('index', -1)))
 
     series = {
         'candles': candles,
