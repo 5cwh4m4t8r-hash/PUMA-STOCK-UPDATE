@@ -1,6 +1,6 @@
 {
-  "version": "2.9.2",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.2_UPDATE.zip",
-  "notes": "v2.9.2: 전고 몸통돌파 진입 손절선을 직전 차 눌림 저점까지 상향. 차 눌림 진입은 기준봉 시가 손절 유지.",
-  "sha256": "4bf400a85fbd9ad8d1b9395e182bf666287265aa9e86e05b94817bd5216d60c2"
+  "version": "2.9.3",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.3_UPDATE.zip",
+  "notes": "v2.9.3: +4% 절반익절 후 기준가 +2%는 즉시 잔량매도, -2%는 다음 5분봉 한 봉 전체 회복 확인 후 미회복 시 잔량매도. 11:00 규칙 삭제.",
+  "sha256": "f43bb4a27f493ff12cb39f15578cb4d3c0e0fd96c017f1897cd0aa34a76e5a96"
 }
