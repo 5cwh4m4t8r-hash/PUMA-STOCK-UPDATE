@@ -1,6 +1,6 @@
 {
-  "version": "2.9.0",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.0_UPDATE.zip",
-  "notes": "v2.9.0: 영웅문 검색기 후보→PUMA 장중 힘 2차 선별→가보자 차 눌림/전고 몸통돌파에서 50만원 고정 자동매수. 갭/전일 하루 거래량300% 필수 제거.",
-  "sha256": "f1f3540c7375f5ef0e3716d4a2414f1605eae117fd434b4f5e49bf546b6310f3"
+  "version": "2.9.1",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.1_UPDATE.zip",
+  "notes": "v2.9.1: 네 여러 단타 조건식 결과의 합집합을 후보로 사용. 검색기 1개 단독 편입도 정상 후보이며 중복 편입 횟수는 매수조건/점수에 사용하지 않음.",
+  "sha256": "2a24a9c8a013f0bd583fba6468fa77b1770b124b01c6e9e962e822f4798ddec5"
 }
