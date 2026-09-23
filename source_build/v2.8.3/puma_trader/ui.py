@@ -734,6 +734,7 @@ class MainWindow(QMainWindow):
         self.focus_daily_series = None
         self.focus_daily_analysis = None
         self.focus_bowl_analysis = None
+        self.focus_bowl_series = None
         self.focus_danta_analysis = None
         self.focus_danta_series = None
         self.focus_minute_raw: list[dict] = []
@@ -4002,6 +4003,7 @@ class MainWindow(QMainWindow):
         swing_analysis = result.get("swing_analysis")
         swing_series = result.get("swing_series")
         bowl_analysis = result.get("bowl_analysis")
+        bowl_series = result.get("bowl_series")
         danta_analysis = result.get("danta_analysis")
         danta_series = result.get("danta_series")
 
@@ -4031,9 +4033,10 @@ class MainWindow(QMainWindow):
             self.focus_daily_series = None
 
         if bowl_analysis is not None or result.get("analysis_complete"):
-            if bowl_analysis is not prev_bowl_analysis:
+            if bowl_analysis is not prev_bowl_analysis or bowl_series is not self.focus_bowl_series:
                 changed_parts.add("bowl")
             self.focus_bowl_analysis = bowl_analysis
+            self.focus_bowl_series = bowl_series
         if danta_analysis is not None or result.get("analysis_complete"):
             if danta_analysis is not prev_danta_analysis or danta_series is not prev_danta_series:
                 changed_parts.add("danta")
@@ -4178,7 +4181,27 @@ class MainWindow(QMainWindow):
                 preserve_view=preserve_view,
             )
         elif self.focus_daily_series:
-            self.focus_chart.set_data(self.focus_daily_analysis, self.focus_daily_series, title=f"{self.selected_name or self.selected_code} · 일봉 · 역매공파 + 밥그릇3번", preserve_view=preserve_view)
+            daily_series = dict(self.focus_daily_series)
+            bowl_series = self.focus_bowl_series if isinstance(self.focus_bowl_series, dict) else {}
+            if (
+                bowl_series
+                and len(bowl_series.get("candles", [])) == len(daily_series.get("candles", []))
+            ):
+                for key in (
+                    "bowl_stage2_ready",
+                    "bowl_breakout_idx",
+                    "bowl_accepted_idx",
+                    "bowl_retest_idx",
+                    "bowl3_markers",
+                ):
+                    if key in bowl_series:
+                        daily_series[key] = bowl_series[key]
+            self.focus_chart.set_data(
+                self.focus_daily_analysis,
+                daily_series,
+                title=f"{self.selected_name or self.selected_code} · 일봉 · 역매공파 + 밥그릇3번",
+                preserve_view=preserve_view,
+            )
         elif self._preview_series.get("daily"):
             self.focus_chart.set_basic_data(self._preview_series["daily"], title=f"{self.selected_name} · 일봉 / 분석 중")
 
