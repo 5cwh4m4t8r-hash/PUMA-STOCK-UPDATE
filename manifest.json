@@ -1,6 +1,6 @@
 {
-  "version": "2.9.4",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.4_UPDATE.zip",
-  "notes": "v2.9.4: 가보자는 당일 단타로 13:00 모든 잔여 포지션 전량청산. 13:00 청산은 +4% 절반익절보다 우선하며 청산 주문은 일일 주문 상한으로 차단하지 않음.",
-  "sha256": "ea29a5f3b7b28186826db72ee14179e2490ff2b822576606478cd1da392fc8ad"
+  "version": "2.9.5",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.5_UPDATE.zip",
+  "notes": "v2.9.5: 프로그램 내부 안전 업데이트 복구. 별도 스크립트/VBS/DETACHED_PROCESS 없이 SHA256 검증 후 프로그램 자체에서 소스를 교체하고 즉시 재시작. 통합화면 기본 자동매매는 7개 조건식 합집합 전체 후보 → PUMA 2차 선별 → 가보자 타점이며 선택 종목 전용은 보조 기능으로 분리. 매매전략 자체는 변경 없음.",
+  "sha256": "47f8682d603bfe686c981a2b1102b169bba206c9d871fcfa86df104afc06584f"
 }
