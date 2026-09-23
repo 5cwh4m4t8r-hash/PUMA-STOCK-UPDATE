@@ -28,11 +28,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build ICO from PUMA SVG
+      - name: Build PUMA ICO
         shell: powershell
         run: |
-          python -m pip install --disable-pip-version-check pillow cairosvg
-          python -c "import cairosvg; from PIL import Image; cairosvg.svg2png(url='source_build/v2.8.3/PUMA_STOCK_PRO_ICON.svg', write_to='launcher/PUMA_STOCK_PRO.png', output_width=512, output_height=512); im=Image.open('launcher/PUMA_STOCK_PRO.png').convert('RGBA'); im.save('launcher/PUMA_STOCK_PRO.ico', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+          python -m pip install --disable-pip-version-check pillow
+          python launcher/build_icon.py
 
       - name: Compile Windows launcher EXE with icon
         shell: powershell
