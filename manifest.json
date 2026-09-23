@@ -1,6 +1,0 @@
-{
-  "version": "2.9.4",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.4_UPDATE.zip",
-  "notes": "v2.9.4: 가보자는 당일 단타로 13:00 모든 잔여 포지션 전량청산. 13:00 청산은 +4% 절반익절보다 우선하며 청산 주문은 일일 주문 상한으로 차단하지 않음.",
-  "sha256": "ea29a5f3b7b28186826db72ee14179e2490ff2b822576606478cd1da392fc8ad"
-}

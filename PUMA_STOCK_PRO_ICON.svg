@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06121f"/><stop offset="1" stop-color="#092d4c"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#b77716"/><stop offset=".5" stop-color="#fff1a0"/><stop offset="1" stop-color="#e7a728"/></linearGradient>
+<linearGradient id="blue" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#008cff"/><stop offset="1" stop-color="#5be9ff"/></linearGradient>
+</defs>
+<rect x="14" y="14" width="484" height="484" rx="90" fill="url(#bg)" stroke="url(#gold)" stroke-width="10"/>
+<path d="M76 288C110 177 187 96 284 78c-25 28-39 59-42 91 39-31 84-42 132-28-33 15-57 36-70 61 33-1 62 9 88 29-51 7-82 27-103 55-25 33-58 54-103 61-42 6-80-13-110-59Z" fill="#101b27" stroke="url(#gold)" stroke-width="8"/>
+<path d="M164 219c26-21 57-27 88-16-22 8-39 22-49 42-17 0-30-9-39-26Z" fill="url(#blue)"/>
+<circle cx="205" cy="220" r="7" fill="#effcff"/>
+<path d="M280 365l44-43 28 22 42-55 45 19" fill="none" stroke="url(#blue)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M416 269l32 20-18 36" fill="none" stroke="url(#gold)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+<g stroke="url(#gold)" stroke-width="8"><line x1="300" y1="370" x2="300" y2="407"/><line x1="333" y1="350" x2="333" y2="407"/><line x1="366" y1="329" x2="366" y2="407"/><line x1="399" y1="309" x2="399" y2="407"/></g>
+<text x="256" y="458" text-anchor="middle" font-family="Arial, sans-serif" font-size="52" font-weight="800" fill="url(#gold)">PUMA</text>
+</svg>

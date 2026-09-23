@@ -1,0 +1,18 @@
+SECURITY NOTES - PUMA STOCK PRO v2.9.4 CLEAN
+
+이 CLEAN 배포본은 백신 휴리스틱에 걸릴 수 있는 자동업데이트 구조를 제거했습니다.
+
+제거:
+- updater가 새 Python 스크립트를 생성하는 동작
+- subprocess.Popen DETACHED_PROCESS
+- os.startfile
+- VBS 런처
+- PowerShell 설치/업데이트 스크립트
+- 자동 코드 덮어쓰기
+
+남음:
+- Kiwoom REST/WebSocket 네트워크 통신
+- 계좌/시세 조회와 사용자가 활성화한 자동주문
+- 로컬 설정/runtime JSON 저장
+
+백신이 다시 경고하면 예외 처리하지 말고 탐지명과 탐지된 파일명을 확인하세요.

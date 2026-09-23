@@ -1,6 +1,0 @@
-{
-  "version": "2.7.4",
-  "sha256": "b17e5647910510f777fa25a21ba4439bcc9e68b984319d203d9706089c769cac",
-  "tests": "full pytest suite",
-  "source": "source_build/v2.7.4"
-}

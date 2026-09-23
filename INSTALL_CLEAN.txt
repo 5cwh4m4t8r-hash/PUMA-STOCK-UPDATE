@@ -1,0 +1,22 @@
+PUMA STOCK PRO v2.9.4 CLEAN
+
+[실행]
+기존 PUMA에서 사용하던 .venv가 있으면 이 폴더로 복사하거나,
+명령 프롬프트에서 아래를 실행하세요.
+
+py -3 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+그 다음 START_PUMA.bat 를 더블클릭합니다.
+
+[보안 변경]
+- EXE 없음
+- VBS 없음
+- PowerShell 없음
+- 자동 자기수정 업데이트 없음
+- 숨김/분리 프로세스 실행 없음
+- subprocess / os.startfile 기반 재실행 없음
+
+[거래 로직]
+v2.9.4 가보자 전략은 그대로입니다.
+13:00 모든 가보자 포지션 전량청산 포함.
