@@ -463,15 +463,11 @@ class TradeEngine:
             # 가보자는 당일 단타. 13:00부터는 +4% 절반익절보다 전량청산이 우선이다.
             day_exit = str(getattr(self.settings, "gabojago_force_exit_time", "13:00") or "13:00")
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
-                if self.daily_order_count >= self.settings.max_daily_orders:
-                    return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
                 return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산")
 
             # 가보자: +4% 최초 도달 시 절반 익절.
             # 잔량은 절반매도 기준가 +2% 즉시 청산 / -2%는 다음 5분봉 회복 여부를 확인한다.
             if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
-                if self.daily_order_count >= self.settings.max_daily_orders:
-                    return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
                 return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%")
 
             state_before = (
@@ -504,8 +500,6 @@ class TradeEngine:
                 self._persist_runtime()
 
             if self.enabled and should_sell:
-                if self.daily_order_count >= self.settings.max_daily_orders:
-                    return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
                 return self._submit_sell(code, pos, current, reason)
             return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": f"{reason} / {pnl:+.2f}%"}
 
