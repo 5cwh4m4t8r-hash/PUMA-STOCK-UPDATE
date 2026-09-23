@@ -3223,32 +3223,50 @@ class MainWindow(QMainWindow):
         entries = list(payload or [])
         now = datetime.now().strftime("%H:%M:%S")
 
-        # 수동 고정 종목은 유지하고 자동 7개 소스만 새 합집합으로 교체한다.
+        # 성공한 자동 검색기는 새 결과로 교체한다.
+        # 단, 키움의 일시적 timeout/오류로 초기조회에 실패한 검색기는
+        # 직전 정상 활성 후보를 버리지 않는다. 수동 고정 종목은 항상 유지한다.
+        successful = {
+            str(entry.get("seq") or "").strip()
+            for entry in entries
+            if isinstance(entry, dict) and entry.get("ok")
+        }
+        failed = {
+            str(entry.get("seq") or "").strip()
+            for entry in entries
+            if isinstance(entry, dict) and not entry.get("ok")
+        }
+
         new_candidates: dict[str, dict] = {}
         for code, old_item in self.condition_candidates.items():
             for source_seq, src in (old_item.get("sources") or {}).items():
-                if not (str(source_seq).startswith("MANUAL:") and src.get("active")):
+                source_seq = str(source_seq)
+                is_manual = source_seq.startswith("MANUAL:")
+                keep_failed_auto = source_seq in failed and src.get("active")
+                if not ((is_manual and src.get("active")) or keep_failed_auto):
                     continue
+
                 item = update_candidate_source(
                     new_candidates,
-                    seq=str(source_seq),
-                    condition_name=str(src.get("name") or "수동 조건식"),
+                    seq=source_seq,
+                    condition_name=str(src.get("name") or ("수동 조건식" if is_manual else source_seq)),
                     code=code,
                     stock_name=str(old_item.get("name") or self.name_cache.get(code) or code),
                     active=True,
                     entry_event=False,
                     now=str(src.get("entered_at") or now),
                 )
-                item["manual_pinned"] = True
+                if is_manual:
+                    item["manual_pinned"] = True
 
-        successful = set()
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
             seq = str(entry.get("seq") or "").strip()
             condition_name = str(entry.get("name") or seq)
-            if entry.get("ok"):
-                successful.add(seq)
+
+            # 실패 응답에 일부 페이지 결과가 남아 있으면 기존 fallback과 합쳐 둔다.
+            # 이후 실시간 I/D 이벤트가 상태를 계속 보정한다.
             for code, stock_name in entry.get("rows") or []:
                 update_candidate_source(
                     new_candidates,
