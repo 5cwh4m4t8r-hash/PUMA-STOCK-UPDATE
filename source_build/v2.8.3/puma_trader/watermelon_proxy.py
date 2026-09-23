@@ -29,16 +29,26 @@ def _rolling_avg(values: List[float], period: int) -> List[Optional[float]]:
     return out
 
 
-def _crossed_or_reclaimed(closes, ema_line, i: int, lookback: int = 8) -> bool:
+def _latest_reclaim_index(closes, ema_line, i: int, lookback: int = 4) -> int:
+    """Return the latest genuine reclaim bar, or -1.
+
+    A watermelon marker should belong to the actual turn area. Looking too far
+    back lets a stale long-MA cross keep qualifying later candles, which makes
+    markers appear where they no longer belong.
+    """
     lo = max(1, i - lookback + 1)
-    for j in range(lo, i + 1):
+    for j in range(i, lo - 1, -1):
         cur = ema_line[j]
         prev = ema_line[j - 1]
         if cur is None or prev is None:
             continue
         if closes[j - 1] < float(prev) * 0.995 and closes[j] >= float(cur) * 0.995:
-            return True
-    return False
+            return j
+    return -1
+
+
+def _crossed_or_reclaimed(closes, ema_line, i: int, lookback: int = 4) -> bool:
+    return _latest_reclaim_index(closes, ema_line, i, lookback) >= 0
 
 
 def build_puma_watermelon(
@@ -97,6 +107,7 @@ def build_puma_watermelon(
         acc_flags.extend([False] * (n - len(acc_flags)))
 
     last_display = -10**9
+    min_display_gap = 20
 
     for i in range(n):
         if i < 20 or e112[i] is None:
@@ -127,7 +138,9 @@ def build_puma_watermelon(
         wick_touch = lows[i] <= anchor * 1.035 and price >= anchor * 0.970
         near_long = bool(distance_pct <= 6.0 or wick_touch)
 
-        reclaim = _crossed_or_reclaimed(closes, anchor_line, i, 8)
+        reclaim_idx = _latest_reclaim_index(closes, anchor_line, i, 4)
+        reclaim = reclaim_idx >= 0
+        reclaim_recent = reclaim and (i - reclaim_idx <= 2)
 
         valid_hold = 0
         hold_count = 0
@@ -211,20 +224,30 @@ def build_puma_watermelon(
 
         # Earlier than v1: marker is allowed near the initial reclaim/turning area.
         # Still require bottom context + long-MA proximity + actual reclaim.
+        # Final marker is intentionally strict. A loose arrow overlap alone is
+        # not evidence for watermelon. Require a *recent* long-MA reclaim,
+        # actual hold/settling, short-line recovery, and objective volume or
+        # accumulation evidence. This favors missing a marginal marker over
+        # painting false watermelon symbols across the chart.
+        context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
+        evidence_confirmed = bool(impulse or acc_recent)
         strict = bool(
             bottom_context
             and near_long
-            and reclaim
+            and reclaim_recent
+            and settled
             and reversal
+            and ema20_recovery
             and not_overextended
-            and (impulse or acc_recent or arrow_recent)
-            and score >= 70
+            and context_confirmed
+            and evidence_confirmed
+            and score >= 80
         )
 
         if strict:
             stage = 3
             confirmed[i] = True
-            if i - last_display >= 12:
+            if i - last_display >= min_display_gap:
                 display[i] = 3
                 last_display = i
 
