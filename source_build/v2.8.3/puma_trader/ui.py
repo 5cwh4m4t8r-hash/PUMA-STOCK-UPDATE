@@ -2667,38 +2667,108 @@ class MainWindow(QMainWindow):
         if broker is None:
             return
         if not self.condition_list:
-            self.refresh_conditions()
-            if not self.condition_list:
-                return
+            self.refresh_conditions("manual")
+            return
+
         data = self.condition_combo.currentData()
         if not (isinstance(data, tuple) and len(data) == 2):
             QMessageBox.information(self, "조건식 선택", "확인할 조건식을 선택하세요.")
             return
         seq, name = str(data[0]), str(data[1])
-        self.stop_manual_condition_preview()
+
+        # 같은 조건식이 이미 정상 감시 중이면 재연결하지 않는다.
+        running = self.manual_condition_thread
+        if (
+            running is not None
+            and running.isRunning()
+            and self.manual_condition_seq == seq
+            and self.manual_condition_name == name
+        ):
+            self.manual_condition_status.setText(
+                f"{name} · 현재 {len(self.manual_condition_rows)}종목 · 이미 조회 중"
+            )
+            return
+
+        self.stop_manual_condition_preview(update_status=False)
+        self.manual_condition_generation += 1
+        generation = self.manual_condition_generation
         self.manual_condition_seq = seq
         self.manual_condition_name = name
         self.manual_condition_rows.clear()
         self.manual_condition_table.setRowCount(0)
-        self.manual_condition_status.setText(f"[{seq}] {name} 조회 연결 중...")
+        self.manual_condition_status.setText(f"[{seq}] {name} · 현재 종목 불러오는 중...")
+        self.manual_condition_view_btn.setEnabled(False)
 
         thread = ConditionStreamThread(broker.token, broker.real, seq, self)
-        thread.status.connect(lambda text: self.manual_condition_status.setText(f"{name} · {text}"))
-        thread.error.connect(lambda text: self.manual_condition_status.setText(f"{name} · 오류: {text}"))
-        thread.snapshot.connect(self.on_manual_condition_snapshot)
-        thread.entered.connect(self.on_manual_condition_enter)
-        thread.exited.connect(self.on_manual_condition_exit)
+        thread.status.connect(
+            lambda text, g=generation, n=name:
+                self._manual_status_if_current(g, f"{n} · {text}")
+        )
+        thread.error.connect(
+            lambda text, g=generation, n=name:
+                self._manual_error_if_current(g, n, text)
+        )
+        thread.snapshot.connect(
+            lambda rows, g=generation:
+                self._manual_snapshot_if_current(g, rows)
+        )
+        thread.entered.connect(
+            lambda code, stock_name, g=generation:
+                self._manual_enter_if_current(g, code, stock_name)
+        )
+        thread.exited.connect(
+            lambda code, g=generation:
+                self._manual_exit_if_current(g, code)
+        )
+        thread.finished.connect(
+            lambda g=generation:
+                self._manual_finished_if_current(g)
+        )
         self.manual_condition_thread = thread
         thread.start()
 
-    def stop_manual_condition_preview(self):
+    def _manual_status_if_current(self, generation: int, text: str):
+        if generation != self.manual_condition_generation:
+            return
+        self.manual_condition_status.setText(text)
+
+    def _manual_error_if_current(self, generation: int, name: str, text: str):
+        if generation != self.manual_condition_generation:
+            return
+        self.manual_condition_view_btn.setEnabled(True)
+        self.manual_condition_status.setText(f"{name} · 오류: {text}")
+
+    def _manual_snapshot_if_current(self, generation: int, rows):
+        if generation != self.manual_condition_generation:
+            return
+        self.on_manual_condition_snapshot(rows)
+        self.manual_condition_view_btn.setEnabled(True)
+
+    def _manual_enter_if_current(self, generation: int, code: str, name: str):
+        if generation == self.manual_condition_generation:
+            self.on_manual_condition_enter(code, name)
+
+    def _manual_exit_if_current(self, generation: int, code: str):
+        if generation == self.manual_condition_generation:
+            self.on_manual_condition_exit(code)
+
+    def _manual_finished_if_current(self, generation: int):
+        if generation != self.manual_condition_generation:
+            return
+        self.manual_condition_thread = None
+        self.manual_condition_view_btn.setEnabled(True)
+
+    def stop_manual_condition_preview(self, update_status: bool = True):
+        self.manual_condition_generation += 1
         thread = self.manual_condition_thread
         self.manual_condition_thread = None
         if thread is not None:
             thread.stop()
-            thread.wait(1800)
-            thread.deleteLater()
-        if hasattr(self, "manual_condition_status") and self.manual_condition_name:
+            # GUI를 기다리게 하지 않는다. 늦게 오는 신호는 generation으로 무시한다.
+            thread.finished.connect(thread.deleteLater)
+        if hasattr(self, "manual_condition_view_btn"):
+            self.manual_condition_view_btn.setEnabled(True)
+        if update_status and hasattr(self, "manual_condition_status") and self.manual_condition_name:
             self.manual_condition_status.setText(f"{self.manual_condition_name} · 조회 중지")
 
     def _upsert_manual_condition_row(self, code: str, name: str = "", status: str = "편입"):
@@ -2725,10 +2795,29 @@ class MainWindow(QMainWindow):
             self._queue_name_lookup(code)
 
     def on_manual_condition_snapshot(self, rows):
+        # 초기 결과는 행별 insert/검색을 반복하지 않고 한 번에 채운다.
+        rows = list(rows or [])
         self.manual_condition_rows.clear()
-        self.manual_condition_table.setRowCount(0)
-        for code, name in rows or []:
-            self._upsert_manual_condition_row(code, name, "편입")
+        self.manual_condition_table.setUpdatesEnabled(False)
+        try:
+            self.manual_condition_table.setRowCount(len(rows))
+            for row, (code, name) in enumerate(rows):
+                code = str(code or "").strip()
+                if not code:
+                    continue
+                resolved = str(name or self.name_cache.get(code) or code).strip()
+                self.manual_condition_rows[code] = resolved
+                self.manual_condition_table.setItem(row, 0, QTableWidgetItem(code))
+                self.manual_condition_table.setItem(
+                    row, 1, QTableWidgetItem(resolved if resolved != code else "종목명 조회중…")
+                )
+                self.manual_condition_table.setItem(row, 2, QTableWidgetItem("편입"))
+                if not name or name == code:
+                    self._queue_name_lookup(code)
+        finally:
+            self.manual_condition_table.setUpdatesEnabled(True)
+            self.manual_condition_table.viewport().update()
+
         self.manual_condition_status.setText(
             f"{self.manual_condition_name} · 현재 {len(self.manual_condition_rows)}종목"
         )
