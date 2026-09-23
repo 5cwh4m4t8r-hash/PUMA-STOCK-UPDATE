@@ -4,6 +4,8 @@ from math import sqrt
 from statistics import fmean as mean
 from typing import List, Optional
 
+from .indicators import hero_eavg
+
 
 PINK = "#ff33cc"
 BLUE = "#1746ff"
@@ -11,24 +13,8 @@ RED = "#ff2e2e"
 
 
 def _ema(values: List[float], period: int) -> List[Optional[float]]:
-    """영웅문 EAVG 호환 방식.
-
-    첫 유효값 자체를 첫 지수평균으로 두고 이후 모든 봉을
-    alpha=2/(period+1)로 누적한다. 기간만큼 기다린 뒤 SMA를 seed로
-    쓰는 일반 라이브러리 방식은 장기 112/224/448 교차 시점을
-    영웅문과 다르게 만들 수 있어 사용하지 않는다.
-    """
-    n = len(values)
-    out: List[Optional[float]] = [None] * n
-    if period <= 0 or n == 0:
-        return out
-    k = 2.0 / (period + 1.0)
-    prev = float(values[0])
-    out[0] = prev
-    for i in range(1, n):
-        prev = float(values[i]) * k + prev * (1.0 - k)
-        out[i] = prev
-    return out
+    """Compatibility wrapper around the single PUMA/영웅문 EAVG engine."""
+    return hero_eavg(values, period)
 
 
 def _bbands_up(values: List[float], period: int = 40, dev: float = 2.2) -> List[Optional[float]]:
@@ -164,6 +150,49 @@ def _sar(candles: List[dict], af: float = 0.02, max_af: float = 0.2) -> List[Opt
 
     return out
 
+LONG_TREND_SUPPRESS_DISPARITY_224 = 108.0
+
+
+def long_trend_suppression_mask(
+    candles: List[dict],
+    e112: List[Optional[float]] | None = None,
+    e224: List[Optional[float]] | None = None,
+    e448: List[Optional[float]] | None = None,
+) -> List[bool]:
+    """Suppress bottom/reversal overlays in an already extended long-MA uptrend.
+
+    User rule:
+      EMA112 > EMA224 > EMA448 (112+ long MAs in bullish order)
+      AND price is already extended upward.
+
+    The existing Bowl-3 rule already treats > +8% from EMA224 as overextended,
+    so the same established boundary is reused here instead of inventing a
+    second distance rule.
+    """
+    n = len(candles)
+    if not n:
+        return []
+    closes = [float(x["close"]) for x in candles]
+    e112 = e112 if e112 is not None else _ema(closes, 112)
+    e224 = e224 if e224 is not None else _ema(closes, 224)
+    e448 = e448 if e448 is not None else _ema(closes, 448)
+    out = [False] * n
+    for i in range(n):
+        a = e112[i] if i < len(e112) else None
+        b = e224[i] if i < len(e224) else None
+        d = e448[i] if i < len(e448) else None
+        if a is None or b is None or d is None or float(b) <= 0:
+            continue
+        ordered = float(a) > float(b) > float(d)
+        disparity224 = closes[i] / float(b) * 100.0
+        out[i] = bool(
+            ordered
+            and closes[i] > float(a)
+            and disparity224 > LONG_TREND_SUPPRESS_DISPARITY_224
+        )
+    return out
+
+
 def build_arrow_signals(candles: List[dict]) -> dict:
     """Exact user formulas translated from the supplied 영웅문 signal settings.
 
@@ -215,21 +244,21 @@ def build_arrow_signals(candles: List[dict]) -> dict:
     x224 = _crossup(c, e224)
     x448 = _crossup(c, e448)
 
-    pink = [False] * n
-    blue = [False] * n
-    red = [False] * n
-    black = [False] * n
+    pink_raw = [False] * n
+    blue_raw = [False] * n
+    red_raw = [False] * n
+    black_raw = [False] * n
     for i in range(n):
         sar_ok = sar[i] is not None and c[i] >= float(sar[i])
 
         # if(b or b2 or b3,a,0)
-        pink[i] = bool((x112[i] or x224[i] or x448[i]) and x_bb[i])
+        pink_raw[i] = bool((x112[i] or x224[i] or x448[i]) and x_bb[i])
 
         # if(a,b,0)
-        blue[i] = bool(sar_ok and x_bb[i] and x112[i])
+        blue_raw[i] = bool(sar_ok and x_bb[i] and x112[i])
 
         # if(a,b,0)
-        red[i] = bool(sar_ok and x224[i])
+        red_raw[i] = bool(sar_ok and x224[i])
 
         # 검정 화살표: 사용자가 제공한 영웅문 원식 그대로.
         # Disparity(224) <= 109
@@ -239,20 +268,34 @@ def build_arrow_signals(candles: List[dict]) -> dict:
         # && eavg(c,1) >= eavg(c,112)
         if i > 0 and e224[i] is not None and e112[i] is not None and vema40[i] is not None:
             disparity224 = c[i] / float(e224[i]) * 100.0 if float(e224[i]) else 999.0
-            black[i] = bool(
+            black_raw[i] = bool(
                 disparity224 <= 109.0
                 and x_bb[i]
                 and v[i] > float(vema40[i]) * 1.5
                 and v[i] > v[i - 1] * 1.5
                 and c[i] >= float(e112[i])
             )
+    suppressed = long_trend_suppression_mask(candles, e112, e224, e448)
+    pink = [bool(v and not suppressed[i]) for i, v in enumerate(pink_raw)]
+    blue = [bool(v and not suppressed[i]) for i, v in enumerate(blue_raw)]
+    red = [bool(v and not suppressed[i]) for i, v in enumerate(red_raw)]
+    black = [bool(v and not suppressed[i]) for i, v in enumerate(black_raw)]
+
     return {
+        # raw = user's literal four formulas, before PUMA's requested context filter.
+        "signal_pink_raw": pink_raw,
+        "signal_blue_raw": blue_raw,
+        "signal_red_raw": red_raw,
+        "signal_black_raw": black_raw,
+        # display/usage signals after the long-MA bullish/overextended exclusion.
         "signal_pink": pink,
         "signal_blue": blue,
         "signal_red": red,
         "signal_black": black,
         "signal_sar": sar,
         "signal_bb40_22": bb,
+        "long_trend_suppressed": suppressed,
+        "long_trend_suppressed_now": bool(suppressed[-1]) if suppressed else False,
     }
 
 
