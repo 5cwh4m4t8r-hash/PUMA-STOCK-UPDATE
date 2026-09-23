@@ -721,6 +721,8 @@ class MainWindow(QMainWindow):
         self.broker = SimBroker()
         self.engine = TradeEngine(self.broker, self.settings)
         self.real_armed = False
+        self.live_auto_confirmed_session = False
+        self.condition_snapshot_seen: set[str] = set()
         self.scan_index = 0
         self.swing_settings = load_swing_settings()
         self.ui_state = QSettings("PUMA", "PUMA_STOCK_PRO")
@@ -1022,7 +1024,7 @@ class MainWindow(QMainWindow):
         self.focus_candidate_filter = "all"
         self.focus_filter_buttons = {}
         filter_row = QHBoxLayout()
-        filter_row.setSpacing(5)
+        filter_row.setSpacing(3)
         for key, title in (
             ("all", "전체"),
             ("danta", "단타"),
@@ -1031,36 +1033,42 @@ class MainWindow(QMainWindow):
         ):
             btn = QPushButton(title)
             btn.setCheckable(True)
-            btn.setMinimumHeight(30)
+            btn.setFixedHeight(25)
+            btn.setMaximumWidth(64 if key != "bowl" else 72)
             btn.setStyleSheet(
-                "QPushButton{font-weight:900;padding:4px 9px;}"
+                "QPushButton{font-weight:900;padding:1px 5px;font-size:11px;}"
                 "QPushButton:checked{border:2px solid #61d4ff;background:#17304a;}"
             )
             btn.clicked.connect(lambda checked=False, k=key: self._set_focus_candidate_filter(k))
             self.focus_filter_buttons[key] = btn
             filter_row.addWidget(btn)
+        filter_row.addStretch()
         self.focus_filter_buttons["all"].setChecked(True)
         cand_lay.addLayout(filter_row)
 
         self.focus_condition_table = QTableWidget(0, 4)
         self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "분류", "상태"])
         hdr = self.focus_condition_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hdr.setMinimumSectionSize(54)
+        hdr.setSectionResizeMode(QHeaderView.Interactive)
+        hdr.setStretchLastSection(False)
+        hdr.setMinimumSectionSize(48)
+        self.focus_condition_table.setColumnWidth(0, 72)
+        self.focus_condition_table.setColumnWidth(1, 135)
+        self.focus_condition_table.setColumnWidth(2, 115)
+        self.focus_condition_table.setColumnWidth(3, 190)
         self.focus_condition_table.verticalHeader().setVisible(False)
-        self.focus_condition_table.verticalHeader().setDefaultSectionSize(31)
+        self.focus_condition_table.verticalHeader().setDefaultSectionSize(29)
         self.focus_condition_table.setAlternatingRowColors(True)
         self.focus_condition_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.focus_condition_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.focus_condition_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.focus_condition_table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.focus_condition_table.cellClicked.connect(self._focus_condition_row_clicked)
-        self.focus_condition_table.setMinimumWidth(380)
-        self.focus_condition_table.setMaximumWidth(600)
         cand_lay.addWidget(self.focus_condition_table, 1)
+        candidates.setMinimumWidth(250)
+        candidates.setMaximumWidth(340)
 
-        cand_help = QLabel("한 리스트에서 전체/단타/스윙/중장기 버튼으로 전환합니다. 조건식 이름이 아니라 PUMA 실제 분석 결과로 분류하며, 복수 기준을 만족한 종목은 해당 버튼들에서 모두 보입니다.")
+        cand_help = QLabel("단타 검색기 결과는 단타에만 표시 · 아래 가로바로 열 이동")
         cand_help.setWordWrap(True)
         cand_help.setStyleSheet("color:#8fb6d9")
         cand_lay.addWidget(cand_help)
@@ -1073,7 +1081,7 @@ class MainWindow(QMainWindow):
         self.focus_chart = SwingChart()
         self.focus_chart.viewportChanged.connect(lambda t: self.focus_view_label.setText("차트 구간: " + t))
         self.focus_chart.paintMeasured.connect(self._focus_chart_painted)
-        center.addWidget(self.focus_chart, 7)
+        center.addWidget(self.focus_chart, 9)
 
         signals = QGroupBox("전략 3종 통합 분석")
         sg = QGridLayout(signals)
@@ -1092,8 +1100,8 @@ class MainWindow(QMainWindow):
         self.focus_stage.setStyleSheet("font-size:12px;font-weight:900;color:#61ff8f;padding:4px")
         sg.addWidget(self.focus_stage, 1, 0, 1, 3)
         sg.setColumnStretch(0, 1); sg.setColumnStretch(1, 1); sg.setColumnStretch(2, 1)
-        signals.setMinimumHeight(205)
-        center.addWidget(signals, 2)
+        signals.setMinimumHeight(155)
+        center.addWidget(signals, 1)
         self.focus_splitter.addWidget(center_panel)
 
         # 오른쪽은 세로로 억지로 쌓지 않고 기능별 소형 탭으로 분리.
@@ -1343,7 +1351,7 @@ class MainWindow(QMainWindow):
         self.focus_splitter.setStretchFactor(0, 1)
         self.focus_splitter.setStretchFactor(1, 5)
         self.focus_splitter.setStretchFactor(2, 2)
-        self.focus_splitter.setSizes([390, 760, 400])
+        self.focus_splitter.setSizes([290, 900, 360])
         root.addWidget(self.focus_splitter, 1)
         return w
 
@@ -1781,7 +1789,7 @@ class MainWindow(QMainWindow):
         manual_box.setMaximumHeight(260)
         lay.addWidget(manual_box)
 
-        auto_title = QLabel("PUMA 분석 후보 · 현재 선택 조건식 결과")
+        auto_title = QLabel("단타 검색기 7개 · 통합 합집합")
         auto_title.setStyleSheet("font-weight:900;color:#61ff8f;padding-top:4px")
         lay.addWidget(auto_title)
 
@@ -2048,13 +2056,13 @@ class MainWindow(QMainWindow):
         width, height = geo.width(), geo.height()
 
         if hasattr(self, "focus_splitter"):
-            # 종목명/분류가 잘리지 않도록 조건검색 패널을 우선 확보.
-            left = max(360, min(500, int(width * 0.22)))
-            right = max(330, min(470, int(width * 0.23)))
-            center = max(500, width - left - right - 90)
+            # 조건검색은 좁게 유지하고 중앙 차트에 화면을 우선 배분한다.
+            left = max(260, min(320, int(width * 0.17)))
+            right = max(315, min(400, int(width * 0.21)))
+            center = max(620, width - left - right - 80)
             self.focus_splitter.setSizes([left, center, right])
         if hasattr(self, "focus_chart"):
-            self.focus_chart.setMinimumHeight(300 if height < 850 else 380)
+            self.focus_chart.setMinimumHeight(330 if height < 850 else 420)
 
         if hasattr(self, "danta_analysis_splitter"):
             chart_w = max(620, int(width * 0.68))
@@ -2439,6 +2447,7 @@ class MainWindow(QMainWindow):
         self.broker = SimBroker()
         self.engine.set_broker(self.broker)
         self.real_armed = False
+        self.live_auto_confirmed_session = False
         self._set_status("SIMULATION", "데모 모드")
 
     def arm_live(self):
@@ -2449,9 +2458,11 @@ class MainWindow(QMainWindow):
         )
         if ok and text.strip().upper() == "LIVE":
             self.real_armed = True
-            QMessageBox.warning(self, "실전 잠금 1단계 해제", "실전 연결이 허용됐습니다. 자동매매 시작 시 한 번 더 확인합니다.")
+            self.live_auto_confirmed_session = False
+            QMessageBox.warning(self, "실전 잠금 1단계 해제", "실전 연결이 허용됐습니다. LIVE START는 이번 프로그램 실행 중 최초 자동매매 시작 때 한 번만 확인합니다.")
         else:
             self.real_armed = False
+            self.live_auto_confirmed_session = False
 
     def _load_saved_connection(self):
         try:
@@ -2521,6 +2532,8 @@ class MainWindow(QMainWindow):
             self.stop_condition_stream()
             self.broker = broker
             self.engine.set_broker(broker)
+            self.real_armed = False
+            self.live_auto_confirmed_session = False
             self.engine.set_settings(self.settings)
             mode = "KIWOOM REAL" if real else "KIWOOM MOCK"
             self._set_status(mode, "REST 연결됨")
@@ -2802,10 +2815,14 @@ class MainWindow(QMainWindow):
         key = str(key or getattr(self, "focus_candidate_filter", "all"))
         if key == "all":
             return True
+
+        is_danta_source = self._candidate_in_danta_feed(item)
         if key == "danta":
-            # 지정 단타 검색기 7개 중 하나라도 검색되면 단타 목록에는 즉시 편입.
-            # PUMA 점수는 목록 편입이 아니라 실제 자동매매 2차 선별에 사용한다.
-            return self._candidate_in_danta_feed(item) or ("danta" in bucket_scores(item.get("scores"), threshold=55))
+            # 7개 단타 검색기 합집합은 목록상 무조건 '단타' 전용이다.
+            return is_danta_source
+        if is_danta_source:
+            # 단타 검색기 출처 종목이 스윙/중장기 목록으로 새지 않게 한다.
+            return False
         return key in bucket_scores(item.get("scores"), threshold=55)
 
     def _focus_status_text(self, item: dict) -> str:
@@ -2832,17 +2849,20 @@ class MainWindow(QMainWindow):
             if code in self.session_excluded_codes or not item.get("active"):
                 continue
             counts["all"] += 1
+            is_danta_source = self._candidate_in_danta_feed(item)
             passed = bucket_scores(item.get("scores"), threshold=55)
-            if self._candidate_in_danta_feed(item) or "danta" in passed:
+            if is_danta_source:
                 counts["danta"] += 1
-            if "swing" in passed:
-                counts["swing"] += 1
-            if "bowl" in passed:
-                counts["bowl"] += 1
+            else:
+                if "swing" in passed:
+                    counts["swing"] += 1
+                if "bowl" in passed:
+                    counts["bowl"] += 1
 
         titles = {"all": "전체", "danta": "단타", "swing": "스윙", "bowl": "중장기"}
         for key, btn in self.focus_filter_buttons.items():
-            btn.setText(f"{titles[key]} {counts[key]}")
+            btn.setText(titles[key])
+            btn.setToolTip(f"{titles[key]} {counts[key]}종목")
 
         current = str(getattr(self, "focus_candidate_filter", "all"))
         if hasattr(self, "focus_candidate_count"):
@@ -2985,6 +3005,7 @@ class MainWindow(QMainWindow):
             rows = rows[:10]
 
         self.stop_condition_stream()
+        self.condition_snapshot_seen.clear()
 
         # 단타 검색기 7개 스트림을 다시 시작해도 사용자가 직접 편입한 종목은 보존한다.
         # 자동 단타 소스만 새 합집합 결과로 다시 구성한다.
@@ -3048,8 +3069,22 @@ class MainWindow(QMainWindow):
         if hasattr(self, "condition_status"):
             self.condition_status.setText("조건검색 중지")
 
+    def _update_condition_union_status(self):
+        if not hasattr(self, "condition_status"):
+            return
+        configured = self._puma_condition_rows()
+        active_union = sum(
+            1 for item in self.condition_candidates.values()
+            if item.get("active") and self._candidate_in_danta_feed(item)
+        )
+        received = len(getattr(self, "condition_snapshot_seen", set()))
+        total = len(configured)
+        self.condition_status.setText(
+            f"단타 검색기 통합 실행 · {total}개 연결 · 초기수신 {received}/{total} · 합집합 {active_union}종목"
+        )
+
     def on_condition_status(self, text: str):
-        self.condition_status.setText(text)
+        self._update_condition_union_status()
         self.log("HERO4", "COND", "-", text)
 
     def on_condition_error(self, text: str):
@@ -3057,6 +3092,7 @@ class MainWindow(QMainWindow):
         self.log("HERO4", "ERROR", "-", text)
 
     def on_condition_snapshot(self, seq: str, condition_name: str, rows):
+        self.condition_snapshot_seen.add(str(seq))
         now = datetime.now().strftime("%H:%M:%S")
         for code, name in rows:
             item = update_candidate_source(
@@ -3074,6 +3110,7 @@ class MainWindow(QMainWindow):
             if not name or name == code:
                 self._queue_name_lookup(code)
             self._queue_candidate_classification(code)
+        self._update_condition_union_status()
         if self.engine.enabled and rows:
             QTimer.singleShot(0, self.scan_one)
 
@@ -3101,6 +3138,7 @@ class MainWindow(QMainWindow):
             "-",
             f"{condition_name} 신규 편입 · 현재 활성 검색기 {item.get('source_count', 1)}개",
         )
+        self._update_condition_union_status()
         if self.engine.enabled:
             QTimer.singleShot(0, self.scan_one)
 
@@ -3128,6 +3166,7 @@ class MainWindow(QMainWindow):
             "-",
             f"{condition_name} 이탈 · 남은 활성 검색기 {item.get('source_count', 0)}개",
         )
+        self._update_condition_union_status()
 
     def _classification_color(self, label: str) -> QColor:
         label = str(label or "")
@@ -3208,12 +3247,22 @@ class MainWindow(QMainWindow):
             item = self.condition_candidates.get(code)
             if item is not None:
                 item["name"] = resolved_name
-        self._set_candidate_classification(
-            code,
-            str(data.get("classification") or "분석실패"),
-            str(data.get("detail") or "-"),
-            {"danta": data.get("danta", 0), "swing": data.get("swing", 0), "bowl": data.get("bowl", 0)},
-        )
+        scores = {
+            "danta": int(data.get("danta", 0) or 0),
+            "swing": int(data.get("swing", 0) or 0),
+            "bowl": int(data.get("bowl", 0) or 0),
+        }
+        item = self.condition_candidates.get(code, {})
+        if self._candidate_in_danta_feed(item):
+            label = "단타"
+            detail = (
+                f"단타 검색기 통합후보 · PUMA 단타 {scores['danta']}/100 · "
+                "스윙/밥3 점수는 목록 분류에 사용하지 않음"
+            )
+        else:
+            # 비단타 후보만 스윙/중장기 분류에 사용한다.
+            label, detail = classify_scores(0, scores["swing"], scores["bowl"])
+        self._set_candidate_classification(code, label, detail, scores)
 
     def _candidate_classifier_finished(self):
         worker = self.sender()
@@ -3226,6 +3275,18 @@ class MainWindow(QMainWindow):
 
     def _upsert_condition_row(self, code: str):
         item = self.condition_candidates.get(code, {})
+
+        if (
+            not item.get("active")
+            and code not in self.engine.positions
+            and code not in self.engine.pending_orders
+        ):
+            if hasattr(self, "condition_table"):
+                self._remove_code_from_table(self.condition_table, code)
+            if hasattr(self, "focus_condition_table"):
+                self._remove_code_from_table(self.focus_condition_table, code)
+                self._refresh_focus_candidate_count()
+            return
 
         if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
             if hasattr(self, "condition_table"):
@@ -3259,17 +3320,7 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 2).setText(classification)
         self.condition_table.item(row, 2).setToolTip(detail)
         self.condition_table.item(row, 2).setForeground(self._classification_color(classification))
-        auto_count, manual_count = self._candidate_source_counts(item)
-        active_count = auto_count + manual_count
-        if item.get("active"):
-            if auto_count and manual_count:
-                status_text = f"자동 {auto_count}식 + 수동"
-            elif manual_count:
-                status_text = "수동편입"
-            else:
-                status_text = f"편입 · {auto_count}식" if auto_count > 1 else "편입"
-        else:
-            status_text = "이탈"
+        status_text = self._focus_status_text(item)
         self.condition_table.item(row, 3).setText(status_text)
         self.condition_table.item(row, 4).setText(item.get("entered_at", "-"))
         self.condition_table.item(row, 5).setText("▶ 클릭해서 열기")
@@ -4360,6 +4411,24 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "주문 실패", str(exc))
 
+    def _confirm_live_auto_once(self, title: str, message: str) -> bool:
+        if not (isinstance(self.broker, KiwoomRestBroker) and self.broker.real):
+            return True
+        if not self.real_armed:
+            QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
+            return False
+        if self.live_auto_confirmed_session:
+            return True
+        phrase, ok = QInputDialog.getText(
+            self,
+            title,
+            message + "\n\n이 프로그램을 종료하기 전까지는 다시 묻지 않습니다.\n계속하려면 LIVE START 를 입력하세요.",
+        )
+        if not ok or phrase.strip().upper() != "LIVE START":
+            return False
+        self.live_auto_confirmed_session = True
+        return True
+
     def start_focus_auto(self):
         if not self.selected_code:
             QMessageBox.information(self, "종목 선택", "조건검색 목록에서 종목을 먼저 선택하세요.")
@@ -4374,11 +4443,10 @@ class MainWindow(QMainWindow):
         self.trailing_gap.setValue(self.focus_trail_gap.value())
         self.save_settings_silent()
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-            if not self.real_armed:
-                QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
-                return
-            phrase, ok = QInputDialog.getText(self, "선택 종목 실전 자동매매", f"{self.selected_name or self.selected_code} 한 종목 자동매매를 시작합니다.\n계속하려면 LIVE START 를 입력하세요.")
-            if not ok or phrase.strip().upper() != 'LIVE START':
+            if not self._confirm_live_auto_once(
+                "선택 종목 실전 자동매매",
+                f"{self.selected_name or self.selected_code} 한 종목 자동매매를 시작합니다.",
+            ):
                 return
             try:
                 self.engine.sync_account(force=True)
@@ -4483,18 +4551,11 @@ class MainWindow(QMainWindow):
             return
 
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-            if not self.real_armed:
-                self.focus_auto_danta_pool = False
-                QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
-                return
-            phrase, ok = QInputDialog.getText(
-                self,
+            if not self._confirm_live_auto_once(
                 "단타 전체 후보 실전 자동매매",
-                f"단타 검색기 합집합 → PUMA 2차 선별 → 가보자 진입조건 통과 종목에 실제 주문이 전송됩니다.\n"
-                f"종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회\n"
-                "계속하려면 LIVE START 를 입력하세요.",
-            )
-            if not ok or phrase.strip().upper() != "LIVE START":
+                f"단타 검색기 통합 합집합 → PUMA 2차 선별 → 가보자 진입조건 통과 종목에 실제 주문이 전송됩니다.\n"
+                f"종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회",
+            ):
                 self.focus_auto_danta_pool = False
                 return
             try:
@@ -4528,15 +4589,10 @@ class MainWindow(QMainWindow):
                 return
 
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-            if not self.real_armed:
-                QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
-                return
-            phrase, ok = QInputDialog.getText(
-                self,
+            if not self._confirm_live_auto_once(
                 "실전 자동매매 최종 확인",
-                f"실제 주문이 전송됩니다.\n종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회\n계속하려면 LIVE START 를 입력하세요.",
-            )
-            if not ok or phrase.strip().upper() != "LIVE START":
+                f"실제 주문이 전송됩니다.\n종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회",
+            ):
                 return
             try:
                 self.engine.sync_account(force=True)
