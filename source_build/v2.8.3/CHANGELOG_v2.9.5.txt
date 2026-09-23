@@ -1,0 +1,14 @@
+PUMA STOCK PRO v2.9.5
+
+- 프로그램 내부 업데이트를 안전한 in-process 방식으로 변경.
+- 별도 _puma_apply_update.py 생성 제거.
+- VBS / PowerShell / DETACHED_PROCESS 기반 업데이트 제거.
+- 업데이트 ZIP SHA256 필수 검증.
+- config/runtime/.venv/logs/user_data/state 보존.
+- 적용 실패 시 소스 백업 복구.
+- 적용 완료 후 같은 Python/PythonW 프로세스로 즉시 재시작.
+- 통합화면 기본 자동매매를 '전체 후보 자동매매'로 정리.
+- '선택 종목만'은 보조 기능으로 분리.
+- 'PUMA 기본 묶음' 표기를 '가보자 조건검색 대상 · 7개 합집합'으로 명확화.
+- 7개 조건식 중 하나에만 편입되어도 PUMA 2차 선별 대상이라는 설명 추가.
+- 가보자 매매 전략 자체는 변경하지 않음.
