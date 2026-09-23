@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.20",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.20_UPDATE.zip",
-    "notes":  "v2.9.20: recalculates day-trading strength from the 09:00 market open. Morning cumulative volume is compared with the recent five trading days over the same elapsed 5-minute-bar window; 300 percent or more is mandatory for PUMA secondary selection before Gaboja entry. Danta score now weights morning volume burst most heavily and also includes price change from the session open. The redundant Classification column is removed from the Integrated Trading candidate list. Current Bowl-3 candidates are capped below the list threshold when price is more than the configured maximum distance above EMA224, while historical Bowl-3 markers remain on the chart.",
-    "sha256":  "25d8fd7c6129950b93e841da3c0bad0acb1d74eb132f57034aba8cc7c5175da4"
+    "version":  "2.9.21",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.21_UPDATE.zip",
+    "notes":  "v2.9.21: darkens the chart canvas to medium gray to reduce contrast with the black main UI; Ichimoku cloud fill is now opaque and concrete zones use stronger translucent fill. Bowl-3 is no longer assigned from a score-only 224 breakout: it requires EMA224 breakout followed by a real pullback that holds EMA224 or at minimum EMA112, with that support still alive and no excessive distance above EMA224. Pre-confirmation stages are not labeled Bowl-3. The 7 day-search initial union now uses complete paged general queries first, then realtime registration with pacing/retry; status separately shows initial-union and realtime registration counts so candidates such as stocks beyond the first result page are not silently missed.",
+    "sha256":  "450ef2298e0d046348b5ecd62762db6cd090a1c6e3f7e473b719e12be3489ded"
 }
