@@ -207,12 +207,20 @@ PUMA_DEFAULT_CONDITION_NAMES = (
     "시초가멀티",
 )
 
+# 사용자 지정 단타 후보 공급기 묶음. 하나의 조건식이 아니라 아래 전체의 합집합을 쓴다.
+PUMA_DANTA_CONDITION_NAMES = PUMA_DEFAULT_CONDITION_NAMES
+
 
 def normalize_condition_name(name: str) -> str:
     text = str(name or "").strip()
     for ch in ("★", "☆", " ", "\t"):
         text = text.replace(ch, "")
     return text
+
+
+def is_puma_danta_condition(name: str) -> bool:
+    key = normalize_condition_name(name)
+    return key in {normalize_condition_name(x) for x in PUMA_DANTA_CONDITION_NAMES}
 
 
 def select_puma_conditions(
