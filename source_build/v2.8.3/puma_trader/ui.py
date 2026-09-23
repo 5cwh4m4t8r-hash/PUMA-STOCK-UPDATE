@@ -3129,58 +3129,32 @@ class MainWindow(QMainWindow):
         if broker is None:
             return
         if not self.condition_list:
-            self.refresh_conditions()
-            if not self.condition_list:
-                return
+            self.refresh_conditions("auto")
+            return
+
+        running = self.condition_thread
+        if running is not None and running.isRunning():
+            self._update_condition_union_status()
+            self.condition_status.setText(self.condition_status.text() + " · 이미 실행 중")
+            return
 
         rows = self._puma_condition_rows()
         if not rows:
-            QMessageBox.information(self, "단타 검색기 없음", "지정한 단타 검색기 7개를 영웅문4 조건검색에 저장한 뒤 목록을 다시 불러오세요.")
+            QMessageBox.information(
+                self,
+                "단타 검색기 없음",
+                "지정한 단타 검색기 7개를 영웅문4 조건검색에 저장한 뒤 목록을 다시 불러오세요.",
+            )
             return
         if len(rows) > 10:
             QMessageBox.warning(self, "조건식 제한", "키움 실시간 조건검색은 한 세션에서 최대 10개까지 사용합니다.")
             rows = rows[:10]
 
-        self.stop_condition_stream()
+        # 이전 스레드가 종료 중이어도 UI에서 기다리지 않는다.
+        self.stop_condition_stream(update_status=False, block=False)
         self.condition_snapshot_seen.clear()
         self.condition_live_registered_count = 0
-
-        # 단타 검색기 7개 스트림을 다시 시작해도 사용자가 직접 편입한 종목은 보존한다.
-        # 자동 단타 소스만 새 합집합 결과로 다시 구성한다.
-        manual_keep = []
-        for code, item in self.condition_candidates.items():
-            for source_seq, src in (item.get("sources") or {}).items():
-                if str(source_seq).startswith("MANUAL:") and src.get("active"):
-                    manual_keep.append((
-                        code,
-                        item.get("name", code),
-                        str(source_seq),
-                        str(src.get("name") or "수동 조건식"),
-                        str(src.get("entered_at") or datetime.now().strftime("%H:%M:%S")),
-                    ))
-
-        self.condition_candidates.clear()
-        self.condition_table.setRowCount(0)
-        if hasattr(self, "focus_condition_table"):
-            self.focus_condition_table.setRowCount(0)
-        self.classification_queue.clear()
-
-        for code, stock_name, source_seq, source_name, entered_at in manual_keep:
-            item = update_candidate_source(
-                self.condition_candidates,
-                seq=source_seq,
-                condition_name=source_name,
-                code=code,
-                stock_name=stock_name,
-                active=True,
-                entry_event=False,
-                now=entered_at,
-            )
-            item["manual_pinned"] = True
-            self._upsert_condition_row(code)
-            self._queue_candidate_classification(code)
-
-        self._refresh_focus_candidate_count()
+        self.condition_start_btn.setEnabled(False)
 
         self.settings.hero_condition_names = [name for _, name in rows]
         self.settings.hero_condition_seq = ",".join(seq for seq, _ in rows)
@@ -3188,24 +3162,134 @@ class MainWindow(QMainWindow):
         save_strategy(self.settings)
 
         thread = MultiConditionStreamThread(broker.token, broker.real, rows, self)
-        thread.status.connect(self.on_condition_status)
-        thread.error.connect(self.on_condition_error)
-        thread.snapshot.connect(self.on_condition_snapshot)
-        thread.entered.connect(self.on_condition_enter)
-        thread.exited.connect(self.on_condition_exit)
+        thread.status.connect(
+            lambda text, t=thread:
+                self.on_condition_status(text) if self.condition_thread is t else None
+        )
+        thread.error.connect(
+            lambda text, t=thread:
+                self.on_condition_error(text) if self.condition_thread is t else None
+        )
+        thread.initial_union.connect(
+            lambda payload, t=thread:
+                self.on_condition_initial_union(payload) if self.condition_thread is t else None
+        )
+        thread.snapshot.connect(
+            lambda seq, name, result_rows, t=thread:
+                self.on_condition_snapshot(seq, name, result_rows) if self.condition_thread is t else None
+        )
+        thread.entered.connect(
+            lambda seq, name, code, stock_name, t=thread:
+                self.on_condition_enter(seq, name, code, stock_name) if self.condition_thread is t else None
+        )
+        thread.exited.connect(
+            lambda seq, name, code, t=thread:
+                self.on_condition_exit(seq, name, code) if self.condition_thread is t else None
+        )
+        thread.finished.connect(
+            lambda t=thread:
+                self._condition_thread_finished(t)
+        )
         self.condition_thread = thread
         thread.start()
-        names = ", ".join(name for _, name in rows)
-        self.condition_status.setText(f"단타 검색기 {len(rows)}개 동시 연결 · {names} · 합집합/중복제거 후 PUMA 2차선별")
 
-    def stop_condition_stream(self):
-        if self.condition_thread:
-            thread = self.condition_thread
+        self.condition_status.setText(
+            f"단타 검색기 {len(rows)}개 · 초기 합집합 만드는 중... 기존 목록은 완료될 때까지 유지"
+        )
+
+    def _condition_thread_finished(self, thread):
+        if self.condition_thread is thread:
             self.condition_thread = None
+            self.condition_start_btn.setEnabled(True)
+        thread.deleteLater()
+
+    def stop_condition_stream(self, update_status: bool = True, block: bool = False):
+        thread = self.condition_thread
+        self.condition_thread = None
+        if thread is not None:
             thread.stop()
-            thread.wait(2500)
-        if hasattr(self, "condition_status"):
+            if block:
+                thread.wait(2500)
+                thread.deleteLater()
+            else:
+                thread.finished.connect(thread.deleteLater)
+        if hasattr(self, "condition_start_btn"):
+            self.condition_start_btn.setEnabled(True)
+        if update_status and hasattr(self, "condition_status"):
             self.condition_status.setText("조건검색 중지")
+
+    def on_condition_initial_union(self, payload):
+        """Atomically replace automatic candidates after all initial searches finish."""
+        entries = list(payload or [])
+        now = datetime.now().strftime("%H:%M:%S")
+
+        # 수동 고정 종목은 유지하고 자동 7개 소스만 새 합집합으로 교체한다.
+        new_candidates: dict[str, dict] = {}
+        for code, old_item in self.condition_candidates.items():
+            for source_seq, src in (old_item.get("sources") or {}).items():
+                if not (str(source_seq).startswith("MANUAL:") and src.get("active")):
+                    continue
+                item = update_candidate_source(
+                    new_candidates,
+                    seq=str(source_seq),
+                    condition_name=str(src.get("name") or "수동 조건식"),
+                    code=code,
+                    stock_name=str(old_item.get("name") or self.name_cache.get(code) or code),
+                    active=True,
+                    entry_event=False,
+                    now=str(src.get("entered_at") or now),
+                )
+                item["manual_pinned"] = True
+
+        successful = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            seq = str(entry.get("seq") or "").strip()
+            condition_name = str(entry.get("name") or seq)
+            if entry.get("ok"):
+                successful.add(seq)
+            for code, stock_name in entry.get("rows") or []:
+                update_candidate_source(
+                    new_candidates,
+                    seq=seq,
+                    condition_name=condition_name,
+                    code=code,
+                    stock_name=stock_name or self.name_cache.get(code) or code,
+                    active=True,
+                    entry_event=False,
+                    now=now,
+                )
+
+        self.condition_candidates = new_candidates
+        self.condition_snapshot_seen = successful
+        self.classification_queue.clear()
+
+        tables = [getattr(self, "condition_table", None), getattr(self, "focus_condition_table", None)]
+        for table in tables:
+            if table is not None:
+                table.setUpdatesEnabled(False)
+                table.setRowCount(0)
+
+        try:
+            for code, item in self.condition_candidates.items():
+                self._upsert_condition_row(code)
+                self._ensure_market_row(code, item.get("name", code), "영웅문4")
+                if not item.get("name") or item.get("name") == code:
+                    self._queue_name_lookup(code)
+                self._queue_candidate_classification(code)
+        finally:
+            for table in tables:
+                if table is not None:
+                    table.setUpdatesEnabled(True)
+                    table.viewport().update()
+
+        self._refresh_focus_candidate_count()
+        self.condition_start_btn.setEnabled(False)
+        self._update_condition_union_status()
+
+        if self.engine.enabled and self.condition_candidates:
+            QTimer.singleShot(0, self.scan_one)
 
     def _update_condition_union_status(self):
         if not hasattr(self, "condition_status"):
@@ -3237,7 +3321,7 @@ class MainWindow(QMainWindow):
         self.log("HERO4", "ERROR", "-", text)
 
     def on_condition_snapshot(self, seq: str, condition_name: str, rows):
-        self.condition_snapshot_seen.add(str(seq))
+        # 실시간 등록 응답의 누락분만 추가한다. 초기통합 카운트는 initial_union에서만 확정한다.
         now = datetime.now().strftime("%H:%M:%S")
         for code, name in rows:
             item = update_candidate_source(
@@ -5367,7 +5451,7 @@ class MainWindow(QMainWindow):
             self._closing = True
             self._save_ui_layout()
             self.stop_auto()
-            self.stop_condition_stream()
+            self.stop_condition_stream(block=True)
             self.stop_manual_condition_preview()
             self.name_lookup_timer.stop()
             self.mobile_publish_timer.stop()
