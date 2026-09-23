@@ -259,7 +259,8 @@ def evaluate_gaboja(
         min_score=secondary_min_score,
     )
     basis_open = float(d.get("basis_open", live_bar["open"]) or live_bar["open"])
-    day_ratio = float(d.get("day_volume_ratio", 0.0) or 0.0)
+    # GabojaSignal의 거래량 비율도 이제 장초 동일시간대 5일 평균 대비 비율을 사용한다.
+    day_ratio = float(d.get("morning_volume_ratio", 0.0) or 0.0)
     if apply_secondary_filter and not candidate_ok:
         return GabojaSignal(
             False,
