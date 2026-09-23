@@ -18,6 +18,21 @@ def _num(v):
         return 0.0
 
 
+def _minute_bucket_key(row: dict, timeframe: int) -> str:
+    """Return a stable intraday bucket key even if raw timestamps contain seconds."""
+    raw = str(row.get("cntr_tm") or row.get("dt") or row.get("date") or "")
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if len(digits) < 12:
+        return digits
+    try:
+        minute = int(digits[10:12])
+        tf = max(1, int(timeframe or 5))
+        bucket = (minute // tf) * tf
+        return digits[:10] + f"{bucket:02d}"
+    except Exception:
+        return digits[:12]
+
+
 class TradeEngine:
     def __init__(self, broker, settings: StrategySettings):
         self.broker = broker
@@ -228,6 +243,8 @@ class TradeEngine:
                 partial_taken=bool(meta.get("partial_taken", getattr(old, "partial_taken", False))),
                 partial_price=float(meta.get("partial_price", getattr(old, "partial_price", 0)) or 0),
                 partial_time=str(meta.get("partial_time", getattr(old, "partial_time", "")) or ""),
+                remainder_down_trigger_bar=str(meta.get("remainder_down_trigger_bar", getattr(old, "remainder_down_trigger_bar", "")) or ""),
+                remainder_down_wait_bar=str(meta.get("remainder_down_wait_bar", getattr(old, "remainder_down_wait_bar", "")) or ""),
             )
 
         # 매도 주문 확인. +4% 1차 익절은 절반만 줄이고, 손절/트레일링/종가청산은 전량 정리한다.
@@ -255,6 +272,8 @@ class TradeEngine:
                         "partial_taken": bool(pending.get("partial_taken_after", True)),
                         "partial_price": float(pending.get("partial_price_after", meta.get("partial_price", 0)) or 0),
                         "partial_time": str(pending.get("partial_time_after", meta.get("partial_time", "")) or ""),
+                        "remainder_down_trigger_bar": "",
+                        "remainder_down_wait_bar": "",
                     })
                     self.managed_meta[code] = meta
                     pos = self.positions.get(code)
@@ -263,6 +282,8 @@ class TradeEngine:
                         pos.partial_taken = True
                         pos.partial_price = float(pending.get("partial_price_after", 0) or 0)
                         pos.partial_time = str(pending.get("partial_time_after", now.isoformat(timespec="seconds")) or "")
+                        pos.remainder_down_trigger_bar = ""
+                        pos.remainder_down_wait_bar = ""
 
         # 계좌에 일부만 들어온 매수는 포지션 표시만 하되 pending을 유지해 추가 주문을 막는다.
         for code, pending in self.pending_orders.items():
@@ -305,6 +326,8 @@ class TradeEngine:
                 "partial_taken": False,
                 "partial_price": 0.0,
                 "partial_time": "",
+                "remainder_down_trigger_bar": "",
+                "remainder_down_wait_bar": "",
             }
             self.pending_orders[code] = {
                 "side": "BUY",
@@ -372,6 +395,8 @@ class TradeEngine:
                 "partial_taken_after": True,
                 "partial_price_after": float(current),
                 "partial_time_after": datetime.now().isoformat(timespec="seconds"),
+                "remainder_down_trigger_bar_after": "",
+                "remainder_down_wait_bar_after": "",
             }
             self._persist_runtime()
             return {
@@ -383,6 +408,8 @@ class TradeEngine:
         pos.partial_taken = True
         pos.partial_price = float(current)
         pos.partial_time = datetime.now().isoformat(timespec="seconds")
+        pos.remainder_down_trigger_bar = ""
+        pos.remainder_down_wait_bar = ""
         self.managed_qty[code] = remaining
         self.managed_meta[code] = {
             "stop_price": float(getattr(pos, "stop_price", 0) or 0),
@@ -390,6 +417,8 @@ class TradeEngine:
             "partial_taken": True,
             "partial_price": float(current),
             "partial_time": pos.partial_time,
+            "remainder_down_trigger_bar": "",
+            "remainder_down_wait_bar": "",
         }
         self._persist_runtime()
         return {
@@ -411,6 +440,12 @@ class TradeEngine:
         except Exception:
             current = 0
 
+        bar_key = _minute_bucket_key(candles[0], self.settings.timeframe_min)
+        try:
+            previous_bar_close = abs(float(str(candles[1].get("cur_prc", "0")).replace(",", ""))) if len(candles) > 1 else 0.0
+        except Exception:
+            previous_bar_close = 0.0
+
         pending = self.pending_orders.get(code)
         if pending:
             return {
@@ -425,13 +460,42 @@ class TradeEngine:
             pos = self.positions[code]
             pnl = pos.pnl_pct(current)
 
-            # 가보자: +4% 최초 도달 시 절반 익절. 잔량은 절반익절 가격을 기준으로 방향이 나오면 즉시 전량 청산한다.
+            # 가보자: +4% 최초 도달 시 절반 익절.
+            # 잔량은 절반매도 기준가 +2% 즉시 청산 / -2%는 다음 5분봉 회복 여부를 확인한다.
             if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
                 if self.daily_order_count >= self.settings.max_daily_orders:
                     return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}
                 return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%")
 
-            should_sell, reason = evaluate_sell(pos, current, self.settings)
+            state_before = (
+                str(getattr(pos, "remainder_down_trigger_bar", "") or ""),
+                str(getattr(pos, "remainder_down_wait_bar", "") or ""),
+            )
+            should_sell, reason = evaluate_sell(
+                pos,
+                current,
+                self.settings,
+                bar_key=bar_key,
+                previous_bar_close=previous_bar_close,
+            )
+            state_after = (
+                str(getattr(pos, "remainder_down_trigger_bar", "") or ""),
+                str(getattr(pos, "remainder_down_wait_bar", "") or ""),
+            )
+            if state_after != state_before:
+                meta = dict(self.managed_meta.get(code) or {})
+                meta.update({
+                    "stop_price": float(getattr(pos, "stop_price", 0) or 0),
+                    "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
+                    "partial_taken": bool(getattr(pos, "partial_taken", False)),
+                    "partial_price": float(getattr(pos, "partial_price", 0) or 0),
+                    "partial_time": str(getattr(pos, "partial_time", "") or ""),
+                    "remainder_down_trigger_bar": state_after[0],
+                    "remainder_down_wait_bar": state_after[1],
+                })
+                self.managed_meta[code] = meta
+                self._persist_runtime()
+
             if self.enabled and should_sell:
                 if self.daily_order_count >= self.settings.max_daily_orders:
                     return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}

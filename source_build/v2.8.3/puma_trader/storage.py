@@ -75,6 +75,8 @@ def load_runtime() -> dict:
                 "partial_taken": bool(item.get("partial_taken", False)),
                 "partial_price": float(item.get("partial_price", 0) or 0),
                 "partial_time": str(item.get("partial_time", "")),
+                "remainder_down_trigger_bar": str(item.get("remainder_down_trigger_bar", "")),
+                "remainder_down_wait_bar": str(item.get("remainder_down_wait_bar", "")),
             }
 
         managed_meta = raw.get("managed_meta", {})
@@ -103,6 +105,8 @@ def load_runtime() -> dict:
                 "partial_taken_after": bool(item.get("partial_taken_after", False)),
                 "partial_price_after": float(item.get("partial_price_after", 0) or 0),
                 "partial_time_after": str(item.get("partial_time_after", "")),
+                "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
+                "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
@@ -127,6 +131,8 @@ def save_runtime(data: dict):
             "partial_taken": bool(item.get("partial_taken", False)),
             "partial_price": float(item.get("partial_price", 0) or 0),
             "partial_time": str(item.get("partial_time", "")),
+            "remainder_down_trigger_bar": str(item.get("remainder_down_trigger_bar", "")),
+            "remainder_down_wait_bar": str(item.get("remainder_down_wait_bar", "")),
         }
 
     pending = {}
@@ -149,6 +155,8 @@ def save_runtime(data: dict):
             "partial_taken_after": bool(item.get("partial_taken_after", False)),
             "partial_price_after": float(item.get("partial_price_after", 0) or 0),
             "partial_time_after": str(item.get("partial_time_after", "")),
+            "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
+            "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),

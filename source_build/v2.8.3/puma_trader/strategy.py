@@ -95,7 +95,15 @@ def evaluate_buy(candles, settings: StrategySettings) -> SignalResult:
     return SignalResult(True, "매수조건 충족", score, current, change_pct, vol_ratio, cur_rsi)
 
 
-def evaluate_sell(position: Position, current_price: float, settings: StrategySettings, now=None):
+def evaluate_sell(
+    position: Position,
+    current_price: float,
+    settings: StrategySettings,
+    now=None,
+    *,
+    bar_key: str = "",
+    previous_bar_close: float = 0.0,
+):
     pnl = position.pnl_pct(current_price)
     position.highest_price = max(position.highest_price, current_price)
 
@@ -117,23 +125,78 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
                 return True, f"가보자 1차 절반익절 대기 {pnl:.2f}%"
         else:
             # 절반익절 이후 잔량 규칙:
-            # 1) 절반익절 가격보다 위로 가면 추가상승 확인 -> 전량매도
-            # 2) 절반익절 가격보다 아래로 가면 하락 전환 -> 전량매도
-            # 3) 11:00 도달 시 방향과 무관하게 잔량 종료
+            # - 절반매도 기준가 +2% 도달: 즉시 잔량 전량매도.
+            # - 기준가 -2% 이탈: 즉시 팔지 않고 다음 5분봉 한 봉 전체를 관찰.
+            #   그 다음 봉 종가도 -2% 아래면 잔량 전량매도,
+            #   -2% 위로 회복하면 하락확인 상태를 해제하고 계속 보유.
+            # - 11:00 강제청산 규칙은 사용하지 않는다.
             partial_price = float(getattr(position, "partial_price", 0) or 0)
             if partial_price <= 0:
                 partial_price = position.entry_price * (1.0 + settings.take_profit_pct / 100.0)
 
-            cutoff = str(getattr(settings, "gabojago_remainder_exit_time", "11:00") or "11:00")
-            if now.strftime("%H:%M") >= cutoff:
-                return True, f"가보자 {cutoff} 잔량 전량매도 · 기준 {partial_price:,.0f}"
+            band_pct = abs(float(getattr(settings, "gabojago_remainder_band_pct", 2.0) or 2.0))
+            upper = partial_price * (1.0 + band_pct / 100.0)
+            lower = partial_price * (1.0 - band_pct / 100.0)
 
-            if current_price > partial_price:
-                return True, f"가보자 절반익절 후 추가상승 전량매도 {current_price:,.0f} > {partial_price:,.0f}"
-            if current_price < partial_price:
-                return True, f"가보자 절반익절 후 하락 전량매도 {current_price:,.0f} < {partial_price:,.0f}"
+            if current_price >= upper:
+                return True, (
+                    f"가보자 잔량 +{band_pct:.1f}% 전량매도 "
+                    f"{current_price:,.0f} >= {upper:,.0f} · 기준 {partial_price:,.0f}"
+                )
 
-            return False, f"가보자 잔량 대기 · 기준 {partial_price:,.0f} · {cutoff} 이전"
+            trigger_bar = str(getattr(position, "remainder_down_trigger_bar", "") or "")
+            wait_bar = str(getattr(position, "remainder_down_wait_bar", "") or "")
+
+            if trigger_bar:
+                # 이탈이 발생한 봉이 끝난 뒤, 다음 한 봉을 통째로 기다린다.
+                if not bar_key or bar_key == trigger_bar:
+                    return False, (
+                        f"가보자 잔량 -{band_pct:.1f}% 이탈봉 관찰 중 · "
+                        f"하단 {lower:,.0f}"
+                    )
+
+                if not wait_bar:
+                    position.remainder_down_wait_bar = str(bar_key)
+                    return False, (
+                        f"가보자 잔량 회복 확인봉 관찰 중 · "
+                        f"하단 {lower:,.0f}"
+                    )
+
+                if bar_key == wait_bar:
+                    return False, (
+                        f"가보자 잔량 회복 확인봉 관찰 중 · "
+                        f"하단 {lower:,.0f}"
+                    )
+
+                # wait_bar가 끝난 뒤 새 봉이 시작된 시점:
+                # 직전 완료봉 종가로 회복 여부를 확정한다.
+                confirm_close = float(previous_bar_close or 0)
+                if confirm_close > 0 and confirm_close <= lower:
+                    return True, (
+                        f"가보자 잔량 -{band_pct:.1f}% 다음봉 미회복 전량매도 · "
+                        f"확인봉 종가 {confirm_close:,.0f} <= {lower:,.0f}"
+                    )
+
+                # 확인봉 종가가 하단선 위로 회복했으면 다시 정상 보유.
+                position.remainder_down_trigger_bar = ""
+                position.remainder_down_wait_bar = ""
+                return False, (
+                    f"가보자 잔량 -{band_pct:.1f}% 회복 확인 · "
+                    f"기준 {partial_price:,.0f}"
+                )
+
+            if current_price <= lower:
+                position.remainder_down_trigger_bar = str(bar_key or now.strftime("%Y%m%d%H%M"))
+                position.remainder_down_wait_bar = ""
+                return False, (
+                    f"가보자 잔량 -{band_pct:.1f}% 이탈 · 다음 5분봉까지 관찰 "
+                    f"{current_price:,.0f} <= {lower:,.0f}"
+                )
+
+            return False, (
+                f"가보자 잔량 보유 · 기준 {partial_price:,.0f} "
+                f"범위 {lower:,.0f}~{upper:,.0f}"
+            )
 
     else:
         # 비-가보자 기존 포지션 규칙 유지.
