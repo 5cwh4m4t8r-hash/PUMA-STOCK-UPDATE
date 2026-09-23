@@ -3,6 +3,25 @@ from __future__ import annotations
 from typing import List, Optional
 
 
+def hero_eavg(values: List[float], period: int) -> List[Optional[float]]:
+    """Kiwoom EAVG-compatible cumulative EMA used everywhere in PUMA.
+
+    One shared implementation is critical: chart MA lines, arrow formulas,
+    Bowl-3 and market-path logic must not calculate different 112/224/448
+    values from the same candles.
+    """
+    out: List[Optional[float]] = [None] * len(values)
+    if period <= 0 or not values:
+        return out
+    k = 2.0 / (float(period) + 1.0)
+    prev = float(values[0])
+    out[0] = prev
+    for i in range(1, len(values)):
+        prev = float(values[i]) * k + prev * (1.0 - k)
+        out[i] = prev
+    return out
+
+
 def _midpoint(candles: List[dict], period: int) -> List[Optional[float]]:
     out: List[Optional[float]] = [None] * len(candles)
     if period <= 0:
