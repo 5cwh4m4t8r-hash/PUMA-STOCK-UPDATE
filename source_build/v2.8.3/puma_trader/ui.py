@@ -2831,7 +2831,7 @@ class MainWindow(QMainWindow):
         if self._candidate_in_danta_feed(item):
             scores = dict(item.get("scores") or {})
             dscore = int(scores.get("danta", 0) or 0)
-            puma = f"PUMA {dscore}" if scores else "PUMA 분석중"
+            puma = f"PUMA {dscore}점" if scores else "PUMA 분석중"
             overlap = f"{auto_count}식" if auto_count > 1 else "1식"
             return f"단타검색 {overlap} · {puma}"
         if auto_count and manual_count:
