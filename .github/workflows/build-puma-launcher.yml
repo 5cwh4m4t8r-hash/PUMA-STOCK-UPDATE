@@ -73,6 +73,16 @@ jobs:
           }
           Write-Host "PUMA DESKTOP LAUNCHER OK"
 
+      - name: Upload launcher artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PUMA_STOCK_PRO_LAUNCHER_v2.9.8
+          path: |
+            source_build/v2.8.3/PUMA_STOCK_PRO.exe
+            source_build/v2.8.3/PUMA_STOCK_PRO.ico
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Commit launcher binary
         if: github.event_name == 'push'
         shell: powershell
