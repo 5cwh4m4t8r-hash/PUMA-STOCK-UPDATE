@@ -5,9 +5,11 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from puma_trader.ui import MainWindow
+from puma_trader.updater import write_install_marker
 
 
 def main():
+    write_install_marker()
     app = QApplication(sys.argv)
     app.setApplicationName("PUMA STOCK PRO")
     app.setStyle("Fusion")
