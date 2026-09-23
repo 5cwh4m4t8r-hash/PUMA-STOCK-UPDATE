@@ -1,6 +1,6 @@
 {
-  "version": "2.9.9",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.9_UPDATE.zip",
-  "notes": "v2.9.9: 업데이트 파일 적용 직후 디스크의 새 updater 모듈을 다시 로드한 뒤 자동 재시작하도록 수정. Windows 창/작업표시줄 아이콘은 PUMA_STOCK_PRO.ico를 우선 사용. PUMA_STOCK_PRO.exe와 ICO를 업데이트에 포함. 바탕화면 EXE는 설치 위치를 찾아 실행. 매매전략 변경 없음.",
-  "sha256": "6c003c95bea429d5e85a54a5d525f5dfc0f4d542cf030c0cdc2e55823234c03c"
+  "version": "2.9.10",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.10_UPDATE.zip",
+  "notes": "v2.9.10: 종합 트레이딩 조건검색 결과에 가보자 7개 조건식 자동편입 유지. 조건검색 탭에서 원하는 조건식을 선택해 그 결과 종목을 종합 트레이딩에 수동 편입 가능. 수동편입 종목도 PUMA 2차 선별 + 가보자 조건 통과 시에만 자동매매. 후보표에 선택 삭제 버튼 추가하며 삭제 종목은 현재 세션 신규매매 후보에서 제외. 보유/주문 중 종목은 삭제 차단. 자동 조건검색 재시작 시 수동편입 종목 보존. 매매전략 자체는 변경 없음.",
+  "sha256": "c9c6729ce11d513620bf7a2104d399eae7bc172247432555a538214cf3f03233"
 }
