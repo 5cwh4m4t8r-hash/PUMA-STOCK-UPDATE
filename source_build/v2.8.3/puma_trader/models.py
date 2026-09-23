@@ -32,6 +32,7 @@ class StrategySettings:
     gabojago_daily_volume_ratio: float = 3.0
     gabojago_min_stop_gap_pct: float = 0.5
     gabojago_partial_profit_pct: float = 4.0
+    gabojago_remainder_exit_time: str = "11:00"
 
     # 주문 / 리스크
     order_budget: int = 500_000
@@ -71,6 +72,8 @@ class Position:
     stop_price: float = 0.0
     entry_kind: str = ""
     partial_taken: bool = False
+    partial_price: float = 0.0
+    partial_time: str = ""
 
     def pnl_pct(self, current_price: float) -> float:
         if self.entry_price <= 0:

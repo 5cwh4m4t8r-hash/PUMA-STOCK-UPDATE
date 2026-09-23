@@ -182,6 +182,8 @@ class TradeEngine:
                     "stop_price": float(pending.get("stop_price", 0) or 0),
                     "entry_kind": str(pending.get("entry_kind", "")),
                     "partial_taken": False,
+                    "partial_price": 0.0,
+                    "partial_time": "",
                 }
                 self.pending_orders.pop(code, None)
 
@@ -220,6 +222,8 @@ class TradeEngine:
                 stop_price=float(meta.get("stop_price", getattr(old, "stop_price", 0)) or 0),
                 entry_kind=str(meta.get("entry_kind", getattr(old, "entry_kind", "")) or ""),
                 partial_taken=bool(meta.get("partial_taken", getattr(old, "partial_taken", False))),
+                partial_price=float(meta.get("partial_price", getattr(old, "partial_price", 0)) or 0),
+                partial_time=str(meta.get("partial_time", getattr(old, "partial_time", "")) or ""),
             )
 
         # 매도 주문 확인. +4% 1차 익절은 절반만 줄이고, 손절/트레일링/종가청산은 전량 정리한다.
@@ -245,12 +249,16 @@ class TradeEngine:
                         "stop_price": float(pending.get("stop_price", meta.get("stop_price", 0)) or 0),
                         "entry_kind": str(pending.get("entry_kind", meta.get("entry_kind", "")) or ""),
                         "partial_taken": bool(pending.get("partial_taken_after", True)),
+                        "partial_price": float(pending.get("partial_price_after", meta.get("partial_price", 0)) or 0),
+                        "partial_time": str(pending.get("partial_time_after", meta.get("partial_time", "")) or ""),
                     })
                     self.managed_meta[code] = meta
                     pos = self.positions.get(code)
                     if pos:
                         pos.qty = remaining
                         pos.partial_taken = True
+                        pos.partial_price = float(pending.get("partial_price_after", current) or current)
+                        pos.partial_time = str(pending.get("partial_time_after", now.isoformat(timespec="seconds")) or "")
 
         # 계좌에 일부만 들어온 매수는 포지션 표시만 하되 pending을 유지해 추가 주문을 막는다.
         for code, pending in self.pending_orders.items():
@@ -291,6 +299,8 @@ class TradeEngine:
                 "stop_price": float(stop_price or 0),
                 "entry_kind": str(entry_kind or ""),
                 "partial_taken": False,
+                "partial_price": 0.0,
+                "partial_time": "",
             }
             self.pending_orders[code] = {
                 "side": "BUY",
@@ -356,6 +366,8 @@ class TradeEngine:
                 "stop_price": float(getattr(pos, "stop_price", 0) or 0),
                 "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
                 "partial_taken_after": True,
+                "partial_price_after": float(current),
+                "partial_time_after": datetime.now().isoformat(timespec="seconds"),
             }
             self._persist_runtime()
             return {
@@ -365,11 +377,15 @@ class TradeEngine:
 
         pos.qty = remaining
         pos.partial_taken = True
+        pos.partial_price = float(current)
+        pos.partial_time = datetime.now().isoformat(timespec="seconds")
         self.managed_qty[code] = remaining
         self.managed_meta[code] = {
             "stop_price": float(getattr(pos, "stop_price", 0) or 0),
             "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
             "partial_taken": True,
+            "partial_price": float(current),
+            "partial_time": pos.partial_time,
         }
         self._persist_runtime()
         return {
@@ -405,7 +421,7 @@ class TradeEngine:
             pos = self.positions[code]
             pnl = pos.pnl_pct(current)
 
-            # 가보자: +4% 최초 도달 시 절반 익절. 잔량은 기존 트레일링/종가청산으로 추적.
+            # 가보자: +4% 최초 도달 시 절반 익절. 잔량은 절반익절 가격을 기준으로 방향이 나오면 즉시 전량 청산한다.
             if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
                 if self.daily_order_count >= self.settings.max_daily_orders:
                     return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": "PUMA 일일 주문 제한 도달"}

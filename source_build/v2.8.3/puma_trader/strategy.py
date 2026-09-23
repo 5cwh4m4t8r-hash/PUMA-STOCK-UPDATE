@@ -101,24 +101,39 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
 
     stop_price = float(getattr(position, "stop_price", 0) or 0)
     partial_taken = bool(getattr(position, "partial_taken", False))
+    now = now or datetime.now()
 
     if stop_price > 0:
-        # 가보자 포지션: 기준봉 시가 이탈이 최우선 전량 손절선.
+        # 가보자 포지션: 기준봉 시가 이탈은 언제나 최우선 전량 손절.
         if current_price <= stop_price:
             return True, f"가보자 기준봉 시가 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
 
-        # +4% 최초 도달 전에는 트레일링으로 전량청산하지 않는다.
-        # 엔진이 먼저 절반익절을 실행하고 partial_taken=True로 바꾼 뒤에만 잔량을 추적한다.
+        # +4% 최초 도달은 엔진에서 절반익절 처리.
         if not partial_taken:
             if pnl >= settings.take_profit_pct:
                 return True, f"가보자 1차 절반익절 대기 {pnl:.2f}%"
-        elif settings.trailing_enabled and position.highest_price > 0:
-            # 절반익절 후에는 현재 수익률이 trailing_start 밑으로 내려가도 고점 대비 낙폭으로 계속 추적.
-            drop_from_high = (current_price / position.highest_price - 1) * 100
-            if drop_from_high <= -abs(settings.trailing_gap_pct):
-                return True, f"가보자 잔량 트레일링 {drop_from_high:.2f}%"
+        else:
+            # 절반익절 이후 잔량 규칙:
+            # 1) 절반익절 가격보다 위로 가면 추가상승 확인 -> 전량매도
+            # 2) 절반익절 가격보다 아래로 가면 하락 전환 -> 전량매도
+            # 3) 11:00 도달 시 방향과 무관하게 잔량 종료
+            partial_price = float(getattr(position, "partial_price", 0) or 0)
+            if partial_price <= 0:
+                partial_price = position.entry_price * (1.0 + settings.take_profit_pct / 100.0)
+
+            cutoff = str(getattr(settings, "gabojago_remainder_exit_time", "11:00") or "11:00")
+            if now.strftime("%H:%M") >= cutoff:
+                return True, f"가보자 {cutoff} 잔량 전량매도 · 기준 {partial_price:,.0f}"
+
+            if current_price > partial_price:
+                return True, f"가보자 절반익절 후 추가상승 전량매도 {current_price:,.0f} > {partial_price:,.0f}"
+            if current_price < partial_price:
+                return True, f"가보자 절반익절 후 하락 전량매도 {current_price:,.0f} < {partial_price:,.0f}"
+
+            return False, f"가보자 잔량 대기 · 기준 {partial_price:,.0f} · {cutoff} 이전"
+
     else:
-        # 비-가보자 기존 포지션 규칙은 유지.
+        # 비-가보자 기존 포지션 규칙 유지.
         if pnl <= settings.stop_loss_pct:
             return True, f"손절 {pnl:.2f}%"
         if pnl >= settings.take_profit_pct:
@@ -128,7 +143,6 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
             if drop_from_high <= -abs(settings.trailing_gap_pct):
                 return True, f"트레일링 {drop_from_high:.2f}%"
 
-    now = now or datetime.now()
     if settings.force_exit_enabled and now.strftime("%H:%M") >= settings.force_exit_time:
         return True, "장 종료 전 청산"
     return False, "보유"
