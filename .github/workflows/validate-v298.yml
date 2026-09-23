@@ -43,7 +43,7 @@ jobs:
           $ui = Get-Content puma_trader\ui.py -Raw
           if ($ui -notmatch "start_manual_condition_preview") { throw "manual condition preview missing" }
           if ($ui -notmatch "ConditionStreamThread") { throw "manual condition thread missing" }
-          if ($ui -notmatch "바탕화면 PUMA 실행파일 만들기") { throw "desktop launcher button missing" }
+          if ($ui -notmatch "desktop_launcher_btn") { throw "desktop launcher button missing" }
           Write-Host "UI WIRING OK"
 
       - name: Restart process smoke test
