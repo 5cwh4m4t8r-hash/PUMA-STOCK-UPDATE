@@ -2,5 +2,5 @@
     "version":  "2.9.19",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.19_UPDATE.zip",
     "notes":  "v2.9.19: changes the chart canvas to a soft light-gray theme with darker grid/axis/title text for readability. The daily Integrated Trading chart now overlays exact Bowl-3 stage tags from the analyzer: pre-break, 224EMA breakout, acceptance above 224EMA, and core retest/support. Bowl markers are not added to the 5-minute day-trading chart. Keeps v2.9.18 condition-name normalization and all v2.9.17 union/auto-trading behavior.",
-    "sha256":  "6f9015c9da283816b98f10a9d0cbf0e2953978ab743e80da85ec8636a9fca496"
+    "sha256":  "d61c59bb5f5ff8609799f869d890e0ba3bafb9bc1f47ce5af740d23835a38733"
 }
