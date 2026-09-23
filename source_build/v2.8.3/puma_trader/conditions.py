@@ -425,56 +425,109 @@ class MultiConditionStreamThread(QThread):
             if not self._stop_requested:
                 self.error.emit(str(exc))
 
-    async def _request_initial_snapshot(self, ws, seq: str, name: str) -> bool:
-        """Fetch the complete initial result first, including continuation pages."""
-        merged: dict[str, str] = {}
-        cont_yn = "N"
-        next_key = ""
+    async def _collect_initial_union(self, ws) -> list[dict]:
+        """Pipeline all initial condition queries, then emit one complete union payload."""
+        loop = asyncio.get_running_loop()
+        states: dict[str, dict] = {
+            seq: {
+                "name": name,
+                "merged": {},
+                "cont_yn": "N",
+                "next_key": "",
+                "attempts": 0,
+                "last_sent": 0.0,
+                "done": False,
+                "ok": False,
+            }
+            for seq, name in self.conditions
+        }
 
-        for page in range(20):
+        async def send_request(seq: str):
+            st = states[seq]
             await ws.send(json.dumps({
                 "trnm": "CNSRREQ",
                 "seq": seq,
                 "search_type": "0",
                 "stex_tp": "K",
-                "cont_yn": cont_yn,
-                "next_key": next_key,
+                "cont_yn": st["cont_yn"],
+                "next_key": st["next_key"],
             }, ensure_ascii=False))
+            st["attempts"] += 1
+            st["last_sent"] = loop.time()
 
+        # One connection, multiple seq requests in flight. This avoids waiting for
+        # searcher A to finish before B can even start.
+        for seq, _ in self.conditions:
+            if self._stop_requested:
+                break
+            await send_request(seq)
+            await asyncio.sleep(0.04)
+
+        while not self._stop_requested and not all(st["done"] for st in states.values()):
             try:
-                msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=8.0)
+                msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=0.5)
             except asyncio.TimeoutError:
-                self.error.emit(f"[{seq}] {name}: 초기 조건검색 응답 시간초과")
-                return False
+                now = loop.time()
+                for seq, st in states.items():
+                    if st["done"] or now - float(st["last_sent"]) < 2.5:
+                        continue
+                    if st["attempts"] < 3:
+                        self.status.emit(
+                            f"[{seq}] {st['name']} 초기조회 재시도 {st['attempts']+1}/3"
+                        )
+                        await send_request(seq)
+                        await asyncio.sleep(0.03)
+                    else:
+                        st["done"] = True
+                        st["ok"] = False
+                        self.error.emit(f"[{seq}] {st['name']}: 초기 조건검색 응답 시간초과")
+                continue
 
             if not isinstance(msg, dict) or str(msg.get("trnm", "")).upper() != "CNSRREQ":
-                self.error.emit(f"[{seq}] {name}: 초기 조건검색 응답 형식 불일치")
-                return False
+                continue
 
-            response_seq = str(msg.get("seq", "")).strip()
-            if response_seq and response_seq != seq:
-                self.error.emit(f"[{seq}] {name}: 초기 응답 번호 불일치({response_seq})")
-                return False
+            seq = str(msg.get("seq", "")).strip()
+            if seq not in states:
+                continue
+            st = states[seq]
+            if st["done"]:
+                continue
 
             if int(msg.get("return_code", 0) or 0) != 0:
-                self.error.emit(f"[{seq}] {name}: {msg.get('return_msg', '초기 조건검색 실패')}")
-                return False
+                if st["attempts"] < 3:
+                    self.status.emit(
+                        f"[{seq}] {st['name']} 초기조회 오류 재시도 {st['attempts']+1}/3"
+                    )
+                    await send_request(seq)
+                    continue
+                st["done"] = True
+                st["ok"] = False
+                self.error.emit(
+                    f"[{seq}] {st['name']}: {msg.get('return_msg', '초기 조건검색 실패')}"
+                )
+                continue
 
             for code, stock_name in parse_snapshot_codes(msg.get("data")):
                 if code:
-                    merged[code] = stock_name or merged.get(code, code)
+                    st["merged"][code] = stock_name or st["merged"].get(code, code)
 
             cont_yn = str(msg.get("cont_yn") or msg.get("cont-yn") or "N").strip().upper()
             next_key = str(msg.get("next_key") or msg.get("next-key") or "").strip()
-            if cont_yn != "Y" or not next_key:
-                break
+            if cont_yn == "Y" and next_key:
+                st["cont_yn"] = "Y"
+                st["next_key"] = next_key
+                st["attempts"] = 0
+                await send_request(seq)
+            else:
+                st["done"] = True
+                st["ok"] = True
 
-            await asyncio.sleep(0.12)
-
-        rows = [(code, merged[code]) for code in merged]
-        self.snapshot.emit(seq, name, rows)
-        self.status.emit(f"[{seq}] {name} 초기조회 완료 · {len(rows)}종목")
-        return True
+        payload = []
+        for seq, name in self.conditions:
+            st = states[seq]
+            rows = [(code, st["merged"][code]) for code in st["merged"]]
+            payload.append({"seq": seq, "name": name, "rows": rows, "ok": bool(st["ok"])})
+        return payload
 
     async def _run(self):
         if not self.conditions:
@@ -484,19 +537,20 @@ class MultiConditionStreamThread(QThread):
             await _login(ws, self.token)
             self.status.emit(f"PUMA 조건검색 {len(self.conditions)}개 WebSocket 연결됨")
 
-            # 1) 먼저 7개 조건식 각각을 일반조회(search_type=0)로 끝까지 수신한다.
-            #    연속조회까지 합쳐 초기 후보 합집합을 완성하므로 결과 뒤쪽 종목도 빠지지 않는다.
-            initial_ok: set[str] = set()
-            for seq, name in self.conditions:
-                if self._stop_requested:
-                    break
-                ok = await self._request_initial_snapshot(ws, seq, name)
-                if ok:
-                    initial_ok.add(seq)
-                await asyncio.sleep(0.18)
-
+            # 1) 7개 일반조회를 한 WebSocket에서 파이프라인 처리한다.
+            #    UI에는 검색기별로 찔끔찔끔 보내지 않고 전부 수집한 뒤 한 번만 전달한다.
+            initial_payload = await self._collect_initial_union(ws)
+            if self._stop_requested:
+                return
+            self.initial_union.emit(initial_payload)
+            initial_ok = sum(1 for x in initial_payload if x.get("ok"))
+            initial_count = len({
+                code
+                for x in initial_payload
+                for code, _ in (x.get("rows") or [])
+            })
             self.status.emit(
-                f"PUMA 초기 통합조회 {len(initial_ok)}/{len(self.conditions)} 완료"
+                f"PUMA 초기 통합조회 {initial_ok}/{len(self.conditions)} 완료 · 합집합 {initial_count}종목"
             )
 
             # 2) 초기 합집합을 만든 뒤 같은 7개 조건을 실시간 편입/이탈로 등록한다.
