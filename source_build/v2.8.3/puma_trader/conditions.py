@@ -331,6 +331,57 @@ class MultiConditionStreamThread(QThread):
             if not self._stop_requested:
                 self.error.emit(str(exc))
 
+    async def _request_initial_snapshot(self, ws, seq: str, name: str) -> bool:
+        """Fetch the complete initial result first, including continuation pages."""
+        merged: dict[str, str] = {}
+        cont_yn = "N"
+        next_key = ""
+
+        for page in range(20):
+            await ws.send(json.dumps({
+                "trnm": "CNSRREQ",
+                "seq": seq,
+                "search_type": "0",
+                "stex_tp": "K",
+                "cont_yn": cont_yn,
+                "next_key": next_key,
+            }, ensure_ascii=False))
+
+            try:
+                msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=8.0)
+            except asyncio.TimeoutError:
+                self.error.emit(f"[{seq}] {name}: 초기 조건검색 응답 시간초과")
+                return False
+
+            if not isinstance(msg, dict) or str(msg.get("trnm", "")).upper() != "CNSRREQ":
+                self.error.emit(f"[{seq}] {name}: 초기 조건검색 응답 형식 불일치")
+                return False
+
+            response_seq = str(msg.get("seq", "")).strip()
+            if response_seq and response_seq != seq:
+                self.error.emit(f"[{seq}] {name}: 초기 응답 번호 불일치({response_seq})")
+                return False
+
+            if int(msg.get("return_code", 0) or 0) != 0:
+                self.error.emit(f"[{seq}] {name}: {msg.get('return_msg', '초기 조건검색 실패')}")
+                return False
+
+            for code, stock_name in parse_snapshot_codes(msg.get("data")):
+                if code:
+                    merged[code] = stock_name or merged.get(code, code)
+
+            cont_yn = str(msg.get("cont_yn") or msg.get("cont-yn") or "N").strip().upper()
+            next_key = str(msg.get("next_key") or msg.get("next-key") or "").strip()
+            if cont_yn != "Y" or not next_key:
+                break
+
+            await asyncio.sleep(0.12)
+
+        rows = [(code, merged[code]) for code in merged]
+        self.snapshot.emit(seq, name, rows)
+        self.status.emit(f"[{seq}] {name} 초기조회 완료 · {len(rows)}종목")
+        return True
+
     async def _run(self):
         if not self.conditions:
             raise ConditionError("실행할 PUMA 조건식이 없습니다.")
@@ -339,19 +390,60 @@ class MultiConditionStreamThread(QThread):
             await _login(ws, self.token)
             self.status.emit(f"PUMA 조건검색 {len(self.conditions)}개 WebSocket 연결됨")
 
+            # 1) 먼저 7개 조건식 각각을 일반조회(search_type=0)로 끝까지 수신한다.
+            #    연속조회까지 합쳐 초기 후보 합집합을 완성하므로 결과 뒤쪽 종목도 빠지지 않는다.
+            initial_ok: set[str] = set()
             for seq, name in self.conditions:
+                if self._stop_requested:
+                    break
+                ok = await self._request_initial_snapshot(ws, seq, name)
+                if ok:
+                    initial_ok.add(seq)
+                await asyncio.sleep(0.18)
+
+            self.status.emit(
+                f"PUMA 초기 통합조회 {len(initial_ok)}/{len(self.conditions)} 완료"
+            )
+
+            # 2) 초기 합집합을 만든 뒤 같은 7개 조건을 실시간 편입/이탈로 등록한다.
+            #    한꺼번에 패킷을 몰아 보내지 않고 간격을 둬 서버 등록 누락을 줄인다.
+            live_attempts = {seq: 0 for seq, _ in self.conditions}
+            live_sent_at = {}
+            live_registered: set[str] = set()
+
+            async def send_live(seq: str):
                 await ws.send(json.dumps({
                     "trnm": "CNSRREQ",
                     "seq": seq,
                     "search_type": "1",
                     "stex_tp": "K",
                 }, ensure_ascii=False))
+                live_attempts[seq] = live_attempts.get(seq, 0) + 1
+                live_sent_at[seq] = asyncio.get_running_loop().time()
+
+            for seq, _ in self.conditions:
+                if self._stop_requested:
+                    break
+                await send_live(seq)
+                await asyncio.sleep(0.22)
 
             while not self._stop_requested:
                 try:
                     msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=1.0)
                 except asyncio.TimeoutError:
+                    # 등록 응답이 오지 않은 조건식만 최대 3회 재등록한다.
+                    now_mono = asyncio.get_running_loop().time()
+                    for seq, name in self.conditions:
+                        if seq in live_registered or live_attempts.get(seq, 0) >= 3:
+                            continue
+                        if now_mono - float(live_sent_at.get(seq, 0.0) or 0.0) >= 2.0:
+                            self.status.emit(
+                                f"[{seq}] {name} 실시간 등록 재시도 {live_attempts.get(seq, 0)+1}/3"
+                            )
+                            await send_live(seq)
+                            await asyncio.sleep(0.18)
                     continue
+
                 if not isinstance(msg, dict):
                     continue
                 trnm = str(msg.get("trnm", "")).upper()
@@ -361,9 +453,14 @@ class MultiConditionStreamThread(QThread):
                     if int(msg.get("return_code", 0) or 0) != 0:
                         self.error.emit(f"[{seq}] {name}: {msg.get('return_msg', '실시간 조건검색 시작 실패')}")
                         continue
+                    live_registered.add(seq)
+                    # 초기 일반조회 뒤 등록 사이에 새로 편입된 종목이 있으면 합집합에 추가한다.
                     rows = parse_snapshot_codes(msg.get("data"))
-                    self.snapshot.emit(seq, name, rows)
-                    self.status.emit(f"[{seq}] {name} 실행 · 초기 {len(rows)}종목")
+                    if rows:
+                        self.snapshot.emit(seq, name, rows)
+                    self.status.emit(
+                        f"[{seq}] {name} 실시간 등록 완료 · 전체 {len(live_registered)}/{len(self.conditions)}"
+                    )
                 elif trnm == "REAL":
                     data = msg.get("data", [])
                     if not isinstance(data, list):
