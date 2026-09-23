@@ -266,7 +266,16 @@ class SwingChart(QWidget):
         for c in cs:
             include_value(c['high'])
             include_value(c['low'])
-        line_keys = self._line_keys
+        overlay_suppressed = bool(
+            self.series.get('overlay_suppressed_long_trend')
+            or self.series.get('long_trend_suppressed_now')
+        )
+        # In an already extended 112>224>448 bullish trend, keep only price,
+        # volume and EMA lines. Bottom/reversal indicators are intentionally unused.
+        line_keys = tuple(
+            k for k in self._line_keys
+            if not overlay_suppressed or str(k).startswith('ema')
+        )
         for key in line_keys:
             arr = self.series.get(key, [])
             for v in arr[start:end]:
@@ -328,7 +337,7 @@ class SwingChart(QWidget):
 
         # 일목균형표 선행스팬 1·2: 사용자 영웅문 화면처럼 파란 구름대로 표시.
         # 최신 구간에서는 표준 +26 선행 구간까지 오른쪽에 예약해 구름이 앞쪽으로 이어진다.
-        if isinstance(cloud_a, list) and isinstance(cloud_b, list):
+        if not overlay_suppressed and isinstance(cloud_a, list) and isinstance(cloud_b, list):
             pts_a = []
             pts_b = []
             cloud_last = min(len(cloud_a), len(cloud_b), end + future_count)
@@ -362,7 +371,7 @@ class SwingChart(QWidget):
             # 전고점언덕은 공구리 목록과 별도로 유지한다.
             boxes = list(boxes) + [one_box]
 
-        visible_boxes = [
+        visible_boxes = [] if overlay_suppressed else [
             b for b in boxes
             if isinstance(b, dict)
             and b.get('start', -1) < end
@@ -421,7 +430,7 @@ class SwingChart(QWidget):
             up=c['close']>=c['open']
             candle_col=QColor('#ef4747') if up else QColor('#2d77ff')
 
-            if i < len(acc) and acc[i]:
+            if not overlay_suppressed and i < len(acc) and acc[i]:
                 p.fillRect(QRectF(xx-cw*0.9, price_rect.top(), cw*1.8, price_rect.height()), QColor(255,190,35,25))
                 if n <= 180:
                     p.setPen(QColor('#ffc13d')); p.drawText(int(xx-26), int(price_rect.top()+18), '매집확정')
@@ -452,12 +461,12 @@ class SwingChart(QWidget):
             gi = start + i
             label = ''
             label_color = QColor('#ffffff')
-            if isinstance(path_rebreak, list) and gi < len(path_rebreak) and path_rebreak[gi]:
+            if not overlay_suppressed and isinstance(path_rebreak, list) and gi < len(path_rebreak) and path_rebreak[gi]:
                 label = '✓재돌파'; label_color = QColor('#ffcf3d')
-            elif isinstance(path_pull, list) and gi < len(path_pull) and path_pull[gi]:
+            elif not overlay_suppressed and isinstance(path_pull, list) and gi < len(path_pull) and path_pull[gi]:
                 ma = path_pull_ma[gi] if isinstance(path_pull_ma, list) and gi < len(path_pull_ma) else 0
                 label = f'✓눌림{ma}' if ma else '✓눌림'; label_color = QColor('#62d98b')
-            elif isinstance(path_break, list) and gi < len(path_break) and path_break[gi]:
+            elif not overlay_suppressed and isinstance(path_break, list) and gi < len(path_break) and path_break[gi]:
                 ma = path_break_ma[gi] if isinstance(path_break_ma, list) and gi < len(path_break_ma) else 0
                 label = f'✓돌파{ma}' if ma else '✓돌파'; label_color = QColor('#ff6a6a')
             if label:
@@ -467,7 +476,7 @@ class SwingChart(QWidget):
 
         # 밥그릇3번 자리: 분석기가 판정한 실제 일봉 위치에 단계별 태그를 표시.
         bowl3_markers = self.series.get('bowl3_markers', [])
-        if isinstance(bowl3_markers, list) and bowl3_markers:
+        if not overlay_suppressed and isinstance(bowl3_markers, list) and bowl3_markers:
             marker_colors = {
                 'prebreak': QColor('#7a5d00'),
                 'breakout': QColor('#b33a24'),
@@ -505,7 +514,7 @@ class SwingChart(QWidget):
         # PUMA 수박근사: 신호가 발생한 실제 봉에 붙여 표시.
         # 별도 하단 띠에 몰아넣지 않고, 봉 저가 아래(공간 부족 시 고가 위)에 앵커링한다.
         wm = self.series.get('watermelon_display', [])
-        if isinstance(wm, list) and wm:
+        if not overlay_suppressed and isinstance(wm, list) and wm:
             for i, stage in enumerate(wm[start:end]):
                 if not stage:
                     continue
@@ -547,6 +556,8 @@ class SwingChart(QWidget):
             ('signal_black', QColor('#050505'), '검'),
         ]
         for i, candle in enumerate(cs):
+            if overlay_suppressed:
+                break
             gi = start + i
             active = []
             for key, sig_color, sig_label in sig_defs:
@@ -654,7 +665,7 @@ class SwingChart(QWidget):
 
         # breakout marker
         bi = getattr(self.analysis, 'breakout_index', -1) if self.analysis is not None else -1
-        if start <= bi < end:
+        if not overlay_suppressed and start <= bi < end:
             xx=x(bi-start); p.setPen(QPen(QColor('#61ff8f'),2)); p.drawLine(QPointF(xx,price_rect.top()+18),QPointF(xx,price_rect.bottom()))
             cp = self.series.get('core_path', {}) or {}
             ma = int(cp.get('breakout_ma_period',0) or 0)
