@@ -27,7 +27,18 @@ def _daily():
 
 
 def _minute(body_break=True, day="20260923"):
-    rows = [
+    target = datetime.strptime(day, "%Y%m%d")
+    rows = []
+    for offset in range(7, 2, -1):
+        prior = (target - timedelta(days=offset)).strftime("%Y%m%d")
+        rows += [
+            _d(prior+"090000", 100, 101, 99, 100, 100),
+            _d(prior+"090500", 100, 101, 99, 100, 100),
+            _d(prior+"091000", 100, 101, 99, 100, 100),
+            _d(prior+"091500", 100, 101, 99, 100, 100),
+            _d(prior+"092000", 100, 101, 99, 100, 100),
+        ]
+    rows += [
         _d(day+"090000", 106, 107, 105.8, 106.5, 600),
         _d(day+"090500", 106.5, 109, 106.4, 108.8, 700),
         _d(day+"091000", 108.8, 113, 108.7, 112.5, 1400),
