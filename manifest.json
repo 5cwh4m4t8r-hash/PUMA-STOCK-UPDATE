@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.19",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.19_UPDATE.zip",
-    "notes":  "v2.9.19: changes the chart canvas to a soft light-gray theme with darker grid/axis/title text for readability. The daily Integrated Trading chart now overlays exact Bowl-3 stage tags from the analyzer: pre-break, 224EMA breakout, acceptance above 224EMA, and core retest/support. Bowl markers are not added to the 5-minute day-trading chart. Keeps v2.9.18 condition-name normalization and all v2.9.17 union/auto-trading behavior.",
-    "sha256":  "4f12874916d6852ec56bcb3a70e3951c50c157fe110f0a82a7e36e2bfe20daa9"
+    "version":  "2.9.20",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.20_UPDATE.zip",
+    "notes":  "v2.9.20: recalculates day-trading strength from the 09:00 market open. Morning cumulative volume is compared with the recent five trading days over the same elapsed 5-minute-bar window; 300 percent or more is mandatory for PUMA secondary selection before Gaboja entry. Danta score now weights morning volume burst most heavily and also includes price change from the session open. The redundant Classification column is removed from the Integrated Trading candidate list. Current Bowl-3 candidates are capped below the list threshold when price is more than the configured maximum distance above EMA224, while historical Bowl-3 markers remain on the chart.",
+    "sha256":  "5c86992237d699e1e38a6e83865cbfeb85b974e8eb377d8b7d506a954fe8cec7"
 }
