@@ -2573,46 +2573,94 @@ class MainWindow(QMainWindow):
         # 특정 하나(예: 단타1)에 고정하지 않는다.
         return select_puma_conditions(self.condition_list, PUMA_DANTA_CONDITION_NAMES)
 
-    def refresh_conditions(self):
+    def refresh_conditions(self, after_action: str = ""):
         broker = self._require_kiwoom()
         if broker is None:
             return
+
+        if after_action:
+            self.condition_pending_action = str(after_action)
+
+        if self.condition_list_thread and self.condition_list_thread.isRunning():
+            self.condition_status.setText("조건식 목록 조회 중... 완료되면 자동으로 계속합니다.")
+            return
+
         self.condition_status.setText("조건식 목록 조회 중...")
-        try:
-            rows = fetch_condition_list(broker.token, broker.real)
-            self.condition_list = rows
-            self.condition_combo.clear()
-            self.condition_combo.addItem("조건식을 선택하세요", None)
-            for seq, name in rows:
-                self.condition_combo.addItem(f"[{seq}] {name}", (seq, name))
-            restore = str(self.settings.hero_condition_seq or "").strip()
-            restored = False
-            # 예전 고정 다중묶음(쉼표 포함)은 복원하지 않는다.
-            # 한 개 조건식을 사용자가 직접 선택해 저장한 경우에만 복원한다.
-            if restore and "," not in restore:
-                for i in range(1, self.condition_combo.count()):
-                    data = self.condition_combo.itemData(i)
-                    if data and str(data[0]) == restore:
-                        self.condition_combo.setCurrentIndex(i)
-                        restored = True
-                        break
-            if not restored:
-                self.condition_combo.setCurrentIndex(0)
-            matched = select_puma_conditions(rows, PUMA_DANTA_CONDITION_NAMES)
-            found = {normalize_condition_name(name) for _, name in matched}
-            missing = [
-                name for name in PUMA_DANTA_CONDITION_NAMES
-                if normalize_condition_name(name) not in found
-            ]
-            text = f"저장 조건식 {len(rows)}개 · 단타 자동 검색기 {len(matched)}/{len(PUMA_DANTA_CONDITION_NAMES)}개 확인"
-            if missing:
-                text += " · 미확인: " + ", ".join(missing)
-            self.condition_status.setText(text)
-            if not rows:
-                QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
-        except Exception as exc:
-            self.condition_status.setText("조건식 조회 실패")
-            QMessageBox.critical(self, "조건식 조회 실패", str(exc))
+        self.condition_refresh_btn.setEnabled(False)
+        self.condition_start_btn.setEnabled(False)
+        self.manual_condition_view_btn.setEnabled(False)
+
+        thread = ConditionListThread(broker.token, broker.real, self)
+        thread.loaded.connect(self._on_condition_list_loaded)
+        thread.error.connect(self._on_condition_list_error)
+        thread.finished.connect(lambda: self.condition_refresh_btn.setEnabled(True))
+        self.condition_list_thread = thread
+        thread.start()
+
+    def _apply_condition_list(self, rows):
+        rows = list(rows or [])
+        self.condition_list = rows
+
+        current = self.condition_combo.currentData()
+        current_seq = str(current[0]) if isinstance(current, tuple) and len(current) == 2 else ""
+
+        self.condition_combo.blockSignals(True)
+        self.condition_combo.clear()
+        self.condition_combo.addItem("조건식을 선택하세요", None)
+        for seq, name in rows:
+            self.condition_combo.addItem(f"[{seq}] {name}", (seq, name))
+
+        restore = current_seq or str(self.settings.hero_condition_seq or "").strip()
+        restored = False
+        if restore and "," not in restore:
+            for i in range(1, self.condition_combo.count()):
+                data = self.condition_combo.itemData(i)
+                if data and str(data[0]) == restore:
+                    self.condition_combo.setCurrentIndex(i)
+                    restored = True
+                    break
+        if not restored:
+            self.condition_combo.setCurrentIndex(0)
+        self.condition_combo.blockSignals(False)
+
+        matched = select_puma_conditions(rows, PUMA_DANTA_CONDITION_NAMES)
+        found = {normalize_condition_name(name) for _, name in matched}
+        missing = [
+            name for name in PUMA_DANTA_CONDITION_NAMES
+            if normalize_condition_name(name) not in found
+        ]
+        text = f"저장 조건식 {len(rows)}개 · 단타 자동 검색기 {len(matched)}/{len(PUMA_DANTA_CONDITION_NAMES)}개 확인"
+        if missing:
+            text += " · 미확인: " + ", ".join(missing)
+        self.condition_status.setText(text)
+
+    def _on_condition_list_loaded(self, rows):
+        self.condition_list_thread = None
+        self.condition_refresh_btn.setEnabled(True)
+        self.condition_start_btn.setEnabled(True)
+        self.manual_condition_view_btn.setEnabled(True)
+        self._apply_condition_list(rows)
+
+        if not rows:
+            self.condition_pending_action = ""
+            QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
+            return
+
+        action = self.condition_pending_action
+        self.condition_pending_action = ""
+        if action == "auto":
+            QTimer.singleShot(0, self.start_condition_stream)
+        elif action == "manual":
+            QTimer.singleShot(0, self.start_manual_condition_preview)
+
+    def _on_condition_list_error(self, text: str):
+        self.condition_list_thread = None
+        self.condition_pending_action = ""
+        self.condition_refresh_btn.setEnabled(True)
+        self.condition_start_btn.setEnabled(True)
+        self.manual_condition_view_btn.setEnabled(True)
+        self.condition_status.setText("조건식 조회 실패")
+        QMessageBox.critical(self, "조건식 조회 실패", str(text))
 
     def start_manual_condition_preview(self):
         broker = self._require_kiwoom()
