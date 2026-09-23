@@ -3271,13 +3271,16 @@ class MainWindow(QMainWindow):
                 table.setUpdatesEnabled(False)
                 table.setRowCount(0)
 
+        unresolved_names = []
+        classify_codes = []
         try:
             for code, item in self.condition_candidates.items():
-                self._upsert_condition_row(code)
+                self._upsert_condition_row(code, refresh_focus_count=False)
                 self._ensure_market_row(code, item.get("name", code), "영웅문4")
                 if not item.get("name") or item.get("name") == code:
-                    self._queue_name_lookup(code)
-                self._queue_candidate_classification(code)
+                    unresolved_names.append(code)
+                if code not in self.session_excluded_codes:
+                    classify_codes.append(code)
         finally:
             for table in tables:
                 if table is not None:
@@ -3285,6 +3288,19 @@ class MainWindow(QMainWindow):
                     table.viewport().update()
 
         self._refresh_focus_candidate_count()
+
+        # 렌더링을 먼저 끝낸 뒤 이름조회/차트분석을 백그라운드 큐에 넣는다.
+        for code in unresolved_names:
+            if code not in self.name_cache and code not in self.name_lookup_queue:
+                self.name_lookup_queue.append(code)
+        if unresolved_names and not self.name_lookup_timer.isActive():
+            self.name_lookup_timer.start()
+            QTimer.singleShot(0, self._resolve_next_name)
+
+        for code in classify_codes:
+            if code not in self.classification_queue:
+                self.classification_queue.append(code)
+        QTimer.singleShot(0, self._start_next_candidate_classification)
         self.condition_start_btn.setEnabled(False)
         self._update_condition_union_status()
 
@@ -3502,7 +3518,7 @@ class MainWindow(QMainWindow):
         if not self._closing:
             QTimer.singleShot(DEVICE_PROFILE.background_delay_ms, self._start_next_candidate_classification)
 
-    def _upsert_condition_row(self, code: str):
+    def _upsert_condition_row(self, code: str, refresh_focus_count: bool = True):
         item = self.condition_candidates.get(code, {})
 
         if (
@@ -3556,7 +3572,7 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 5).setForeground(QColor("#62b8ff"))
 
         if hasattr(self, "focus_condition_table"):
-            self._upsert_focus_candidate_row(code)
+            self._upsert_focus_candidate_row(code, refresh_count=refresh_focus_count)
 
     def _focus_condition_row_clicked(self, row: int, column: int):
         item = self.focus_condition_table.item(row, 0)
