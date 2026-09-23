@@ -17,6 +17,21 @@ def _ema(values: List[float], period: int) -> List[Optional[float]]:
     return hero_eavg(values, period)
 
 
+def _avg(values: List[float], period: int) -> List[Optional[float]]:
+    """Kiwoom AVG: simple moving average, used by Disparity()."""
+    out: List[Optional[float]] = [None] * len(values)
+    if period <= 0:
+        return out
+    total = 0.0
+    for i, value in enumerate(values):
+        total += float(value)
+        if i >= period:
+            total -= float(values[i - period])
+        if i >= period - 1:
+            out[i] = total / float(period)
+    return out
+
+
 def _bbands_up(values: List[float], period: int = 40, dev: float = 2.2) -> List[Optional[float]]:
     out: List[Optional[float]] = [None] * len(values)
     if period <= 0:
@@ -228,7 +243,7 @@ def build_arrow_signals(candles: List[dict]) -> dict:
         return {
             "signal_pink_raw": [], "signal_blue_raw": [], "signal_red_raw": [], "signal_black_raw": [],
             "signal_pink": [], "signal_blue": [], "signal_red": [], "signal_black": [],
-            "signal_sar": [], "signal_bb40_22": [],
+            "signal_sar": [], "signal_bb40_22": [], "signal_disparity_avg224": [],
             "long_trend_suppressed": [], "long_trend_suppressed_now": False,
         }
 
@@ -237,6 +252,7 @@ def build_arrow_signals(candles: List[dict]) -> dict:
     e112 = _ema(c, 112)
     e224 = _ema(c, 224)
     e448 = _ema(c, 448)
+    avg224 = _avg(c, 224)
     bb = _bbands_up(c, 40, 2.2)
     vema40 = _ema(v, 40)
     sar = _sar(candles, 0.066, 0.016)
@@ -268,8 +284,10 @@ def build_arrow_signals(candles: List[dict]) -> dict:
         # && V > eavg(V,40)*1.5
         # && V > V(1)*1.5
         # && eavg(c,1) >= eavg(c,112)
-        if i > 0 and e224[i] is not None and e112[i] is not None and vema40[i] is not None:
-            disparity224 = c[i] / float(e224[i]) * 100.0 if float(e224[i]) else 999.0
+        if i > 0 and avg224[i] is not None and e112[i] is not None and vema40[i] is not None:
+            # Kiwoom Disparity(224) = c / avg(c,224) * 100.
+            # It is NOT based on EAVG/EMA224.
+            disparity224 = c[i] / float(avg224[i]) * 100.0 if float(avg224[i]) else 999.0
             black_raw[i] = bool(
                 disparity224 <= 109.0
                 and x_bb[i]
@@ -296,6 +314,7 @@ def build_arrow_signals(candles: List[dict]) -> dict:
         "signal_black": black,
         "signal_sar": sar,
         "signal_bb40_22": bb,
+        "signal_disparity_avg224": avg224,
         "long_trend_suppressed": suppressed,
         "long_trend_suppressed_now": bool(suppressed[-1]) if suppressed else False,
     }
