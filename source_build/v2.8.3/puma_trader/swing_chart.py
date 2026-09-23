@@ -227,9 +227,9 @@ class SwingChart(QWidget):
         paint_started = time.perf_counter()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, not self._low_power)
-        p.fillRect(self.rect(), QColor('#091524'))
+        p.fillRect(self.rect(), QColor('#e6e9ed'))
         if not self.series or not self.series.get('candles'):
-            p.setPen(QColor('#8aa0b8'))
+            p.setPen(QColor('#4f6272'))
             p.drawText(self.rect(), Qt.AlignCenter, '데이터를 불러오면 차트가 표시됩니다.')
             self._emit_paint_timing(paint_started)
             return
@@ -311,20 +311,20 @@ class SwingChart(QWidget):
                 current = visible_days[i]
                 if current and current != previous:
                     xx = x(i) - step_w / 2
-                    p.setPen(QPen(QColor('#5b7898'), 1, Qt.DashLine))
+                    p.setPen(QPen(QColor('#aab4bf'), 1, Qt.DashLine))
                     p.drawLine(QPointF(xx, price_rect.top()), QPointF(xx, vol_rect.bottom()))
                     label = f"{current[4:6]}/{current[6:8]}" if len(current) == 8 else current
-                    p.setPen(QColor('#9bb8d1'))
+                    p.setPen(QColor('#526579'))
                     p.drawText(int(xx + 4), int(price_rect.top() + 14), label)
                     previous = current
 
         # grid / y labels
-        p.setPen(QPen(QColor('#17304a'), 1))
+        p.setPen(QPen(QColor('#c7cfd7'), 1))
         for k in range(6):
             yy = price_rect.top() + k*price_rect.height()/5
             p.drawLine(QPointF(price_rect.left(), yy), QPointF(price_rect.right(), yy))
             value = hi - k*(hi-lo)/5
-            p.setPen(QColor('#7f93a9')); p.drawText(5, int(yy+4), f'{value:,.0f}'); p.setPen(QPen(QColor('#17304a'),1))
+            p.setPen(QColor('#4d5d6c')); p.drawText(5, int(yy+4), f'{value:,.0f}'); p.setPen(QPen(QColor('#c7cfd7'),1))
 
         # 일목균형표 선행스팬 1·2: 사용자 영웅문 화면처럼 파란 구름대로 표시.
         # 최신 구간에서는 표준 +26 선행 구간까지 오른쪽에 예약해 구름이 앞쪽으로 이어진다.
@@ -343,10 +343,10 @@ class SwingChart(QWidget):
             if len(pts_a) >= 2 and len(pts_b) >= 2:
                 poly = QPolygonF(pts_a + list(reversed(pts_b)))
                 p.setPen(Qt.NoPen)
-                p.setBrush(QColor(40, 92, 255, 120))
+                p.setBrush(QColor(40, 92, 255, 58))
                 p.drawPolygon(poly)
                 p.setBrush(Qt.NoBrush)
-                p.setPen(QPen(QColor('#1f55ff'), 1.2))
+                p.setPen(QPen(QColor('#315fcb'), 1.2))
                 for pts in (pts_a, pts_b):
                     for j in range(1, len(pts)):
                         p.drawLine(pts[j-1], pts[j])
@@ -413,10 +413,10 @@ class SwingChart(QWidget):
                 p.drawText(int(xs+6), int(y(box['high'])-6), '전고점언덕 저항')
 
         maxvol = max(c['volume'] for c in cs) or 1
-        p.setPen(QColor('#91a8bd'))
+        p.setPen(QColor('#4e6070'))
         p.setFont(QFont('Malgun Gothic', 8, QFont.Bold))
         p.drawText(int(vol_rect.left()+4), int(vol_rect.top()+12), '거래량  ↑빨강 / ↓파랑')
-        p.setPen(QPen(QColor('#263d58'), 1))
+        p.setPen(QPen(QColor('#b8c1ca'), 1))
         p.drawLine(QPointF(vol_rect.left(), vol_rect.top()), QPointF(vol_rect.right(), vol_rect.top()))
 
         acc_full = self.series.get('acc_flags', [False]*len(candles))
@@ -477,6 +477,42 @@ class SwingChart(QWidget):
                 p.setPen(label_color)
                 p.setFont(QFont('Malgun Gothic', 8, QFont.Bold))
                 p.drawText(int(xx-16), int(max(price_rect.top()+32, y(c['high'])-8)), label)
+
+        # 밥그릇3번 자리: 분석기가 판정한 실제 일봉 위치에 단계별 태그를 표시.
+        bowl3_markers = self.series.get('bowl3_markers', [])
+        if isinstance(bowl3_markers, list) and bowl3_markers:
+            marker_colors = {
+                'prebreak': QColor('#7a5d00'),
+                'breakout': QColor('#b33a24'),
+                'accepted': QColor('#176b39'),
+                'core': QColor('#6f2da8'),
+            }
+            for marker_info in bowl3_markers:
+                if not isinstance(marker_info, dict):
+                    continue
+                gi = int(marker_info.get('index', -1))
+                if not (start <= gi < end):
+                    continue
+                i = gi - start
+                xx = x(i)
+                candle = cs[i]
+                yy = max(price_rect.top() + 22.0, y(candle['high']) - 28.0)
+                label = str(marker_info.get('label') or '밥3')
+                kind = str(marker_info.get('kind') or 'core')
+                col = marker_colors.get(kind, QColor('#6f2da8'))
+
+                # 봉과 태그를 연결하고, 밝은 회색 바탕에서 또렷하게 보이도록 흰색 판을 깐다.
+                p.setPen(QPen(col, 1.6))
+                p.drawLine(QPointF(xx, y(candle['high']) - 2), QPointF(xx, yy + 14))
+                text_w = max(54, min(86, 10 + len(label) * 13))
+                rect = QRectF(xx - text_w / 2, yy - 2, text_w, 22)
+                p.setPen(QPen(col, 1.4))
+                p.setBrush(QColor(248, 249, 250, 232))
+                p.drawRoundedRect(rect, 5, 5)
+                p.setPen(col)
+                p.setFont(QFont('Malgun Gothic', 8, QFont.Bold))
+                p.drawText(rect, Qt.AlignCenter, label)
+                p.setBrush(Qt.NoBrush)
 
         # PUMA 수박근사: 신호가 발생한 실제 봉에 붙여 표시.
         # 별도 하단 띠에 몰아넣지 않고, 봉 저가 아래(공간 부족 시 고가 위)에 앵커링한다.
@@ -600,7 +636,7 @@ class SwingChart(QWidget):
                 p.drawText(int(xx + 7), int(text_rect_y - 8), 18, 13, Qt.AlignLeft, sig_label)
                 p.setBrush(Qt.NoBrush)
 
-        # 사용자 영웅문 화면의 시각 체계를 PUMA 어두운 배경에 맞게 재현.
+        # 사용자 영웅문 화면의 시각 체계를 밝은 회색 배경에 맞게 재현.
         # 5=노랑, 20=빨강, 60=초록, 112=갈색/주황, 224=검정 굵게, 448=회색 점선.
         colors={
             'ema5':'#ffd21f',
@@ -620,11 +656,10 @@ class SwingChart(QWidget):
         priority = ['ema448','ema224','ema112','ema60','ema20','ema5','blue','kijun']
         ordered = [k for k in priority if k in line_keys] + [k for k in line_keys if k not in priority]
         for key in ordered:
-            col = QColor(colors.get(key, '#9bb8d1'))
+            col = QColor(colors.get(key, '#5c6f80'))
             if key == 'ema224':
-                # 영웅문에서는 회색 배경이라 검정 224선이 잘 보인다.
-                # PUMA 검정 배경에서는 밝은 외곽선을 먼저 깔고 검정 코어를 그린다.
-                self._draw_series(p, self.series[key], start, end, x, y, QColor('#d9dde3'), 5.0, Qt.SolidLine)
+                # 밝은 회색 배경에서는 검정 224EMA를 그대로 굵게 표시한다.
+                pass
             if key == 'kijun':
                 self._draw_series(p, self.series[key], start, end, x, y, QColor('#b71c1c'), 1.0, Qt.SolidLine)
             self._draw_series(p, self.series[key], start, end, x, y, col, widths.get(key,1.5), styles.get(key,Qt.SolidLine))
@@ -639,7 +674,7 @@ class SwingChart(QWidget):
             p.drawText(int(xx+5), int(price_rect.top()+34), f'확정 돌파 {ma}EMA' if ma else '확정 돌파')
 
         # x-axis 날짜 라벨
-        p.setPen(QColor('#8298af')); p.setFont(QFont('Malgun Gothic',8))
+        p.setPen(QColor('#55687a')); p.setFont(QFont('Malgun Gothic',8))
         ticks = min(6, n)
         for k in range(ticks):
             j = int(round(k*(n-1)/max(1,ticks-1)))
@@ -648,12 +683,12 @@ class SwingChart(QWidget):
 
         # 차트 상단은 종목/봉 정보만 남긴다.
         # EMA/기준선/파란점선/일목/수박 등 지표 이름 범례는 차트 위를 가리지 않도록 숨김.
-        p.setPen(QColor('#d7e8f7'))
+        p.setPen(QColor('#243444'))
         p.setFont(QFont('Malgun Gothic',10,QFont.Bold))
         if self.title:
             p.drawText(int(price_rect.left()), 19, self.title)
 
-        p.setPen(QColor('#7991aa'))
+        p.setPen(QColor('#66798a'))
         p.setFont(QFont('Malgun Gothic',8))
         p.drawText(
             int(price_rect.right()-410), 19, 400, 18, Qt.AlignRight,
