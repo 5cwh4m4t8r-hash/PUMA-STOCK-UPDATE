@@ -226,8 +226,10 @@ def build_arrow_signals(candles: List[dict]) -> dict:
     n = len(candles)
     if n == 0:
         return {
+            "signal_pink_raw": [], "signal_blue_raw": [], "signal_red_raw": [], "signal_black_raw": [],
             "signal_pink": [], "signal_blue": [], "signal_red": [], "signal_black": [],
             "signal_sar": [], "signal_bb40_22": [],
+            "long_trend_suppressed": [], "long_trend_suppressed_now": False,
         }
 
     c = [float(x["close"]) for x in candles]
@@ -304,6 +306,8 @@ def latest_signal_reason(series: dict) -> str:
     if not candles:
         return "화살표 없음"
     i = len(candles) - 1
+    if bool(series.get("long_trend_suppressed_now")):
+        return "112>224>448 정배열 + 224EMA 대비 +8% 초과 · 화살표/바닥형 지표 제외"
     names = []
     if i < len(series.get("signal_pink", [])) and series["signal_pink"][i]:
         names.append("분홍: BB상단40/2.2 + EMA112/224/448 중 하나 동시 상향돌파")
