@@ -1,6 +1,6 @@
 {
-  "version": "2.8.7",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.7_UPDATE.zip",
-  "notes": "v2.8.7: 전략 변경 없이 재시작 상태복구 수정, runtime 원자저장, 자동 스캔 GUI 분리 및 중복 scan 방지, 부분익절 로그/버전표시 정리.",
-  "sha256": "75d8d82176f3d9106110bd322b221a4ab7465b6f612be99664159b22d93ab77e"
+  "version": "2.9.0",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.0_UPDATE.zip",
+  "notes": "v2.9.0: 영웅문 검색기 후보→PUMA 장중 힘 2차 선별→가보자 차 눌림/전고 몸통돌파에서 50만원 고정 자동매수. 갭/전일 하루 거래량300% 필수 제거.",
+  "sha256": "f1f3540c7375f5ef0e3716d4a2414f1605eae117fd434b4f5e49bf546b6310f3"
 }
