@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.16",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.16_UPDATE.zip",
-    "notes":  "v2.9.16: removed the top Danta Analysis tab; Danta Detail opens in a separate window from Integrated Trading. Integrated full-candidate auto trading no longer requires watchlist entries. It uses the union of the 7 configured day-trading condition searches, deduplicates by stock code, then applies mandatory live PUMA secondary filtering and Gaboja entry rules before any buy. Keeps v2.9.15 single-list filters and v2.9.13 swing A/B/C and Bowl-3 logic.",
-    "sha256":  "1a404ec87a0942ff7a9038f8686492fd0756056a8aa841855aca2e6301274574"
+    "version":  "2.9.17",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.17_UPDATE.zip",
+    "notes":  "v2.9.17: compact Integrated Trading candidate pane with a permanent bottom horizontal scrollbar and more chart space; smaller All/Day/Swing/Long filter buttons; stable union display for the 7 day-trading condition searches instead of per-searcher visual switching; day-search-origin stocks are displayed only in the Day list even when swing or Bowl scores are high; LIVE START is requested only once per app session after the LIVE arm step. Auto-trading still uses the 7-search union, deduplicates by stock code, applies mandatory PUMA secondary filtering, then Gaboja entry rules.",
+    "sha256":  "788e2a38d2505650c3ac43d499d39cf0b60a539b222bde216063366ecaa4a559"
 }
