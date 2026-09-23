@@ -413,7 +413,7 @@ def _enrich_danta_pure(analysis, series: dict):
     for key in (
         "signal_pink", "signal_blue", "signal_red", "signal_black",
         "signal_sar", "signal_bb40_22",
-        "box", "core_path", "path_breakout", "path_pullback",
+        "box", "boxes", "core_path", "path_breakout", "path_pullback",
         "path_rebreakout", "path_breakout_ma", "path_pullback_ma",
         "watermelon_stage", "watermelon_score", "watermelon_reason",
         "watermelon_confirmed", "watermelon_display",
