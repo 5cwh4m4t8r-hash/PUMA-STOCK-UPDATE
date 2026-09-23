@@ -2800,11 +2800,43 @@ class MainWindow(QMainWindow):
             rows = rows[:10]
 
         self.stop_condition_stream()
+
+        # 가보자 7개 실시간 스트림을 다시 시작해도 사용자가 직접 편입한
+        # 조건식 종목은 지우지 않는다. 자동 소스만 새로 구성한다.
+        manual_keep = []
+        for code, item in self.condition_candidates.items():
+            for source_seq, src in (item.get("sources") or {}).items():
+                if str(source_seq).startswith("MANUAL:") and src.get("active"):
+                    manual_keep.append((
+                        code,
+                        item.get("name", code),
+                        str(source_seq),
+                        str(src.get("name") or "수동 조건식"),
+                        str(src.get("entered_at") or datetime.now().strftime("%H:%M:%S")),
+                    ))
+
         self.condition_candidates.clear()
         self.condition_table.setRowCount(0)
         if hasattr(self, "focus_condition_table"):
             self.focus_condition_table.setRowCount(0)
         self.classification_queue.clear()
+
+        for code, stock_name, source_seq, source_name, entered_at in manual_keep:
+            item = update_candidate_source(
+                self.condition_candidates,
+                seq=source_seq,
+                condition_name=source_name,
+                code=code,
+                stock_name=stock_name,
+                active=True,
+                entry_event=False,
+                now=entered_at,
+            )
+            item["manual_pinned"] = True
+            self._upsert_condition_row(code)
+            self._queue_candidate_classification(code)
+
+        self._refresh_focus_candidate_count()
 
         self.settings.hero_condition_names = [name for _, name in rows]
         self.settings.hero_condition_seq = ",".join(seq for seq, _ in rows)
