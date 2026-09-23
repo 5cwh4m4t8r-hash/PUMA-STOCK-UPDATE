@@ -1,6 +1,6 @@
 {
-  "version": "2.9.12",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.12_UPDATE.zip",
-  "notes": "v2.9.12: 통합 트레이딩 중장기 후보를 중장기(밥3)로 명확히 표기. 공구리는 과거 확정 박스와 최신 박스를 함께 보존/표시하고 중복 박스는 병합. 최신 공구리는 굵고 선명하게, 과거는 얇게 표시. 수박은 최근 장기EMA 재돌파+안착+EMA20 회복+바닥/역배열 맥락+선행 거래량/매집 근거가 모두 확인될 때만 표시하며 화살표 단독 오탐을 차단. 기존 가보자 매매전략 자체는 변경 없음.",
-  "sha256": "a413e4865e2eef4fe730d463655539d420b09a93e9037ed56bc7e27c02bd77eb"
+  "version": "2.9.13",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.13_UPDATE.zip",
+  "notes": "v2.9.13: 사용자 제공 키움 스윙 검색기 3종을 A/B/C 독립 프로필로 분석. A=224EMA ±2%+최근20봉 112봉 신고거래량+60<112<224 역배열, B=10봉 변동폭/일목/10·20EMA 눌림/PSAR/BB40·2.2/신고거래량, C=PSAR+5봉평균거래량+BB40·2.2+112EMA 골든+일목. 밥그릇3번은 장기 224EMA 아래→2번구간→신고거래량/112회복→224근접→224돌파→안착→눌림지지 단계로 강화. v2.9.12 공구리/수박 개선 포함. 가보자 매매규칙 변경 없음.",
+  "sha256": "7e2ed31985832d142561cc84ad6b3a340f0ff6293b35609c2a1bb05a9b0315c9"
 }
