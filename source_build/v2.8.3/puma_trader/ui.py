@@ -2197,6 +2197,7 @@ class MainWindow(QMainWindow):
             candidate_source=str(self.source_combo.currentData()),
             hero_condition_seq=str(seq or ""),
             hero_condition_name=str(name or ""),
+            hero_condition_names=list(getattr(self.settings, "hero_condition_names", []) or PUMA_DEFAULT_CONDITION_NAMES),
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
             hero_entry_only=self.hero_entry_only.isChecked(),
             order_budget=500_000,
