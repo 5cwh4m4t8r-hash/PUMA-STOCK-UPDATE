@@ -1620,19 +1620,21 @@ class MainWindow(QMainWindow):
 
         info = QLabel(
             "영웅문4 [0150] 조건검색에서 사용자 조건식을 먼저 저장한 뒤 사용하세요.\n"
-            "PUMA는 네 단타 조건식들을 동시에 실행해 결과의 합집합을 후보로 받고, 각 종목을 독립적으로 2차 선별한 뒤 가보자 타점에서만 자동매수합니다."
+            "PUMA는 네 단타 조건식들을 동시에 실행해 결과의 합집합을 후보로 받습니다. 초기 조회 종목과 이후 신규 편입 종목을 전부 자동검토하며, 각 종목이 PUMA 2차 선별 + 가보자 타점을 통과할 때만 자동매수합니다."
         )
         lay.addWidget(info)
 
         box = QGroupBox("영웅문4 조건식 연결")
         form = QFormLayout(box)
         self.condition_combo = NoWheelComboBox()
+        self.condition_combo.setMaxVisibleItems(18)
         self.condition_refresh_btn = QPushButton("조건식 목록 불러오기")
         self.condition_refresh_btn.clicked.connect(self.refresh_conditions)
         self.hero_secondary_filter = QCheckBox("영웅문4 후보 → PUMA 장중 힘 2차 선별 적용")
         self.hero_secondary_filter.setChecked(self.settings.hero_secondary_filter)
-        self.hero_entry_only = QCheckBox("신규 편입(I) 종목만 자동매수 대상으로 사용 (권장)")
-        self.hero_entry_only.setChecked(self.settings.hero_entry_only)
+        self.hero_entry_only = QCheckBox()
+        self.hero_entry_only.setChecked(False)
+        self.hero_entry_only.hide()
         self.condition_start_btn = QPushButton("▶ 네 단타 조건식들 동시 시작")
         self.condition_start_btn.setObjectName("conditionBtn")
         self.condition_start_btn.clicked.connect(self.start_condition_stream)
@@ -1645,7 +1647,10 @@ class MainWindow(QMainWindow):
         form.addRow(bundle)
         form.addRow(self.condition_refresh_btn)
         form.addRow(self.hero_secondary_filter)
-        form.addRow(self.hero_entry_only)
+        all_candidates_note = QLabel("초기 조회 + 이후 신규 편입 종목 전부 자동검토 · 조건식 편입 자체는 매수신호가 아니며 PUMA 2차 선별 + 가보자 타점 통과 시에만 주문")
+        all_candidates_note.setWordWrap(True)
+        all_candidates_note.setStyleSheet("color:#61d4ff;font-weight:700")
+        form.addRow(all_candidates_note)
         row = QHBoxLayout()
         row.addWidget(self.condition_start_btn)
         row.addWidget(self.condition_stop_btn)
@@ -1846,6 +1851,16 @@ class MainWindow(QMainWindow):
     # ---------- helpers ----------
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Wheel:
+            # 수동/예비 조건식은 목록을 펼친 동안에만 휠 스크롤을 허용한다.
+            # 접힌 콤보/숫자 입력값은 기존처럼 휠 오조작을 막는다.
+            combo = getattr(self, "condition_combo", None)
+            if combo is not None:
+                try:
+                    view = combo.view()
+                    if view.isVisible() and (obj is view or obj is view.viewport() or obj is combo):
+                        return super().eventFilter(obj, event)
+                except Exception:
+                    pass
             w = obj
             for _ in range(4):
                 if isinstance(w, (QComboBox, QAbstractSpinBox)):
@@ -2205,7 +2220,7 @@ class MainWindow(QMainWindow):
             hero_condition_name=str(name or ""),
             hero_condition_names=list(getattr(self.settings, "hero_condition_names", []) or PUMA_DEFAULT_CONDITION_NAMES),
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
-            hero_entry_only=self.hero_entry_only.isChecked(),
+            hero_entry_only=False,
             order_budget=500_000,
             max_positions=self.max_positions.value(),
             cooldown_min=self.cooldown.value(),
@@ -2480,6 +2495,8 @@ class MainWindow(QMainWindow):
             if not name or name == code:
                 self._queue_name_lookup(code)
             self._queue_candidate_classification(code)
+        if self.engine.enabled and rows:
+            QTimer.singleShot(0, self.scan_one)
 
     def on_condition_enter(self, seq: str, condition_name: str, code: str, name: str):
         now = datetime.now().strftime("%H:%M:%S")
@@ -2505,6 +2522,8 @@ class MainWindow(QMainWindow):
             "-",
             f"{condition_name} 신규 편입 · 현재 활성 검색기 {item.get('source_count', 1)}개",
         )
+        if self.engine.enabled:
+            QTimer.singleShot(0, self.scan_one)
 
     def on_condition_exit(self, seq: str, condition_name: str, code: str):
         now = datetime.now().strftime("%H:%M:%S")
@@ -3819,10 +3838,8 @@ class MainWindow(QMainWindow):
         if source in ("HERO4", "BOTH"):
             for code, item in self.condition_candidates.items():
                 if item.get("active"):
-                    # 실전 안전 기본값: 스트림 시작 시 이미 조건에 들어있던 종목은 사지 않고,
-                    # 시작 이후 I(신규 편입) 이벤트를 받은 종목만 신규매수 후보로 사용한다.
-                    if self.settings.hero_entry_only and not item.get("entry_event"):
-                        continue
+                    # 초기 조회 종목과 이후 신규 편입 종목을 모두 PUMA 자동검토 대상으로 사용한다.
+                    # 조건검색 편입은 후보 공급일 뿐이며 실제 주문은 엔진의 2차 선별/가보자 타점을 통과해야 한다.
                     if code in merged:
                         merged[code]["hero"] = True
                     else:
