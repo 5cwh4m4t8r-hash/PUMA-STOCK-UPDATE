@@ -7,6 +7,7 @@ from statistics import mean
 from typing import Dict, List
 
 from .swing import normalize_candles
+from .danta import market_open_volume_ratio
 
 
 @dataclass
@@ -60,14 +61,15 @@ def _candidate_filter(
     live_bar: dict | None = None,
     *,
     session_bars: int = 1,
+    morning_volume_ratio: float = 0.0,
     min_score: int = 3,
 ) -> tuple[bool, dict]:
     """PUMA 2차 후보 선별.
 
     영웅문 검색기가 1차 후보를 공급한 뒤 PUMA가 장중 힘을 재검증한다.
-    갭과 전일 하루 거래량 300%는 더 이상 필수조건이 아니다.
+    장초 누적 거래량은 최근 5일 동일 시간대 평균 대비 300% 이상이어야 한다.
 
-    점수(4개 중 3개 이상):
+    점수(4개 중 3개 이상) + 장초 거래량 300% 필수:
       1) 현재가가 시가 이상
       2) 장중 거래량/거래대금 진행속도가 전일 평균 진행속도 대비 강함
       3) 전일고 또는 최근 5일 고점을 공격 중
@@ -110,7 +112,9 @@ def _candidate_filter(
     expected_turnover = prev_turnover * elapsed_fraction
     turnover_pace = cur_turnover / expected_turnover if expected_turnover > 0 else 0.0
     flow_pace = max(volume_pace, turnover_pace)
-    flow_ok = flow_pace >= 1.30
+    morning_volume_ratio = float(morning_volume_ratio or 0.0)
+    volume_burst_ok = morning_volume_ratio >= 3.0
+    flow_ok = volume_burst_ok
 
     price_strength = cur_close >= cur_open
 
@@ -155,11 +159,11 @@ def _candidate_filter(
         1 if high_attack else 0,
         1 if resistance_ok else 0,
     ))
-    ok = score >= max(1, int(min_score))
+    ok = bool(volume_burst_ok and score >= max(1, int(min_score)))
 
     reasons = [
         f"시가위 {'O' if price_strength else 'X'}",
-        f"거래속도 {flow_pace:.2f}x {'O' if flow_ok else 'X'}",
+        f"장초거래량 {morning_volume_ratio:.2f}x {'O' if volume_burst_ok else 'X'}",
         f"고점공격 {'O' if high_attack else 'X'}",
         (
             "장기저항 " + (
@@ -177,6 +181,8 @@ def _candidate_filter(
         "volume_pace": volume_pace,
         "turnover_pace": turnover_pace,
         "flow_pace": flow_pace,
+        "morning_volume_ratio": morning_volume_ratio,
+        "morning_volume_300_ok": volume_burst_ok,
         "gap_ok": gap_ok,  # 정보만 기록. 필수조건 아님.
         "price_strength": price_strength,
         "flow_ok": flow_ok,
@@ -205,7 +211,7 @@ def evaluate_gaboja(
     """가보자 단타 자동진입.
 
     1) 영웅문 검색기 후보를 PUMA가 장중 힘으로 2차 선별한다.
-       갭/전일 하루 거래량 300%는 필수가 아니다.
+       09:00 이후 최근 5일 같은 시간대 평균 대비 누적 거래량 300% 이상을 필수로 본다.
     2) 5분봉: 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
        영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
     3) 차 눌림 진입은 당일 기준봉 시가 손절.
@@ -243,10 +249,13 @@ def evaluate_gaboja(
         "close": float(session[-1]["close"]),
         "volume": sum(float(x["volume"]) for x in session),
     }
+    morning = market_open_volume_ratio(candles, 5)
+    morning_ratio = float(morning.get("ratio", 0.0) or 0.0)
     candidate_ok, d = _candidate_filter(
         daily_rows,
         live_bar,
         session_bars=len(session),
+        morning_volume_ratio=morning_ratio,
         min_score=secondary_min_score,
     )
     basis_open = float(d.get("basis_open", live_bar["open"]) or live_bar["open"])
