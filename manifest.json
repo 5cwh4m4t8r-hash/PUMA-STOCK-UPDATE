@@ -1,6 +1,6 @@
 {
-  "version": "2.9.1",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.1_UPDATE.zip",
-  "notes": "v2.9.1: 네 여러 단타 조건식 결과의 합집합을 후보로 사용. 검색기 1개 단독 편입도 정상 후보이며 중복 편입 횟수는 매수조건/점수에 사용하지 않음.",
-  "sha256": "2a24a9c8a013f0bd583fba6468fa77b1770b124b01c6e9e962e822f4798ddec5"
+  "version": "2.9.2",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.2_UPDATE.zip",
+  "notes": "v2.9.2: 전고 몸통돌파 진입 손절선을 직전 차 눌림 저점까지 상향. 차 눌림 진입은 기준봉 시가 손절 유지.",
+  "sha256": "4bf400a85fbd9ad8d1b9395e182bf666287265aa9e86e05b94817bd5216d60c2"
 }
