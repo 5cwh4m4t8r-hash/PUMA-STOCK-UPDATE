@@ -83,12 +83,8 @@ jobs:
           @echo off
           chcp 65001 >nul
           cd /d "%~dp0"
-          "runtime\python.exe" app.py
-          if errorlevel 1 (
-            echo.
-            echo PUMA 실행 중 오류가 발생했습니다.
-            pause
-          )
+          start "" "%~dp0runtime\pythonw.exe" "%~dp0app.py"
+          exit /b 0
           "@ | Set-Content -Path $bat -Encoding UTF8
 
           $info = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE\PORTABLE_README.txt"
