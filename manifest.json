@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.17",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.17_UPDATE.zip",
-    "notes":  "v2.9.17: compact Integrated Trading candidate pane with a permanent bottom horizontal scrollbar and more chart space; smaller All/Day/Swing/Long filter buttons; stable union display for the 7 day-trading condition searches instead of per-searcher visual switching; day-search-origin stocks are displayed only in the Day list even when swing or Bowl scores are high; LIVE START is requested only once per app session after the LIVE arm step. Auto-trading still uses the 7-search union, deduplicates by stock code, applies mandatory PUMA secondary filtering, then Gaboja entry rules.",
-    "sha256":  "4edec96ce87f3846a033707e1eee05be7b7619c3050faf56f8ee26c0073b71bd"
+    "version":  "2.9.18",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.18_UPDATE.zip",
+    "notes":  "v2.9.18: fixes false \u0027missing\u0027 status for the 5-minute day-trading condition search by canonicalizing Kiwoom condition names. Spaces, underscores, brackets, stars, hyphens and full-width punctuation are ignored consistently by both actual bundle selection and the UI missing-status check. Keeps the v2.9.17 integrated union UI, one-time LIVE START confirmation, source-isolated Day/Swing/Long lists, and Gaboja auto-trading flow.",
+    "sha256":  "7cf8d91d8aeb41174e29fa93a502ad4a7bafca9fcacba0295ffefea7145d8744"
 }
