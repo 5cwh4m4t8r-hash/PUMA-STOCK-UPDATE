@@ -58,7 +58,7 @@ from .swing import SwingSettings, analyze as analyze_swing, demo_candles, normal
 from .strategy import evaluate_buy
 from .bowl import BowlSettings, analyze_bowl
 from .danta import analyze_danta, analyze_danta_for_date, available_minute_dates, slice_series_for_date
-from .classification import classify_scores
+from .classification import classify_scores, bucket_scores
 from .watermelon_proxy import build_puma_watermelon
 from .probability import estimate_from_flags, strategy_flags
 from .entry_signal import evaluate_core_entry
@@ -3152,15 +3152,10 @@ class MainWindow(QMainWindow):
                 self._remove_code_from_table(bucket, code)
 
             if item.get("active"):
-                scores = dict(item.get("scores") or {})
-                memberships = (
-                    ("danta", int(scores.get("danta", 0) or 0), "#61d4ff"),
-                    ("swing", int(scores.get("swing", 0) or 0), "#61ff8f"),
-                    ("bowl", int(scores.get("bowl", 0) or 0), "#d58cff"),
-                )
-                for key, score, color in memberships:
-                    if score < 55:
-                        continue
+                scores = bucket_scores(item.get("scores"), threshold=55)
+                colors = {"danta": "#61d4ff", "swing": "#61ff8f", "bowl": "#d58cff"}
+                for key, score in scores.items():
+                    color = colors[key]
                     table = self.focus_bucket_tables[key]
                     frow = table.rowCount()
                     table.insertRow(frow)
