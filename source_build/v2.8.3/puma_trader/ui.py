@@ -61,7 +61,7 @@ from .swing import SwingSettings, analyze as analyze_swing, demo_candles, normal
 from .strategy import evaluate_buy
 from .bowl import BowlSettings, analyze_bowl
 from .danta import analyze_danta, analyze_danta_for_date, available_minute_dates, slice_series_for_date
-from .classification import classify_scores, bucket_scores
+from .classification import classify_scores, bucket_scores, source_display_buckets
 from .watermelon_proxy import build_puma_watermelon
 from .probability import estimate_from_flags, strategy_flags
 from .entry_signal import evaluate_core_entry
@@ -2816,14 +2816,12 @@ class MainWindow(QMainWindow):
         if key == "all":
             return True
 
-        is_danta_source = self._candidate_in_danta_feed(item)
-        if key == "danta":
-            # 7개 단타 검색기 합집합은 목록상 무조건 '단타' 전용이다.
-            return is_danta_source
-        if is_danta_source:
-            # 단타 검색기 출처 종목이 스윙/중장기 목록으로 새지 않게 한다.
-            return False
-        return key in bucket_scores(item.get("scores"), threshold=55)
+        buckets = source_display_buckets(
+            item.get("scores"),
+            danta_source=self._candidate_in_danta_feed(item),
+            threshold=55,
+        )
+        return key in buckets
 
     def _focus_status_text(self, item: dict) -> str:
         auto_count, manual_count = self._candidate_source_counts(item)
@@ -2849,15 +2847,13 @@ class MainWindow(QMainWindow):
             if code in self.session_excluded_codes or not item.get("active"):
                 continue
             counts["all"] += 1
-            is_danta_source = self._candidate_in_danta_feed(item)
-            passed = bucket_scores(item.get("scores"), threshold=55)
-            if is_danta_source:
-                counts["danta"] += 1
-            else:
-                if "swing" in passed:
-                    counts["swing"] += 1
-                if "bowl" in passed:
-                    counts["bowl"] += 1
+            buckets = source_display_buckets(
+                item.get("scores"),
+                danta_source=self._candidate_in_danta_feed(item),
+                threshold=55,
+            )
+            for key in buckets:
+                counts[key] += 1
 
         titles = {"all": "전체", "danta": "단타", "swing": "스윙", "bowl": "중장기"}
         for key, btn in self.focus_filter_buttons.items():
