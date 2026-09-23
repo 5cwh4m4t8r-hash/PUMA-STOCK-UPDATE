@@ -12,7 +12,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-CURRENT_VERSION = "2.9.9"
+CURRENT_VERSION = "2.9.10"
 
 
 def _vtuple(v: str):
