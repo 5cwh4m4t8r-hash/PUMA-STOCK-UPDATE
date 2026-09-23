@@ -27,3 +27,14 @@ def classify_scores(danta_score: int, swing_score: int, bowl_score: int) -> tupl
 
     detail = f"단 {d} · 스 {s} · 밥3 {b}"
     return label, detail
+
+
+def bucket_scores(scores: dict | None, threshold: int = 55) -> dict[str, int]:
+    """Return only strategy buckets that actually pass the PUMA threshold."""
+    scores = dict(scores or {})
+    out: dict[str, int] = {}
+    for key in ("danta", "swing", "bowl"):
+        value = max(0, min(100, int(scores.get(key, 0) or 0)))
+        if value >= int(threshold):
+            out[key] = value
+    return out
