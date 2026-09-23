@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.18",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.18_UPDATE.zip",
-    "notes":  "v2.9.18: fixes false \u0027missing\u0027 status for the 5-minute day-trading condition search by canonicalizing Kiwoom condition names. Spaces, underscores, brackets, stars, hyphens and full-width punctuation are ignored consistently by both actual bundle selection and the UI missing-status check. Keeps the v2.9.17 integrated union UI, one-time LIVE START confirmation, source-isolated Day/Swing/Long lists, and Gaboja auto-trading flow.",
-    "sha256":  "56a9a3ae41ba19d52644edfcd8d113ccbbd2d8182891a101389d05676e20090a"
+    "version":  "2.9.19",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.19_UPDATE.zip",
+    "notes":  "v2.9.19: changes the chart canvas to a soft light-gray theme with darker grid/axis/title text for readability. The daily Integrated Trading chart now overlays exact Bowl-3 stage tags from the analyzer: pre-break, 224EMA breakout, acceptance above 224EMA, and core retest/support. Bowl markers are not added to the 5-minute day-trading chart. Keeps v2.9.18 condition-name normalization and all v2.9.17 union/auto-trading behavior.",
+    "sha256":  "f5fe451f74e90bc98b2a7368ef24bc02b83e9b9f27e55d44e8ef37cad459224f"
 }
