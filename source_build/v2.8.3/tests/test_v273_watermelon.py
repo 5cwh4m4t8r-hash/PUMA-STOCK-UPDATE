@@ -28,4 +28,4 @@ def test_watermelon_proxy_lengths_and_sparse_display():
     assert len(out["watermelon_stage"]) == n
     assert len(out["watermelon_display"]) == n
     hits = [i for i, x in enumerate(out["watermelon_display"]) if x]
-    assert all((b-a) >= 12 for a,b in zip(hits,hits[1:]))
+    assert all((b-a) >= 20 for a,b in zip(hits,hits[1:]))
