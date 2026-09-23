@@ -1,0 +1,85 @@
+name: Publish PUMA v2.9.5 In-App Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-v295-update.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependencies
+        shell: cmd
+        working-directory: source_build/v2.8.3
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Compile and import smoke test
+        shell: cmd
+        working-directory: source_build/v2.8.3
+        run: |
+          python -m compileall -q app.py puma_trader
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.5 UPDATE SMOKE OK')"
+
+      - name: Build update package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $src = Join-Path $PWD "source_build\v2.8.3"
+          $pkg = Join-Path $PWD "_publish_v295"
+          Remove-Item $pkg -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $pkg | Out-Null
+
+          Copy-Item (Join-Path $src "app.py") $pkg
+          Copy-Item (Join-Path $src "requirements.txt") $pkg
+          Copy-Item (Join-Path $src "PUMA_STOCK_PRO_ICON.svg") $pkg
+          Copy-Item (Join-Path $src "puma_trader") $pkg -Recurse
+          if (Test-Path (Join-Path $src "README_KO.txt")) {
+            Copy-Item (Join-Path $src "README_KO.txt") $pkg
+          }
+
+          $releaseDir = Join-Path $PWD "releases"
+          New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.5_UPDATE.zip"
+          Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
+
+          $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
+          $manifest = [ordered]@{
+            version = "2.9.5"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.5_UPDATE.zip"
+            notes = "v2.9.5: 프로그램 내부 안전 업데이트 복구. 별도 스크립트/VBS/DETACHED_PROCESS 없이 SHA256 검증 후 프로그램 자체에서 소스를 교체하고 즉시 재시작. 통합화면 기본 자동매매는 7개 조건식 합집합 전체 후보 → PUMA 2차 선별 → 가보자 타점이며 선택 종목 전용은 보조 기능으로 분리. 매매전략 자체는 변경 없음."
+            sha256 = $sha
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
+          Write-Host "SHA256=$sha"
+
+      - name: Commit update package and manifest
+        shell: powershell
+        run: |
+          git config user.name "PUMA Update Bot"
+          git config user.email "puma-update@users.noreply.github.com"
+          git add releases/PUMA_STOCK_PRO_v2.9.5_UPDATE.zip manifest.json
+          if (git diff --cached --quiet) {
+            Write-Host "No update files changed."
+            exit 0
+          }
+          git commit -m "Publish PUMA STOCK PRO v2.9.5 in-app update"
+          git push origin main
