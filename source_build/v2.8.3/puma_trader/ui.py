@@ -48,10 +48,7 @@ from .broker import BrokerError, KiwoomRestBroker, SimBroker
 from .conditions import (
     ConditionStreamThread,
     MultiConditionStreamThread,
-    PUMA_DEFAULT_CONDITION_NAMES,
     fetch_condition_list,
-    select_puma_conditions,
-    normalize_condition_name,
     update_candidate_source,
 )
 from .engine import TradeEngine
@@ -1017,24 +1014,45 @@ class MainWindow(QMainWindow):
         cand_tools.addWidget(self.focus_candidate_delete_btn)
         cand_lay.addLayout(cand_tools)
 
-        self.focus_condition_table = QTableWidget(0, 4)
-        self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "분류", "상태"])
-        hdr = self.focus_condition_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hdr.setMinimumSectionSize(54)
-        self.focus_condition_table.verticalHeader().setVisible(False)
-        self.focus_condition_table.verticalHeader().setDefaultSectionSize(31)
-        self.focus_condition_table.setAlternatingRowColors(True)
-        self.focus_condition_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.focus_condition_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.focus_condition_table.cellClicked.connect(self._focus_condition_row_clicked)
-        self.focus_condition_table.setMinimumWidth(360)
-        self.focus_condition_table.setMaximumWidth(560)
-        cand_lay.addWidget(self.focus_condition_table)
-        cand_help = QLabel("가보자 7개 조건식은 자동 편입 · 조건검색 탭에서 원하는 조건식 결과도 수동 편입 가능 · 삭제한 종목은 현재 세션 신규매매 후보에서 제외")
+        bucket_row = QHBoxLayout()
+        bucket_row.setSpacing(6)
+        self.focus_bucket_tables = {}
+        self.focus_bucket_counts = {}
+        self.focus_selected_bucket_table = None
+
+        def make_bucket(key: str, title: str, accent: str):
+            group = QGroupBox(title)
+            gl = QVBoxLayout(group)
+            count = QLabel("0종목")
+            count.setStyleSheet(f"color:{accent};font-weight:900")
+            gl.addWidget(count)
+            table = QTableWidget(0, 3)
+            table.setHorizontalHeaderLabels(["코드", "종목명", "점수"])
+            bh = table.horizontalHeader()
+            bh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            bh.setSectionResizeMode(1, QHeaderView.Stretch)
+            bh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            bh.setMinimumSectionSize(44)
+            table.verticalHeader().setVisible(False)
+            table.verticalHeader().setDefaultSectionSize(29)
+            table.setAlternatingRowColors(True)
+            table.setSelectionBehavior(QAbstractItemView.SelectRows)
+            table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+            table.cellClicked.connect(lambda row, col, t=table: self._focus_bucket_row_clicked(t, row, col))
+            gl.addWidget(table, 1)
+            self.focus_bucket_tables[key] = table
+            self.focus_bucket_counts[key] = count
+            bucket_row.addWidget(group, 1)
+            return table
+
+        self.focus_danta_table = make_bucket("danta", "단타 · PUMA 선별", "#61d4ff")
+        self.focus_swing_table = make_bucket("swing", "스윙 · 검색기 로직+PUMA", "#61ff8f")
+        self.focus_long_table = make_bucket("bowl", "중장기 · 밥그릇3번", "#d58cff")
+        cand_lay.addLayout(bucket_row, 1)
+        candidates.setMinimumWidth(720)
+        candidates.setMaximumWidth(980)
+
+        cand_help = QLabel("조건식 이름으로 단타/스윙/중장기를 정하지 않습니다. 선택한 조건검색 결과 전체를 PUMA가 분석해 각 칸에 넣고, 한 종목이 여러 기준을 만족하면 여러 칸에 동시에 표시합니다.")
         cand_help.setWordWrap(True)
         cand_help.setStyleSheet("color:#8fb6d9")
         cand_lay.addWidget(cand_help)
@@ -1685,7 +1703,7 @@ class MainWindow(QMainWindow):
 
         info = QLabel(
             "영웅문4 [0150] 조건검색에서 사용자 조건식을 먼저 저장한 뒤 사용하세요.\n"
-            "PUMA는 네 단타 조건식들을 동시에 실행해 결과의 합집합을 후보로 받습니다. 초기 조회 종목과 이후 신규 편입 종목을 전부 자동검토하며, 각 종목이 PUMA 2차 선별 + 가보자 타점을 통과할 때만 자동매수합니다."
+            "선택한 조건식의 검색 결과 전체를 PUMA가 받아 단타 / 스윙 / 중장기(밥3)로 다시 분석합니다. 조건식 이름 자체는 분류 기준이 아니며, 단타1을 특별취급하지 않습니다."
         )
         lay.addWidget(info)
 
@@ -1700,12 +1718,12 @@ class MainWindow(QMainWindow):
         self.hero_entry_only = QCheckBox()
         self.hero_entry_only.setChecked(False)
         self.hero_entry_only.hide()
-        self.condition_start_btn = QPushButton("▶ 네 단타 조건식들 동시 시작")
+        self.condition_start_btn = QPushButton("▶ 선택 조건식 실시간 시작")
         self.condition_start_btn.setObjectName("conditionBtn")
         self.condition_start_btn.clicked.connect(self.start_condition_stream)
         self.condition_stop_btn = QPushButton("■ 조건검색 중지")
         self.condition_stop_btn.clicked.connect(self.stop_condition_stream)
-        form.addRow("수동/예비 조건식", self.condition_combo)
+        form.addRow("조건식", self.condition_combo)
         manual_row = QHBoxLayout()
         self.manual_condition_view_btn = QPushButton("선택 조건식 종목 보기")
         self.manual_condition_import_btn = QPushButton("→ 종합 트레이딩에 편입")
@@ -1721,7 +1739,7 @@ class MainWindow(QMainWindow):
         self.manual_condition_status = QLabel("원하는 조건식을 선택한 뒤 '종목 보기'를 누르세요.")
         self.manual_condition_status.setStyleSheet("color:#8fb6d9")
         form.addRow("수동 조회", self.manual_condition_status)
-        bundle = QLabel("가보자 자동매매 대상 · 7개 합집합: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티\n※ 위 수동 조회는 네가 원하는 아무 조건식이나 확인하는 용도이며, 가보자 자동매매 7개 묶음과 서로 섞이지 않습니다.")
+        bundle = QLabel("고정 단타 검색기 묶음 없음 · 현재 선택한 조건식 결과를 후보 풀로 받고 PUMA가 다시 단타/스윙/중장기(밥3)로 분류합니다.\n※ 단타1은 다른 조건식과 완전히 동일한 후보 공급원일 뿐 특별취급하지 않습니다.")
         bundle.setWordWrap(True)
         bundle.setStyleSheet("color:#9eb4c9")
         form.addRow(bundle)
@@ -1754,7 +1772,7 @@ class MainWindow(QMainWindow):
         manual_box.setMaximumHeight(260)
         lay.addWidget(manual_box)
 
-        auto_title = QLabel("가보자 자동매매 후보 · 7개 조건식 합집합")
+        auto_title = QLabel("PUMA 분석 후보 · 현재 선택 조건식 결과")
         auto_title.setStyleSheet("font-weight:900;color:#61ff8f;padding-top:4px")
         lay.addWidget(auto_title)
 
@@ -2354,7 +2372,7 @@ class MainWindow(QMainWindow):
             candidate_source=str(self.source_combo.currentData()),
             hero_condition_seq=str(seq or ""),
             hero_condition_name=str(name or ""),
-            hero_condition_names=list(PUMA_DEFAULT_CONDITION_NAMES),
+            hero_condition_names=([str(name)] if str(name or "").strip() else []),
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
             hero_entry_only=False,
             order_budget=500_000,
@@ -2521,10 +2539,15 @@ class MainWindow(QMainWindow):
         return self.broker
 
     def _puma_condition_rows(self) -> list[tuple[str, str]]:
-        # 가보자 자동매매 후보 공급기는 항상 이 7개 고정 묶음이다.
-        # 과거 strategy.json의 hero_condition_names나 사용자가 수동으로
-        # 선택한 콤보박스 값이 자동매매 묶음을 축소시키면 안 된다.
-        return select_puma_conditions(self.condition_list, PUMA_DEFAULT_CONDITION_NAMES)
+        # 조건식은 후보 공급원일 뿐 전략 분류기가 아니다.
+        # 사용자가 현재 선택한 조건식 하나를 정확히 실행하고,
+        # 검색 결과 전체를 PUMA가 단타/스윙/중장기로 재분류한다.
+        data = self.condition_combo.currentData() if hasattr(self, "condition_combo") else None
+        if isinstance(data, tuple) and len(data) == 2:
+            seq, name = str(data[0]).strip(), str(data[1]).strip()
+            if seq:
+                return [(seq, name)]
+        return []
 
     def refresh_conditions(self):
         broker = self._require_kiwoom()
@@ -2543,13 +2566,11 @@ class MainWindow(QMainWindow):
                 if data and str(data[0]) == str(restore):
                     self.condition_combo.setCurrentIndex(i)
                     break
-            matched = select_puma_conditions(rows, PUMA_DEFAULT_CONDITION_NAMES)
-            found = {normalize_condition_name(name) for _, name in matched}
-            missing = [name for name in PUMA_DEFAULT_CONDITION_NAMES if normalize_condition_name(name) not in found]
-            text = f"저장 조건식 {len(rows)}개 · 가보자 자동 조건식 {len(matched)}/7개 확인"
-            if missing:
-                text += " · 미확인: " + ", ".join(missing)
-            self.condition_status.setText(text)
+            selected = self.condition_combo.currentData()
+            if isinstance(selected, tuple) and len(selected) == 2:
+                self.condition_status.setText(f"저장 조건식 {len(rows)}개 · 현재 선택: [{selected[0]}] {selected[1]}")
+            else:
+                self.condition_status.setText(f"저장 조건식 {len(rows)}개")
             if not rows:
                 QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
         except Exception as exc:
@@ -2748,15 +2769,34 @@ class MainWindow(QMainWindow):
                 table.removeRow(row)
 
     def _refresh_focus_candidate_count(self):
+        if not hasattr(self, "focus_bucket_tables"):
+            return
+        unique = set()
+        for key, table in self.focus_bucket_tables.items():
+            codes = set()
+            for row in range(table.rowCount()):
+                cell = table.item(row, 0)
+                if cell and cell.text().strip():
+                    codes.add(cell.text().strip())
+            unique.update(codes)
+            label = self.focus_bucket_counts.get(key)
+            if label is not None:
+                label.setText(f"{len(codes)}종목")
         if hasattr(self, "focus_candidate_count"):
-            self.focus_candidate_count.setText(f"{self.focus_condition_table.rowCount()}종목")
+            self.focus_candidate_count.setText(f"분류 {len(unique)}종목")
 
     def delete_selected_focus_candidate(self):
-        table = self.focus_condition_table
-        row = table.currentRow()
-        if row < 0:
+        table = getattr(self, "focus_selected_bucket_table", None)
+        if table is None or table.currentRow() < 0:
+            table = None
+            for candidate in getattr(self, "focus_bucket_tables", {}).values():
+                if candidate.currentRow() >= 0:
+                    table = candidate
+                    break
+        if table is None:
             QMessageBox.information(self, "선택 삭제", "삭제할 종목을 먼저 선택하세요.")
             return
+        row = table.currentRow()
         cell = table.item(row, 0)
         if not cell:
             return
@@ -2776,7 +2816,8 @@ class MainWindow(QMainWindow):
         self.session_excluded_codes.add(code)
         self.classification_queue = [x for x in self.classification_queue if x != code]
 
-        self._remove_code_from_table(self.focus_condition_table, code)
+        for bucket in getattr(self, "focus_bucket_tables", {}).values():
+            self._remove_code_from_table(bucket, code)
         if hasattr(self, "condition_table"):
             self._remove_code_from_table(self.condition_table, code)
 
@@ -2797,7 +2838,7 @@ class MainWindow(QMainWindow):
 
         rows = self._puma_condition_rows()
         if not rows:
-            QMessageBox.information(self, "조건식 없음", "PUMA에서 실행할 단타 조건식을 찾지 못했습니다.")
+            QMessageBox.information(self, "조건식 없음", "실시간 실행할 조건식을 먼저 선택하세요.")
             return
         if len(rows) > 10:
             QMessageBox.warning(self, "조건식 제한", "키움 실시간 조건검색은 한 세션에서 최대 10개까지 사용합니다.")
@@ -2805,8 +2846,8 @@ class MainWindow(QMainWindow):
 
         self.stop_condition_stream()
 
-        # 가보자 7개 실시간 스트림을 다시 시작해도 사용자가 직접 편입한
-        # 조건식 종목은 지우지 않는다. 자동 소스만 새로 구성한다.
+        # 선택 조건식 스트림을 바꿔도 사용자가 직접 편입한 종목은 보존한다.
+        # 자동 소스만 새 조건식 결과로 다시 구성한다.
         manual_keep = []
         for code, item in self.condition_candidates.items():
             for source_seq, src in (item.get("sources") or {}).items():
@@ -2821,8 +2862,9 @@ class MainWindow(QMainWindow):
 
         self.condition_candidates.clear()
         self.condition_table.setRowCount(0)
-        if hasattr(self, "focus_condition_table"):
-            self.focus_condition_table.setRowCount(0)
+        if hasattr(self, "focus_bucket_tables"):
+            for table in self.focus_bucket_tables.values():
+                table.setRowCount(0)
         self.classification_queue.clear()
 
         for code, stock_name, source_seq, source_name, entered_at in manual_keep:
@@ -2842,7 +2884,7 @@ class MainWindow(QMainWindow):
 
         self._refresh_focus_candidate_count()
 
-        self.settings.hero_condition_names = list(PUMA_DEFAULT_CONDITION_NAMES)
+        self.settings.hero_condition_names = [name for _, name in rows]
         self.settings.hero_condition_seq = ",".join(seq for seq, _ in rows)
         self.settings.hero_condition_name = " + ".join(name for _, name in rows)
         save_strategy(self.settings)
@@ -2856,7 +2898,7 @@ class MainWindow(QMainWindow):
         self.condition_thread = thread
         thread.start()
         names = ", ".join(name for _, name in rows)
-        self.condition_status.setText(f"PUMA 단타 조건식 {len(rows)}개 연결 중 · {names}")
+        self.condition_status.setText(f"조건검색 실시간 연결 중 · {names} · 결과는 PUMA가 3분류")
 
     def stop_condition_stream(self):
         if self.condition_thread:
@@ -3094,37 +3136,47 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 5).setText("▶ 클릭해서 열기")
         self.condition_table.item(row, 5).setForeground(QColor("#62b8ff"))
 
-        if hasattr(self, "focus_condition_table"):
-            frow = None
-            for rr in range(self.focus_condition_table.rowCount()):
-                if self.focus_condition_table.item(rr, 0).text() == code:
-                    frow = rr
-                    break
-            if frow is None:
-                frow = self.focus_condition_table.rowCount()
-                self.focus_condition_table.insertRow(frow)
-                for cc in range(4):
-                    self.focus_condition_table.setItem(frow, cc, QTableWidgetItem(""))
-            self.focus_condition_table.item(frow, 0).setText(code)
-            fname = self.focus_condition_table.item(frow, 1)
-            fname.setText(readable_name)
-            fname.setToolTip(readable_name)
-            fname.setFont(QFont("Malgun Gothic", 10, QFont.Bold))
-            fname.setForeground(QColor("#f3f8ff"))
-            self.focus_condition_table.item(frow, 2).setText(classification)
-            self.focus_condition_table.item(frow, 2).setToolTip(detail)
-            self.focus_condition_table.item(frow, 2).setForeground(self._classification_color(classification))
-            self.focus_condition_table.item(frow, 3).setText(status_text)
+        if hasattr(self, "focus_bucket_tables"):
+            # 통합 트레이딩 조건검색 결과는 반드시 3칸으로 분리한다.
+            # 조건식 이름은 사용하지 않고 실제 분석 점수만 사용한다.
+            for bucket in self.focus_bucket_tables.values():
+                self._remove_code_from_table(bucket, code)
+
+            if item.get("active"):
+                scores = dict(item.get("scores") or {})
+                memberships = (
+                    ("danta", int(scores.get("danta", 0) or 0), "#61d4ff"),
+                    ("swing", int(scores.get("swing", 0) or 0), "#61ff8f"),
+                    ("bowl", int(scores.get("bowl", 0) or 0), "#d58cff"),
+                )
+                for key, score, color in memberships:
+                    if score < 55:
+                        continue
+                    table = self.focus_bucket_tables[key]
+                    frow = table.rowCount()
+                    table.insertRow(frow)
+                    for cc in range(3):
+                        table.setItem(frow, cc, QTableWidgetItem(""))
+                    table.item(frow, 0).setText(code)
+                    fname = table.item(frow, 1)
+                    fname.setText(readable_name)
+                    fname.setToolTip(f"{detail} · {status_text}")
+                    fname.setFont(QFont("Malgun Gothic", 9, QFont.Bold))
+                    fname.setForeground(QColor("#f3f8ff"))
+                    table.item(frow, 2).setText(str(score))
+                    table.item(frow, 2).setToolTip(f"{detail} · {status_text}")
+                    table.item(frow, 2).setForeground(QColor(color))
             self._refresh_focus_candidate_count()
 
-    def _focus_condition_row_clicked(self, row: int, column: int):
-        item = self.focus_condition_table.item(row, 0)
+    def _focus_bucket_row_clicked(self, table: QTableWidget, row: int, column: int):
+        self.focus_selected_bucket_table = table
+        item = table.item(row, 0)
         if not item:
             return
         code = item.text().strip()
         if not code:
             return
-        name_item = self.focus_condition_table.item(row, 1)
+        name_item = table.item(row, 1)
         name = name_item.text().strip() if name_item else code
         self.open_focus_stock(code, name if "조회중" not in name else code)
 
