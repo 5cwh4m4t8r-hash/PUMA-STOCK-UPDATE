@@ -1,6 +1,6 @@
 {
-  "version": "2.9.13",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.13_UPDATE.zip",
-  "notes": "v2.9.13: 사용자 제공 키움 스윙 검색기 3종을 A/B/C 독립 프로필로 분석. A=224EMA ±2%+최근20봉 112봉 신고거래량+60<112<224 역배열, B=10봉 변동폭/일목/10·20EMA 눌림/PSAR/BB40·2.2/신고거래량, C=PSAR+5봉평균거래량+BB40·2.2+112EMA 골든+일목. 밥그릇3번은 장기 224EMA 아래→2번구간→신고거래량/112회복→224근접→224돌파→안착→눌림지지 단계로 강화. v2.9.12 공구리/수박 개선 포함. 가보자 매매규칙 변경 없음.",
-  "sha256": "7e2ed31985832d142561cc84ad6b3a340f0ff6293b35609c2a1bb05a9b0315c9"
+  "version": "2.9.14",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.14_UPDATE.zip",
+  "notes": "v2.9.14: 조건검색 고정 7개/단타1 특별취급 제거. 사용자가 선택한 조건식 결과 전체를 PUMA가 단타·스윙·중장기(밥3)로 독립 재분류. 통합 트레이딩 조건검색 결과를 3개 전용 칸으로 분리하고 복수 기준 충족 종목은 여러 칸에 동시 표시. 예전 다중 조건식 저장값은 자동 복원하지 않아 특정 조건식이 자동 선택되지 않음. v2.9.13 스윙 A/B/C 및 밥3 단계 로직 유지. 가보자 매매규칙 변경 없음.",
+  "sha256": "213db6c7b2ca4d068ca31df760faea347da11005a502379bdc13864c4f254e22"
 }
