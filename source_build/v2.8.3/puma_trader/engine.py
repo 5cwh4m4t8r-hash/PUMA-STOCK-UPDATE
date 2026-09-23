@@ -257,7 +257,7 @@ class TradeEngine:
                     if pos:
                         pos.qty = remaining
                         pos.partial_taken = True
-                        pos.partial_price = float(pending.get("partial_price_after", current) or current)
+                        pos.partial_price = float(pending.get("partial_price_after", 0) or 0)
                         pos.partial_time = str(pending.get("partial_time_after", now.isoformat(timespec="seconds")) or "")
 
         # 계좌에 일부만 들어온 매수는 포지션 표시만 하되 pending을 유지해 추가 주문을 막는다.
