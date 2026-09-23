@@ -38,3 +38,24 @@ def bucket_scores(scores: dict | None, threshold: int = 55) -> dict[str, int]:
         if value >= int(threshold):
             out[key] = value
     return out
+
+
+def source_display_buckets(scores: dict | None, *, danta_source: bool, threshold: int = 55) -> dict[str, int]:
+    """UI bucket membership with source isolation.
+
+    Stocks supplied by the configured day-trading condition bundle stay in the
+    day-trading list only.  Their swing/Bowl scores remain available for detail
+    analysis, but must not make the row leak into the other list filters.
+    """
+    scores = dict(scores or {})
+    d = max(0, min(100, int(scores.get("danta", 0) or 0)))
+    s = max(0, min(100, int(scores.get("swing", 0) or 0)))
+    b = max(0, min(100, int(scores.get("bowl", 0) or 0)))
+    if danta_source:
+        return {"danta": d}
+    out: dict[str, int] = {}
+    if s >= int(threshold):
+        out["swing"] = s
+    if b >= int(threshold):
+        out["bowl"] = b
+    return out
