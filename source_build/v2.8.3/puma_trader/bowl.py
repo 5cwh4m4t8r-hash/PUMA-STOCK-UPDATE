@@ -59,6 +59,20 @@ def is_bowl3_overextended(distance_pct: float, settings: BowlSettings | None = N
     return bool(float(distance_pct) > float(settings.max_entry_distance_pct))
 
 
+def is_bowl3_confirmed_state(
+    breakout_index: int,
+    retest: bool,
+    support_alive: bool,
+    extended_above_224: bool,
+) -> bool:
+    return bool(
+        int(breakout_index) >= 0
+        and bool(retest)
+        and bool(support_alive)
+        and not bool(extended_above_224)
+    )
+
+
 def _directionality(values: list[float]) -> float:
     if len(values) < 3:
         return 1.0
@@ -263,11 +277,11 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     # 224 위로 이미 크게 이격되어 상승한 종목은 '현재 밥3 자리'가 아니다.
     # 과거 구조는 차트에 남기되 현재 중장기 후보에서는 제외한다.
     extended_above_224 = bool(last_ema > 0 and is_bowl3_overextended(distance, settings))
-    bowl3_confirmed = bool(
-        breakout_idx >= 0
-        and retest
-        and support_alive
-        and not extended_above_224
+    bowl3_confirmed = is_bowl3_confirmed_state(
+        breakout_idx,
+        retest,
+        support_alive,
+        extended_above_224,
     )
 
     # 사용자가 말한 밥3 정의를 엄격히 적용:
