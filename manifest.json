@@ -2,5 +2,5 @@
     "version":  "2.9.24",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.24_UPDATE.zip",
     "notes":  "v2.9.24: chart-visual patch only; trading rules are unchanged. Concrete zones are now shown as clean bright-yellow outline rectangles only: no text, numbers, price labels, extra breakout guide, or interior fill, so candles, moving averages, clouds and other indicators remain unobscured. Bowl-3 display now keeps historical similar breakout-pullback/EMA224-or-112 support locations instead of only the latest structure. It also fixes two causes of Bowl-3 tags appearing and then disappearing: stale Bowl marker data from a previously selected stock is cleared on stock change, and the daily chart now redraws when Bowl analysis arrives rather than only when swing analysis changes.",
-    "sha256":  "403ca73bb2050ea85e9f8bf3c84efb6bb0e6646bfdc4c7d52e3a18d792422f4a"
+    "sha256":  "f356e7b856f4f32d3bde4fe35616c7e7832338c543014be1b8479bfa37a27f74"
 }
