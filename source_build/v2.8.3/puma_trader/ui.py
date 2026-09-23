@@ -368,7 +368,7 @@ class CandidateClassifier(QThread):
             if self.context_key:
                 if not self.lightweight:
                     tp, sl = self.context_key[-2:]
-                    danta, ds = _enrich_analysis_pure(danta, ds, "DAY", self.swing_settings, tp, sl)
+                    danta, ds = _enrich_danta_pure(danta, ds)
                     swing, ss = _enrich_analysis_pure(swing, ss, "SWING", self.swing_settings, tp, sl)
                     bowl, bs = _enrich_analysis_pure(bowl, bs, "LONG", self.swing_settings, tp, sl)
                 source = dict(code=self.code, info=info, minute=minute, daily=daily,
@@ -394,6 +394,47 @@ class CandidateClassifier(QThread):
         except Exception as exc:
             payload["detail"] = str(exc)
         self.resultReady.emit(self.code, payload)
+
+
+def _enrich_danta_pure(analysis, series: dict):
+    """Keep DAY/5-minute analysis visually clean.
+
+    Danta does not use daily arrow/concrete/watermelon overlays.  Real entry
+    decisions are made separately by TradeEngine -> evaluate_gaboja().
+    """
+    if not analysis or not series:
+        return analysis, series
+
+    series = dict(series)
+    for key in (
+        "signal_pink", "signal_blue", "signal_red", "signal_black",
+        "signal_sar", "signal_bb40_22",
+        "box", "core_path", "path_breakout", "path_pullback",
+        "path_rebreakout", "path_breakout_ma", "path_pullback_ma",
+        "watermelon_stage", "watermelon_score", "watermelon_reason",
+        "watermelon_confirmed", "watermelon_display",
+        "acc_flags",
+    ):
+        series.pop(key, None)
+
+    for key in (
+        "화살표 신호", "공통 수급·돌파 경로", "공통 경로 품질",
+        "PUMA 수박근사", "유사구간 확률", "확률 기준",
+    ):
+        analysis.details.pop(key, None)
+
+    analysis.details["자동매매 기준"] = (
+        "7개 조건검색 합집합 → PUMA 장중 힘 2차 선별 → "
+        "영1 후 차 눌림 또는 전고 몸통돌파에서만 진입"
+    )
+    if not getattr(analysis, "in_time", False):
+        analysis.details["PUMA 판단"] = "자동매수 시간 외 · 후보/구조만 관찰"
+    elif getattr(analysis, "breakout", False) or getattr(analysis, "pullback_hold", False):
+        analysis.details["PUMA 판단"] = "가보자 엔진 실시간 정밀판정 대상 · 조건 충족 시에만 주문"
+    else:
+        analysis.details["PUMA 판단"] = "가보자 타점 대기 · 자동주문 없음"
+
+    return analysis, series
 
 
 def _enrich_analysis_pure(analysis, series: dict, strategy: str, swing_settings, tp: float, sl: float):
@@ -520,7 +561,7 @@ class FocusAnalysisThread(QThread):
                         if kind == "danta" and self.minute_rows:
                             a, series, day = analyze_danta_for_date(self.minute_rows, self.daily_rows,
                                 self.target_day or None, scan_start=self.scan_start, scan_end=self.scan_end)
-                            a, series = _enrich_analysis_pure(a, series, "DAY", self.swing_settings, self.tp, self.sl)
+                            a, series = _enrich_danta_pure(a, series)
                             out["danta_day"] = day
                             if not self.target_day:
                                 out["latest_danta_score"] = int(a.score)
@@ -589,9 +630,7 @@ class DantaAnalysisThread(QThread):
                 scan_start=self.scan_start,
                 scan_end=self.scan_end,
             )
-            result, series = _enrich_analysis_pure(
-                result, dict(series), "DAY", self.swing_settings, self.tp, self.sl
-            )
+            result, series = _enrich_danta_pure(result, dict(series))
             check_cancelled()
             self.analyzed.emit({
                 "request_id": getattr(self, "request_id", 0),
@@ -1015,7 +1054,7 @@ class MainWindow(QMainWindow):
         dantabox = QGroupBox("단타 DAY · 5분봉")
         dg = QGridLayout(dantabox)
         self.focus_danta_labels = {}
-        danta_names = ["패턴 점수", "핵심 진입 신호", "공통 수급·돌파 경로", "간단 이유", "PUMA 수박근사", "유사구간 확률", "PUMA 판단", "화살표 신호", "검색 시간", "PUMA 기준선(26)", "EMA 5·20·60", "현재 5분봉 거래량", "최근 고점 돌파", "눌림 지지"]
+        danta_names = ["자동매매 기준", "PUMA 판단", "간단 이유", "검색 시간", "PUMA 기준선(26)", "EMA 5·20·60", "현재 5분봉 거래량", "최근 고점 돌파", "눌림 지지"]
         for i, name in enumerate(danta_names):
             a = QLabel(name)
             b = QLabel("대기")
@@ -1288,7 +1327,7 @@ class MainWindow(QMainWindow):
         head.addWidget(refresh)
         outer.addLayout(head)
 
-        info = QLabel("5분봉 고정 · 거래일별 선택/복기 · PUMA 기준선(26) · 장초반 거래량 · EMA 5/20/60 · 돌파/눌림을 함께 판정합니다. 공개 개념을 PUMA 방식으로 수치화한 분석판이며 비공개/유료 검색식을 복제한 것은 아닙니다.")
+        info = QLabel("가보자 단타는 5분봉 고정입니다. 단타 화면에는 화살표·공구리·수박 같은 장기 패턴 표시는 사용하지 않습니다. 조건검색 후보를 PUMA가 장중 힘으로 2차 선별하고, 영1 후 차 눌림 또는 전고 몸통돌파에서만 자동진입합니다.")
         info.setWordWrap(True)
         info.setStyleSheet("color:#9eb4c9;padding:3px")
         outer.addWidget(info)
@@ -3674,28 +3713,20 @@ class MainWindow(QMainWindow):
             color = "#61ff8f" if danta_analysis.candidate else ("#62b8ff" if danta_analysis.score >= 55 else "#f4c95d")
             dreason = str(danta_analysis.details.get("간단 이유", "-"))
             djudge = danta_analysis.details.get("PUMA 판단", "판단 유보")
-            dprob = danta_analysis.details.get("유사구간 확률", "-")
-            dcore = danta_analysis.details.get("핵심 진입 신호", "-")
+            dauto = danta_analysis.details.get("자동매매 기준", "-")
             self.focus_danta_signal.setText(
-                f"단타 DAY · 5분봉\n"
-                f"핵심: {dcore}\n"
-                f"단계: {danta_analysis.stage}\n"
-                f"점수: {danta_analysis.score}/100\n"
-                f"유사구간 확률: {dprob}\n"
-                f"판단: {djudge}\n"
+                f"가보자 단타 · 5분봉\n"
+                f"자동매매: {dauto}\n"
+                f"PUMA 판단: {djudge}\n"
+                f"현재 단계: {danta_analysis.stage}\n"
                 f"이유: {dreason}"
             )
             self.focus_danta_signal.setStyleSheet(f"QPlainTextEdit{{font-size:12px;font-weight:900;color:{color};background:#122238;border:0;border-radius:8px;padding:3px;}} QScrollBar:vertical{{width:9px;}}")
             if hasattr(self, "focus_danta_labels"):
                 detail_map = {
-                    "패턴 점수": f"{danta_analysis.score}/100 · {danta_analysis.stage}",
-                    "핵심 진입 신호": danta_analysis.details.get("핵심 진입 신호", "-"),
-                    "공통 수급·돌파 경로": danta_analysis.details.get("공통 수급·돌파 경로", "-"),
-                    "간단 이유": dreason,
-                    "PUMA 수박근사": danta_analysis.details.get("PUMA 수박근사", "-"),
-                    "유사구간 확률": danta_analysis.details.get("유사구간 확률", "-"),
+                    "자동매매 기준": danta_analysis.details.get("자동매매 기준", "-"),
                     "PUMA 판단": danta_analysis.details.get("PUMA 판단", "-"),
-                    "화살표 신호": danta_analysis.details.get("화살표 신호", "현재봉 화살표 없음"),
+                    "간단 이유": dreason,
                     "검색 시간": danta_analysis.details.get("검색 시간", "-"),
                     "PUMA 기준선(26)": danta_analysis.details.get("PUMA 기준선(26)", danta_analysis.details.get("5분 기준선", "-")),
                     "EMA 5·20·60": danta_analysis.details.get("EMA 5·20·60", "-"),
