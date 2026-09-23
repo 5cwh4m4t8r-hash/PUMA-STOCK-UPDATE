@@ -9,6 +9,7 @@ from .indicators import ichimoku_cloud
 from .signals import build_arrow_signals, latest_signal_reason
 from .watermelon_proxy import build_puma_watermelon
 from .market_path import analyze_market_path
+from .swing_reference import evaluate_swing_reference_profiles
 
 
 def _num(v):
@@ -412,6 +413,9 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     current = closes[last]
     bdist = ((current / bval - 1) * 100) if bval else 999.0
     bnear = bool(bval and abs(bdist) <= settings.blue_near_pct)
+    reference = evaluate_swing_reference_profiles(candles)
+    reference_best = int(reference.get('best_score', 0) or 0)
+    reference_exact = list(reference.get('exact_matches') or [])
 
     stage = '장기 역배열 확인'
     score = 0
@@ -443,7 +447,17 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         stage = str(core_path.get('stage') or stage)
     elif box and not breakout:
         stage = '공구리 확인 · 바닥/밥그릇3에서 112·224 동반 돌파 대기'
-    score = min(100, score)
+
+    # The three user-provided Kiwoom searchers are independent candidate
+    # signatures. A strong exact/near match is allowed to classify a stock as
+    # swing-worthy even before the older reverse-MA/box path is fully mature.
+    structural_score = min(100, score)
+    score = min(100, max(structural_score, reference_best))
+    if reference_exact:
+        tags = '/'.join(reference_exact)
+        stage = f'스윙검색기 {tags} 일치 · {stage}'
+    elif reference_best >= 70:
+        stage = f'스윙검색기 근접 {reference.get("best_key","-")} · {stage}'
 
     reasons = [
         ('장기 역배열 확인' if reverse else '장기 역배열 미확인'),
@@ -459,6 +473,8 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         reasons.append(f'파란점선 근접 {bdist:+.2f}%')
     if core_path.get('active'):
         reasons.insert(0, str(core_path.get('stage')))
+    if reference_best >= 55:
+        reasons.insert(0, f"{reference.get('best_name','검색기')} {reference_best}/100")
 
     arrow_series = build_arrow_signals(candles)
     arrow_reason = latest_signal_reason({'candles': candles, **arrow_series})
@@ -503,6 +519,10 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
             else '대기 · 확정 눌림 이후 재상승 필요'
         ),
         '파란점선': (f'{bval:,.0f} / 거리 {bdist:+.2f}%' if bval else '데이터 부족'),
+        '스윙검색기 A · 224근접': str((reference.get('A') or {}).get('summary') or '-'),
+        '스윙검색기 B · 급등후눌림': str((reference.get('B') or {}).get('summary') or '-'),
+        '스윙검색기 C · 장기돌파': str((reference.get('C') or {}).get('summary') or '-'),
+        '스윙검색기 종합': f"{reference.get('best_name','-')} · {reference_best}/100 · 정확일치 {','.join(reference_exact) if reference_exact else '없음'}",
         '화살표 신호': arrow_reason,
     }
     analysis = SwingAnalysis(
@@ -527,6 +547,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         'path_rebreakout': market_path.get('path_rebreakout', []),
         'path_breakout_ma': market_path.get('path_breakout_ma', []),
         'path_pullback_ma': market_path.get('path_pullback_ma', []),
+        'swing_reference': reference,
     }
     series.update(ichimoku_cloud(candles))
     series.update(arrow_series)
