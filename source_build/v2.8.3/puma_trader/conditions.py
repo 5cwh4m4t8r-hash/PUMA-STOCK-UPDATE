@@ -139,6 +139,66 @@ def fetch_condition_list(token: str, real: bool) -> list[tuple[str, str]]:
     return asyncio.run(_fetch_condition_list(token, real))
 
 
+class ConditionListThread(QThread):
+    loaded = Signal(object)
+    error = Signal(str)
+
+    def __init__(self, token: str, real: bool, parent=None):
+        super().__init__(parent)
+        self.token = token
+        self.real = real
+
+    def run(self):
+        try:
+            self.loaded.emit(fetch_condition_list(self.token, self.real))
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
+async def _fetch_complete_condition_snapshot(
+    ws,
+    seq: str,
+    *,
+    timeout: float = 6.0,
+    max_pages: int = 20,
+) -> list[tuple[str, str]]:
+    """Fetch every page of one current condition result."""
+    merged: dict[str, str] = {}
+    cont_yn = "N"
+    next_key = ""
+
+    for _ in range(max_pages):
+        await ws.send(json.dumps({
+            "trnm": "CNSRREQ",
+            "seq": str(seq),
+            "search_type": "0",
+            "stex_tp": "K",
+            "cont_yn": cont_yn,
+            "next_key": next_key,
+        }, ensure_ascii=False))
+
+        msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=timeout)
+        if not isinstance(msg, dict) or str(msg.get("trnm", "")).upper() != "CNSRREQ":
+            raise ConditionError(f"[{seq}] 조건검색 초기 응답 형식 불일치")
+        response_seq = str(msg.get("seq", "")).strip()
+        if response_seq and response_seq != str(seq):
+            raise ConditionError(f"[{seq}] 조건검색 응답 번호 불일치({response_seq})")
+        if int(msg.get("return_code", 0) or 0) != 0:
+            raise ConditionError(str(msg.get("return_msg", "조건검색 초기조회 실패")))
+
+        for code, stock_name in parse_snapshot_codes(msg.get("data")):
+            if code:
+                merged[code] = stock_name or merged.get(code, code)
+
+        cont_yn = str(msg.get("cont_yn") or msg.get("cont-yn") or "N").strip().upper()
+        next_key = str(msg.get("next_key") or msg.get("next-key") or "").strip()
+        if cont_yn != "Y" or not next_key:
+            break
+        await asyncio.sleep(0.05)
+
+    return [(code, merged[code]) for code in merged]
+
+
 class ConditionStreamThread(QThread):
     status = Signal(str)
     error = Signal(str)
@@ -167,24 +227,57 @@ class ConditionStreamThread(QThread):
         url = _ws_url(self.real)
         async with ws_connect(url, ping_interval=None, open_timeout=10) as ws:
             await _login(ws, self.token)
-            self.status.emit("영웅문 조건검색 WebSocket 연결됨")
-            req = {"trnm": "CNSRREQ", "seq": self.seq, "search_type": "1", "stex_tp": "K"}
-            await ws.send(json.dumps(req, ensure_ascii=False))
+            self.status.emit("현재 종목 조회 중...")
+
+            # 먼저 일반조회로 전체 페이지를 한 번에 가져온다.
+            rows = await _fetch_complete_condition_snapshot(ws, self.seq)
+            if self._stop_requested:
+                return
+            self.snapshot.emit(rows)
+            self.status.emit(f"현재 {len(rows)}종목 · 실시간 감시 연결 중...")
+
+            # 이후 편입/이탈만 실시간으로 감시한다.
+            await ws.send(json.dumps({
+                "trnm": "CNSRREQ",
+                "seq": self.seq,
+                "search_type": "1",
+                "stex_tp": "K",
+            }, ensure_ascii=False))
+
+            registered = False
+            register_attempts = 1
+            last_register = asyncio.get_running_loop().time()
 
             while not self._stop_requested:
                 try:
                     msg = await asyncio.wait_for(_recv_non_ping(ws), timeout=1.0)
                 except asyncio.TimeoutError:
+                    if (
+                        not registered
+                        and register_attempts < 3
+                        and asyncio.get_running_loop().time() - last_register >= 2.0
+                    ):
+                        await ws.send(json.dumps({
+                            "trnm": "CNSRREQ",
+                            "seq": self.seq,
+                            "search_type": "1",
+                            "stex_tp": "K",
+                        }, ensure_ascii=False))
+                        register_attempts += 1
+                        last_register = asyncio.get_running_loop().time()
                     continue
+
                 if not isinstance(msg, dict):
                     continue
                 trnm = str(msg.get("trnm", "")).upper()
                 if trnm == "CNSRREQ":
                     if int(msg.get("return_code", 0) or 0) != 0:
                         raise ConditionError(str(msg.get("return_msg", "실시간 조건검색 시작 실패")))
-                    rows = parse_snapshot_codes(msg.get("data"))
-                    self.snapshot.emit(rows)
-                    self.status.emit(f"조건검색 실행 중 · 초기 {len(rows)}종목")
+                    registered = True
+                    # 등록 응답에 현재 종목이 포함되면 누락분만 추가된다.
+                    for code, name in parse_snapshot_codes(msg.get("data")):
+                        self.entered.emit(code, name)
+                    self.status.emit(f"현재 {len(rows)}종목 · 실시간 감시 중")
                 elif trnm == "REAL":
                     for action, code in parse_realtime_events(msg):
                         if action == "I":
@@ -309,7 +402,8 @@ class MultiConditionStreamThread(QThread):
 
     status = Signal(str)
     error = Signal(str)
-    snapshot = Signal(str, str, object)       # seq, condition_name, rows
+    initial_union = Signal(object)              # list[{seq,name,rows}] emitted once
+    snapshot = Signal(str, str, object)       # realtime registration delta rows
     entered = Signal(str, str, str, str)     # seq, condition_name, code, stock_name
     exited = Signal(str, str, str)            # seq, condition_name, code
 
