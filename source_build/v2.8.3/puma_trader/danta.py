@@ -28,6 +28,76 @@ def _date_key(raw) -> str:
     return "".join(ch for ch in str(raw or "") if ch.isdigit())[:8]
 
 
+def _hm(raw) -> str:
+    s = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if len(s) >= 12:
+        return s[8:10] + ":" + s[10:12]
+    return ""
+
+
+def market_open_volume_ratio(candles_raw: List[dict], lookback_days: int = 5) -> dict:
+    """09:00 이후 현재까지 누적 거래량을 최근 N일 같은 장초 구간과 비교."""
+    candles = normalize_candles(candles_raw or [])
+    if not candles:
+        return {
+            "ratio": 0.0, "current_volume": 0.0, "reference_volume": 0.0,
+            "bars": 0, "days": 0, "open_price": 0.0, "price_from_open_pct": 0.0,
+        }
+
+    latest_day = _date_key(candles[-1].get("date"))
+    today = [
+        c for c in candles
+        if _date_key(c.get("date")) == latest_day
+        and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")
+    ]
+    if not today:
+        return {
+            "ratio": 0.0, "current_volume": 0.0, "reference_volume": 0.0,
+            "bars": 0, "days": 0, "open_price": 0.0, "price_from_open_pct": 0.0,
+        }
+
+    bars = len(today)
+    current_volume = sum(float(c.get("volume", 0) or 0) for c in today)
+    open_price = float(today[0].get("open", 0) or 0)
+    current_price = float(today[-1].get("close", 0) or 0)
+    price_from_open_pct = ((current_price / open_price - 1.0) * 100.0) if open_price > 0 else 0.0
+
+    prior_days = sorted({
+        _date_key(c.get("date"))
+        for c in candles
+        if _date_key(c.get("date")) and _date_key(c.get("date")) < latest_day
+    })[-max(1, int(lookback_days)):]
+
+    comparable = []
+    for day in prior_days:
+        session = [
+            c for c in candles
+            if _date_key(c.get("date")) == day
+            and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")
+        ]
+        if not session:
+            continue
+        # 현재 장의 경과 봉 수와 동일한 첫 N개 5분봉 누적량끼리 비교.
+        sample = session[:bars]
+        if len(sample) < min(bars, 2):
+            continue
+        vol = sum(float(c.get("volume", 0) or 0) for c in sample)
+        if vol > 0:
+            comparable.append(vol)
+
+    reference = mean(comparable) if comparable else 0.0
+    ratio = current_volume / reference if reference > 0 else 0.0
+    return {
+        "ratio": ratio,
+        "current_volume": current_volume,
+        "reference_volume": reference,
+        "bars": bars,
+        "days": len(comparable),
+        "open_price": open_price,
+        "price_from_open_pct": price_from_open_pct,
+    }
+
+
 def _datetime_from_candle(raw) -> datetime | None:
     s = "".join(ch for ch in str(raw or "") if ch.isdigit())
     try:
@@ -121,13 +191,15 @@ def analyze_danta(
     volume_ratio_5m = vols[-1] / avg20 if avg20 else 0.0
 
     latest_day = _date_key(candles[-1].get("date"))
-    day_vol = sum(c["volume"] for c in candles if _date_key(c.get("date")) == latest_day)
     daily = normalize_candles(daily_rows or [])
-    # 과거 날짜 복기 시 미래 일봉을 참조하지 않도록 선택일 이전 거래일만 비교에 사용.
-    prior_daily = [c for c in daily if _date_key(c.get("date")) < latest_day]
-    prior_vols = [c["volume"] for c in prior_daily[-5:] if c["volume"] > 0]
-    ref_day_vol = mean(prior_vols) if prior_vols else 0.0
-    day_volume_ratio = day_vol / ref_day_vol if ref_day_vol else 0.0
+
+    # 장초 힘은 '현재까지 누적 vs 과거 하루 전체'가 아니라
+    # 09:00부터 현재까지 동일한 경과 5분봉 수의 최근 5일 평균과 비교한다.
+    morning = market_open_volume_ratio(candles, 5)
+    day_volume_ratio = float(morning.get("ratio", 0.0) or 0.0)
+    session_open = float(morning.get("open_price", 0.0) or 0.0)
+    price_from_open_pct = float(morning.get("price_from_open_pct", 0.0) or 0.0)
+    morning_volume_burst = bool(day_volume_ratio >= 3.0)
 
     ema_stack = bool(e5[-1] and e20[-1] and e60[-1] and cur >= e5[-1] > e20[-1] > e60[-1])
     baseline_lift = bool(k_now > 0 and cur > k_now and k_now >= k_prev)
@@ -146,16 +218,43 @@ def analyze_danta(
     hm = now.strftime("%H:%M")
     in_time = scan_start <= hm <= scan_end
 
+    # 장 시작 기준 단타 점수. 장초 거래량 300%+가 가장 큰 비중이며
+    # 실제 후보 인정에도 필수조건으로 사용한다.
     score = 0
-    score += 25 if baseline_lift else (12 if baseline_alive else 0)
-    score += 15 if ema_stack else 0
-    score += 20 if volume_ratio_5m >= 1.8 else (10 if volume_ratio_5m >= 1.2 else 0)
-    score += 15 if day_volume_ratio >= 1.0 else (8 if day_volume_ratio >= 0.6 else 0)
-    score += 15 if breakout else (10 if pullback_hold else 0)
-    score += 10 if steep else 0
+    if day_volume_ratio >= 5.0:
+        score += 35
+    elif day_volume_ratio >= 3.0:
+        score += 30
+    elif day_volume_ratio >= 2.0:
+        score += 15
+    elif day_volume_ratio >= 1.3:
+        score += 7
+
+    if price_from_open_pct >= 3.0:
+        score += 18
+    elif price_from_open_pct >= 1.5:
+        score += 14
+    elif price_from_open_pct >= 0.5:
+        score += 9
+    elif price_from_open_pct >= 0:
+        score += 4
+
+    score += 10 if baseline_lift else (5 if baseline_alive else 0)
+    score += 8 if ema_stack else 0
+    score += 10 if volume_ratio_5m >= 1.8 else (5 if volume_ratio_5m >= 1.2 else 0)
+    score += 14 if breakout else (10 if pullback_hold else 0)
+    score += 5 if steep else 0
     score = min(100, score)
 
-    candidate = bool(in_time and baseline_alive and score >= 70 and (breakout or pullback_hold))
+    candidate = bool(
+        in_time
+        and morning_volume_burst
+        and session_open > 0
+        and cur >= session_open
+        and baseline_alive
+        and score >= 70
+        and (breakout or pullback_hold)
+    )
     if candidate:
         stage = "실시간 타점 후보"
     elif score >= 70 and not in_time:
@@ -169,9 +268,9 @@ def analyze_danta(
 
     data_time = str(candles[-1].get("date", "") or "-")
     reasons = []
+    reasons.append(f"장초 거래량 {day_volume_ratio:.2f}배" + (" · 300%↑" if morning_volume_burst else ""))
+    reasons.append(f"시초 대비 {price_from_open_pct:+.2f}%")
     reasons.append("기준선 위" if baseline_alive else "기준선 이탈")
-    reasons.append("EMA 정배열" if ema_stack else "EMA 정배열 미확인")
-    reasons.append(f"5분 거래량 {volume_ratio_5m:.2f}배")
     if breakout:
         reasons.append("최근 고점 돌파")
     elif pullback_hold:
@@ -188,7 +287,13 @@ def analyze_danta(
         "PUMA 기준선(26)": f"{k_now:,.0f} · {'상승/지지' if baseline_lift else ('위 유지' if baseline_alive else '이탈')}",
         "EMA 5·20·60": "정배열 확인" if ema_stack else "정배열 미확인",
         "현재 5분봉 거래량": f"최근20봉 평균의 {volume_ratio_5m:.2f}배",
-        "장초반 누적 거래량": f"최근5일 일평균의 {day_volume_ratio:.2f}배" if ref_day_vol else "일봉 비교 데이터 부족",
+        "장초반 누적 거래량": (
+            f"09:00~현재 / 최근{int(morning.get('days', 0))}일 같은구간 평균 "
+            f"{day_volume_ratio:.2f}배 · {'힘 강함(300%+)' if morning_volume_burst else '300% 미달'}"
+            if morning.get("reference_volume", 0) else "같은 시간대 비교 데이터 부족"
+        ),
+        "시초가 기준 힘": f"{session_open:,.0f} → {cur:,.0f} · {price_from_open_pct:+.2f}%",
+        "단타 PUMA 점수": f"{score}/100 · 장초 거래량 300%+ {'필수충족' if morning_volume_burst else '미충족'}",
         "최근 고점 돌파": "확인" if breakout else "미확인",
         "눌림 지지": "EMA20/기준선 지지 확인" if pullback_hold else "지지 미확인",
         "상승 각도": f"최근 3봉 {momentum_pct:+.2f}% · {'강함' if steep else '보통'}",
