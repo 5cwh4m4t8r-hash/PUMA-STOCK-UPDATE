@@ -2558,14 +2558,22 @@ class MainWindow(QMainWindow):
             rows = fetch_condition_list(broker.token, broker.real)
             self.condition_list = rows
             self.condition_combo.clear()
+            self.condition_combo.addItem("조건식을 선택하세요", None)
             for seq, name in rows:
                 self.condition_combo.addItem(f"[{seq}] {name}", (seq, name))
-            restore = self.settings.hero_condition_seq
-            for i in range(self.condition_combo.count()):
-                data = self.condition_combo.itemData(i)
-                if data and str(data[0]) == str(restore):
-                    self.condition_combo.setCurrentIndex(i)
-                    break
+            restore = str(self.settings.hero_condition_seq or "").strip()
+            restored = False
+            # 예전 고정 다중묶음(쉼표 포함)은 복원하지 않는다.
+            # 한 개 조건식을 사용자가 직접 선택해 저장한 경우에만 복원한다.
+            if restore and "," not in restore:
+                for i in range(1, self.condition_combo.count()):
+                    data = self.condition_combo.itemData(i)
+                    if data and str(data[0]) == restore:
+                        self.condition_combo.setCurrentIndex(i)
+                        restored = True
+                        break
+            if not restored:
+                self.condition_combo.setCurrentIndex(0)
             selected = self.condition_combo.currentData()
             if isinstance(selected, tuple) and len(selected) == 2:
                 self.condition_status.setText(f"저장 조건식 {len(rows)}개 · 현재 선택: [{selected[0]}] {selected[1]}")
@@ -3091,8 +3099,9 @@ class MainWindow(QMainWindow):
         if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
             if hasattr(self, "condition_table"):
                 self._remove_code_from_table(self.condition_table, code)
-            if hasattr(self, "focus_condition_table"):
-                self._remove_code_from_table(self.focus_condition_table, code)
+            if hasattr(self, "focus_bucket_tables"):
+                for bucket in self.focus_bucket_tables.values():
+                    self._remove_code_from_table(bucket, code)
                 self._refresh_focus_candidate_count()
             return
         classification = str(item.get("classification") or "분석중")
