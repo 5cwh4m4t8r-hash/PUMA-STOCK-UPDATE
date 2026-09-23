@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import shutil
 from pathlib import Path
 import time
 from copy import deepcopy
 from .performance import DisplayCache, settings_key, data_revision, analysis_scope, check_cancelled, AnalysisCancelled, DEVICE_PROFILE
 from .chart_loader import FocusDataThread, NameLookupThread, reader_broker
 
-from PySide6.QtCore import QTime, QTimer, Qt, QDate, QSettings, QThread, Signal, QEvent
+from PySide6.QtCore import QTime, QTimer, Qt, QDate, QSettings, QThread, Signal, QEvent, QStandardPaths
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -44,6 +45,7 @@ from PySide6.QtWidgets import (
 
 from .broker import BrokerError, KiwoomRestBroker, SimBroker
 from .conditions import (
+    ConditionStreamThread,
     MultiConditionStreamThread,
     PUMA_DEFAULT_CONDITION_NAMES,
     fetch_condition_list,
@@ -694,6 +696,9 @@ class MainWindow(QMainWindow):
         self.watchlist = load_watchlist()
         self.condition_candidates: dict[str, dict] = {}
         self.condition_thread: MultiConditionStreamThread | None = None
+        self.manual_condition_thread: ConditionStreamThread | None = None
+        self.manual_condition_name: str = ""
+        self.manual_condition_rows: dict[str, str] = {}
         self.condition_list: list[tuple[str, str]] = []
         self.row_by_code: dict[str, int] = {}
         self.name_cache: dict[str, str] = {}
@@ -1680,7 +1685,18 @@ class MainWindow(QMainWindow):
         self.condition_stop_btn = QPushButton("■ 조건검색 중지")
         self.condition_stop_btn.clicked.connect(self.stop_condition_stream)
         form.addRow("수동/예비 조건식", self.condition_combo)
-        bundle = QLabel("가보자 조건검색 대상 · 7개 합집합: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티\n※ 겹치는 종목만 보는 것이 아니라 1개 조건식에만 잡혀도 PUMA 2차 선별 대상입니다.")
+        manual_row = QHBoxLayout()
+        self.manual_condition_view_btn = QPushButton("선택 조건식 종목 보기")
+        self.manual_condition_stop_btn = QPushButton("조회 중지")
+        self.manual_condition_view_btn.clicked.connect(self.start_manual_condition_preview)
+        self.manual_condition_stop_btn.clicked.connect(self.stop_manual_condition_preview)
+        manual_row.addWidget(self.manual_condition_view_btn)
+        manual_row.addWidget(self.manual_condition_stop_btn)
+        form.addRow(manual_row)
+        self.manual_condition_status = QLabel("원하는 조건식을 선택한 뒤 '종목 보기'를 누르세요.")
+        self.manual_condition_status.setStyleSheet("color:#8fb6d9")
+        form.addRow("수동 조회", self.manual_condition_status)
+        bundle = QLabel("가보자 자동매매 대상 · 7개 합집합: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티\n※ 위 수동 조회는 네가 원하는 아무 조건식이나 확인하는 용도이며, 가보자 자동매매 7개 묶음과 서로 섞이지 않습니다.")
         bundle.setWordWrap(True)
         bundle.setStyleSheet("color:#9eb4c9")
         form.addRow(bundle)
@@ -1697,6 +1713,25 @@ class MainWindow(QMainWindow):
         self.condition_status = QLabel("키움 연결 후 조건식을 불러오세요.")
         form.addRow("상태", self.condition_status)
         lay.addWidget(box)
+
+        manual_box = QGroupBox("선택 조건식 현재 종목 · 수동 확인용")
+        mv = QVBoxLayout(manual_box)
+        self.manual_condition_table = QTableWidget(0, 3)
+        self.manual_condition_table.setHorizontalHeaderLabels(["종목코드", "종목명", "상태"])
+        mh = self.manual_condition_table.horizontalHeader()
+        mh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        mh.setSectionResizeMode(1, QHeaderView.Stretch)
+        mh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.manual_condition_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.manual_condition_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.manual_condition_table.cellDoubleClicked.connect(self._manual_condition_row_clicked)
+        mv.addWidget(self.manual_condition_table)
+        manual_box.setMaximumHeight(260)
+        lay.addWidget(manual_box)
+
+        auto_title = QLabel("가보자 자동매매 후보 · 7개 조건식 합집합")
+        auto_title.setStyleSheet("font-weight:900;color:#61ff8f;padding-top:4px")
+        lay.addWidget(auto_title)
 
         self.condition_table = QTableWidget(0, 6)
         self.condition_table.setHorizontalHeaderLabels(["종목코드", "종목명", "분류", "상태", "편입시각", "분석·매매"])
@@ -1818,6 +1853,9 @@ class MainWindow(QMainWindow):
         form.addRow("상태", self.update_status)
         form.addRow("업데이트 내용", self.update_notes)
         form.addRow(self.update_apply_btn)
+        self.desktop_launcher_btn = QPushButton("바탕화면 PUMA 실행파일 만들기")
+        self.desktop_launcher_btn.clicked.connect(self.create_desktop_launcher)
+        form.addRow(self.desktop_launcher_btn)
         lay.addWidget(current)
 
         info = QGroupBox("업데이트 방식")
@@ -1832,6 +1870,29 @@ class MainWindow(QMainWindow):
         lay.addStretch()
         self._pending_update = None
         return w
+
+    def create_desktop_launcher(self):
+        root = Path(__file__).resolve().parent.parent
+        src = root / "PUMA_STOCK_PRO.exe"
+        if not src.exists():
+            QMessageBox.warning(
+                self, "실행파일 없음",
+                "PUMA_STOCK_PRO.exe가 아직 설치되지 않았습니다. 최신 버전으로 업데이트한 뒤 다시 누르세요."
+            )
+            return
+        desktop = Path(QStandardPaths.writableLocation(QStandardPaths.DesktopLocation))
+        if not desktop:
+            QMessageBox.warning(self, "바탕화면", "바탕화면 경로를 찾지 못했습니다.")
+            return
+        dst = desktop / "PUMA_STOCK_PRO.exe"
+        try:
+            shutil.copy2(src, dst)
+            QMessageBox.information(
+                self, "완료",
+                f"바탕화면에 PUMA_STOCK_PRO.exe를 만들었습니다.\n{dst}\n\n이 EXE는 설치 폴더 밖에서도 원래 PUMA 위치를 찾아 실행합니다."
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "바탕화면 실행파일", str(exc))
 
     def check_update(self):
         url = self.update_url.text().strip()
@@ -1883,6 +1944,7 @@ class MainWindow(QMainWindow):
             self.update_status.setText(f"v{info.version} 적용 완료 · 재시작합니다.")
             QApplication.processEvents()
             restart_app()
+            QApplication.quit()
         except Exception as exc:
             self.update_status.setText("업데이트 실패")
             QMessageBox.critical(self, "업데이트 실패", str(exc))
@@ -2459,6 +2521,103 @@ class MainWindow(QMainWindow):
             self.condition_status.setText("조건식 조회 실패")
             QMessageBox.critical(self, "조건식 조회 실패", str(exc))
 
+    def start_manual_condition_preview(self):
+        broker = self._require_kiwoom()
+        if broker is None:
+            return
+        if not self.condition_list:
+            self.refresh_conditions()
+            if not self.condition_list:
+                return
+        data = self.condition_combo.currentData()
+        if not (isinstance(data, tuple) and len(data) == 2):
+            QMessageBox.information(self, "조건식 선택", "확인할 조건식을 선택하세요.")
+            return
+        seq, name = str(data[0]), str(data[1])
+        self.stop_manual_condition_preview()
+        self.manual_condition_name = name
+        self.manual_condition_rows.clear()
+        self.manual_condition_table.setRowCount(0)
+        self.manual_condition_status.setText(f"[{seq}] {name} 조회 연결 중...")
+
+        thread = ConditionStreamThread(broker.token, broker.real, seq, self)
+        thread.status.connect(lambda text: self.manual_condition_status.setText(f"{name} · {text}"))
+        thread.error.connect(lambda text: self.manual_condition_status.setText(f"{name} · 오류: {text}"))
+        thread.snapshot.connect(self.on_manual_condition_snapshot)
+        thread.entered.connect(self.on_manual_condition_enter)
+        thread.exited.connect(self.on_manual_condition_exit)
+        self.manual_condition_thread = thread
+        thread.start()
+
+    def stop_manual_condition_preview(self):
+        thread = self.manual_condition_thread
+        self.manual_condition_thread = None
+        if thread is not None:
+            thread.stop()
+            thread.wait(1800)
+            thread.deleteLater()
+        if hasattr(self, "manual_condition_status") and self.manual_condition_name:
+            self.manual_condition_status.setText(f"{self.manual_condition_name} · 조회 중지")
+
+    def _upsert_manual_condition_row(self, code: str, name: str = "", status: str = "편입"):
+        code = str(code or "").strip()
+        if not code:
+            return
+        resolved = str(name or self.name_cache.get(code) or code).strip()
+        self.manual_condition_rows[code] = resolved
+        row = None
+        for r in range(self.manual_condition_table.rowCount()):
+            cell = self.manual_condition_table.item(r, 0)
+            if cell and cell.text() == code:
+                row = r
+                break
+        if row is None:
+            row = self.manual_condition_table.rowCount()
+            self.manual_condition_table.insertRow(row)
+            for c in range(3):
+                self.manual_condition_table.setItem(row, c, QTableWidgetItem(""))
+        self.manual_condition_table.item(row, 0).setText(code)
+        self.manual_condition_table.item(row, 1).setText(resolved if resolved != code else "종목명 조회중…")
+        self.manual_condition_table.item(row, 2).setText(status)
+        if not name or name == code:
+            self._queue_name_lookup(code)
+
+    def on_manual_condition_snapshot(self, rows):
+        self.manual_condition_rows.clear()
+        self.manual_condition_table.setRowCount(0)
+        for code, name in rows or []:
+            self._upsert_manual_condition_row(code, name, "편입")
+        self.manual_condition_status.setText(
+            f"{self.manual_condition_name} · 현재 {len(self.manual_condition_rows)}종목"
+        )
+
+    def on_manual_condition_enter(self, code: str, name: str):
+        self._upsert_manual_condition_row(code, name, "신규편입")
+        self.manual_condition_status.setText(
+            f"{self.manual_condition_name} · 현재 {len(self.manual_condition_rows)}종목"
+        )
+
+    def on_manual_condition_exit(self, code: str):
+        code = str(code or "").strip()
+        self.manual_condition_rows.pop(code, None)
+        for r in range(self.manual_condition_table.rowCount() - 1, -1, -1):
+            cell = self.manual_condition_table.item(r, 0)
+            if cell and cell.text() == code:
+                self.manual_condition_table.removeRow(r)
+                break
+        self.manual_condition_status.setText(
+            f"{self.manual_condition_name} · 현재 {len(self.manual_condition_rows)}종목"
+        )
+
+    def _manual_condition_row_clicked(self, row: int, column: int):
+        cell = self.manual_condition_table.item(row, 0)
+        if not cell:
+            return
+        code = cell.text().strip()
+        name_cell = self.manual_condition_table.item(row, 1)
+        name = name_cell.text().strip() if name_cell else code
+        self.open_focus_stock(code, code if "조회중" in name else name)
+
     def start_condition_stream(self):
         broker = self._require_kiwoom()
         if broker is None:
@@ -2794,6 +2953,8 @@ class MainWindow(QMainWindow):
         if item is not None:
             item['name'] = name
             self._upsert_condition_row(code)
+        if code in self.manual_condition_rows:
+            self._upsert_manual_condition_row(code, name, "편입")
         self._ensure_market_row(code, name, self._source_for_code(code))
         if self.selected_code == code:
             self.selected_name = name
@@ -4512,6 +4673,7 @@ class MainWindow(QMainWindow):
             self._save_ui_layout()
             self.stop_auto()
             self.stop_condition_stream()
+            self.stop_manual_condition_preview()
             self.name_lookup_timer.stop()
             self.mobile_publish_timer.stop()
             self.mobile_bridge.stop()
