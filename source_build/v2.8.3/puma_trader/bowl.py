@@ -162,7 +162,6 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         and near224
         and record112
         and (reverse_now or reclaimed112)
-        and base_ok
     )
 
     accepted = False
