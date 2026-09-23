@@ -2796,14 +2796,6 @@ class MainWindow(QMainWindow):
                 return True
         return False
 
-    def _candidate_passes_danta_selection(self, item: dict) -> bool:
-        # 단타 검색기 합집합에 들어온 종목 중 PUMA가 한 번 더 선별한 종목만
-        # 자동매매 신규매수 대상으로 넘긴다.
-        if not self._candidate_in_danta_feed(item):
-            return False
-        score = int(dict(item.get("scores") or {}).get("danta", 0) or 0)
-        return score >= 55
-
     def _focus_filter_accepts(self, item: dict, key: str | None = None) -> bool:
         if not item or not item.get("active"):
             return False
@@ -2821,10 +2813,11 @@ class MainWindow(QMainWindow):
         if not item.get("active"):
             return "이탈"
         if self._candidate_in_danta_feed(item):
-            dscore = int(dict(item.get("scores") or {}).get("danta", 0) or 0)
-            selected = "PUMA선별" if dscore >= 55 else ("분석중" if not item.get("scores") else "PUMA대기")
+            scores = dict(item.get("scores") or {})
+            dscore = int(scores.get("danta", 0) or 0)
+            puma = f"PUMA {dscore}" if scores else "PUMA 분석중"
             overlap = f"{auto_count}식" if auto_count > 1 else "1식"
-            return f"단타검색 {overlap} · {selected}"
+            return f"단타검색 {overlap} · {puma}"
         if auto_count and manual_count:
             return f"자동 {auto_count}식 + 수동"
         if manual_count:
@@ -2985,7 +2978,7 @@ class MainWindow(QMainWindow):
 
         rows = self._puma_condition_rows()
         if not rows:
-            QMessageBox.information(self, "조건식 없음", "실시간 실행할 조건식을 먼저 선택하세요.")
+            QMessageBox.information(self, "단타 검색기 없음", "지정한 단타 검색기 7개를 영웅문4 조건검색에 저장한 뒤 목록을 다시 불러오세요.")
             return
         if len(rows) > 10:
             QMessageBox.warning(self, "조건식 제한", "키움 실시간 조건검색은 한 세션에서 최대 10개까지 사용합니다.")
@@ -2993,8 +2986,8 @@ class MainWindow(QMainWindow):
 
         self.stop_condition_stream()
 
-        # 선택 조건식 스트림을 바꿔도 사용자가 직접 편입한 종목은 보존한다.
-        # 자동 소스만 새 조건식 결과로 다시 구성한다.
+        # 단타 검색기 7개 스트림을 다시 시작해도 사용자가 직접 편입한 종목은 보존한다.
+        # 자동 단타 소스만 새 합집합 결과로 다시 구성한다.
         manual_keep = []
         for code, item in self.condition_candidates.items():
             for source_seq, src in (item.get("sources") or {}).items():
@@ -4416,11 +4409,12 @@ class MainWindow(QMainWindow):
 
         if self.focus_auto_danta_pool:
             # 통합 트레이딩의 '전체 후보 자동매매'는 관심종목과 무관하다.
-            # 단타 검색기 7개 합집합 중 PUMA 2차 선별을 통과한 종목만 신규매수 감시한다.
+            # 단타 검색기 7개 합집합 전체를 감시하되, 실제 신규매수는 아래 scan_one()
+            # 에서 PUMA 장중 2차 선별 + 가보자 진입조건을 모두 통과한 경우만 허용한다.
             for code, item in self.condition_candidates.items():
                 if code in self.session_excluded_codes:
                     continue
-                if self._candidate_passes_danta_selection(item):
+                if self._candidate_in_danta_feed(item):
                     merged[code] = {"code": code, "name": item.get("name", code), "hero": True}
 
             # 이미 보유/주문 중인 종목은 선별 상태가 바뀌어도 청산/체결 확인을 계속한다.
@@ -4473,15 +4467,20 @@ class MainWindow(QMainWindow):
         self.hero_secondary_filter.setChecked(True)
         self.save_settings_silent()
 
+        if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
+            self.focus_auto_danta_pool = False
+            QMessageBox.information(self, "키움 연결 필요", "전체 후보 자동매매는 키움 연결 후 단타 검색기 7개 결과를 사용합니다.")
+            return
+
         if not self.condition_thread or not self.condition_thread.isRunning():
             self.start_condition_stream()
 
-        # 키움 연결/검색기 확인 실패로 스트림을 시작하지 못한 경우에만 중단.
-        if isinstance(self.broker, KiwoomRestBroker):
-            if not self.condition_thread or not self.condition_thread.isRunning():
-                self.focus_auto_danta_pool = False
-                QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 먼저 연결할 수 있어야 합니다.")
-                return
+        # start() 직후 QThread.isRunning()은 스케줄링 시점에 따라 잠깐 False일 수 있으므로
+        # 스레드 객체 생성 여부만 확인하고 초기 스냅샷은 비동기로 기다린다.
+        if self.condition_thread is None:
+            self.focus_auto_danta_pool = False
+            QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 시작하지 못했습니다.")
+            return
 
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
             if not self.real_armed:
@@ -4508,11 +4507,11 @@ class MainWindow(QMainWindow):
 
         self.engine.enabled = True
         self.timer.start()
-        selected_count = sum(
+        candidate_count = sum(
             1 for item in self.condition_candidates.values()
-            if self._candidate_passes_danta_selection(item)
+            if self._candidate_in_danta_feed(item)
         )
-        self.log("SYSTEM", "AUTO", "0", f"단타 검색기 합집합 → PUMA 2차선별 자동매매 시작 · 현재 {selected_count}종목")
+        self.log("SYSTEM", "AUTO", "0", f"단타 검색기 합집합 → PUMA 실시간 2차선별 → 가보자 자동매매 시작 · 현재 후보 {candidate_count}종목")
         self.scan_one()
 
     def start_auto(self):
