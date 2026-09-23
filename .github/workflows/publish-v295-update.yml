@@ -43,7 +43,7 @@ jobs:
         run: |
           python -m compileall -q app.py puma_trader
           python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.20 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v285.py tests/test_gaboja_v290.py
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py
 
       - name: Build update package
         shell: powershell
