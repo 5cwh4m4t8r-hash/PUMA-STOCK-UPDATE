@@ -453,6 +453,7 @@ def _enrich_analysis_pure(analysis, series: dict, strategy: str, swing_settings,
             and isinstance(series.get("path_breakout"), list)
             and isinstance(series.get("path_pullback"), list)
             and isinstance(series.get("path_rebreakout"), list)
+            and isinstance(series.get("boxes"), list)
         ):
             path_bundle = {
                 "current": series.get("core_path"),
@@ -460,6 +461,7 @@ def _enrich_analysis_pure(analysis, series: dict, strategy: str, swing_settings,
                 "path_pullback": series.get("path_pullback"),
                 "path_rebreakout": series.get("path_rebreakout"),
                 "box": series.get("box"),
+                "boxes": series.get("boxes", []),
             }
         else:
             path_bundle = analyze_market_path(series["candles"], swing_settings)
@@ -467,6 +469,7 @@ def _enrich_analysis_pure(analysis, series: dict, strategy: str, swing_settings,
             series["path_breakout"] = path_bundle.get("path_breakout", [])
             series["path_pullback"] = path_bundle.get("path_pullback", [])
             series["path_rebreakout"] = path_bundle.get("path_rebreakout", [])
+            series["boxes"] = path_bundle.get("boxes", [])
             if path_bundle.get("box") and not series.get("box"):
                 series["box"] = path_bundle.get("box")
 
