@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import unicodedata
 from typing import Any, Iterable
 
 from PySide6.QtCore import QThread, Signal
@@ -212,10 +214,19 @@ PUMA_DANTA_CONDITION_NAMES = PUMA_DEFAULT_CONDITION_NAMES
 
 
 def normalize_condition_name(name: str) -> str:
-    text = str(name or "").strip()
-    for ch in ("★", "☆", " ", "\t"):
-        text = text.replace(ch, "")
-    return text
+    """Canonical condition name used for PUMA bundle matching.
+
+    Kiwoom/user-saved names can differ only by spaces, underscores, brackets,
+    stars, hyphens or full-width punctuation.  Those formatting differences
+    must not make one of the configured day-searchers appear as 'missing'.
+    """
+    text = unicodedata.normalize("NFKC", str(name or "")).strip().lower()
+    # Keep only Korean syllables/jamo, ASCII letters and digits.
+    # Examples below all become the same key:
+    #   5분봉_단타(시원놈)
+    #   5분봉 단타 (시원놈)
+    #   5분봉-단타-시원놈
+    return re.sub(r"[^0-9a-z가-힣ㄱ-ㅎㅏ-ㅣ]+", "", text)
 
 
 def is_puma_danta_condition(name: str) -> bool:
