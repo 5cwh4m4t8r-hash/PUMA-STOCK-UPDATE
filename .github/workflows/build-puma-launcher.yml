@@ -6,6 +6,8 @@ on:
     paths:
       - "launcher/**"
       - ".github/workflows/build-puma-launcher.yml"
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -72,6 +74,7 @@ jobs:
           Write-Host "PUMA DESKTOP LAUNCHER OK"
 
       - name: Commit launcher binary
+        if: github.event_name == 'push'
         shell: powershell
         run: |
           git config user.name "PUMA Build Bot"
