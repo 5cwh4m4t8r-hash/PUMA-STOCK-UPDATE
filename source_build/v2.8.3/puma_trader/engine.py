@@ -8,6 +8,8 @@ from .storage import load_runtime, save_runtime
 from .strategy import evaluate_buy, evaluate_sell, in_scan_window
 from .gaboja import evaluate_gaboja
 
+AUTO_ORDER_BUDGET = 500_000
+
 
 def _num(v):
     try:
@@ -20,6 +22,7 @@ class TradeEngine:
     def __init__(self, broker, settings: StrategySettings):
         self.broker = broker
         self.settings = settings
+        self.settings.order_budget = AUTO_ORDER_BUDGET
         # positions에는 PUMA가 관리하는 포지션만 들어간다. 계좌의 다른 보유종목은 자동매도 금지.
         self.positions: Dict[str, Position] = {}
         self.account_held_codes: set[str] = set()
@@ -84,6 +87,7 @@ class TradeEngine:
             self.managed_meta = {}
 
     def set_settings(self, settings):
+        settings.order_budget = AUTO_ORDER_BUDGET
         self.settings = settings
         if hasattr(self.broker, "order_exchange"):
             self.broker.order_exchange = settings.order_exchange
@@ -287,9 +291,9 @@ class TradeEngine:
         }
 
     def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = ""):
-        qty = int(self.settings.order_budget // current)
+        qty = int(AUTO_ORDER_BUDGET // current)
         if qty < 1:
-            return {"code": code, "name": name, "status": "WAIT", "price": current, "signal": "종목당 투입금보다 현재가가 높음"}
+            return {"code": code, "name": name, "status": "WAIT", "price": current, "signal": "고정 50만원보다 현재가가 높아 자동매수 불가"}
         resp = self.broker.buy_market(code, qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
@@ -442,6 +446,8 @@ class TradeEngine:
             daily_rows,
             scan_start=self.settings.scan_start,
             scan_end=self.settings.scan_end,
+            apply_secondary_filter=bool(require_buy_filter),
+            secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
         )
 
         if self.enabled and sig.passed and self.can_open(code) and current > 0:

@@ -55,7 +55,24 @@ def _bb_upper(values: List[float], period: int = 40, dev: float = 2.2) -> List[f
     return out
 
 
-def _daily_filter(daily_rows: List[dict], live_bar: dict | None = None) -> tuple[bool, dict]:
+def _candidate_filter(
+    daily_rows: List[dict],
+    live_bar: dict | None = None,
+    *,
+    session_bars: int = 1,
+    min_score: int = 3,
+) -> tuple[bool, dict]:
+    """PUMA 2차 후보 선별.
+
+    영웅문 검색기가 1차 후보를 공급한 뒤 PUMA가 장중 힘을 재검증한다.
+    갭과 전일 하루 거래량 300%는 더 이상 필수조건이 아니다.
+
+    점수(4개 중 3개 이상):
+      1) 현재가가 시가 이상
+      2) 장중 거래량/거래대금 진행속도가 전일 평균 진행속도 대비 강함
+      3) 전일고 또는 최근 5일 고점을 공격 중
+      4) EMA112/224/448 또는 BB40/2.2 저항을 당일 공격/돌파
+    """
     daily = normalize_candles(daily_rows or [])
     if live_bar:
         live_day = _date_key(live_bar.get("date"))
@@ -64,60 +81,116 @@ def _daily_filter(daily_rows: List[dict], live_bar: dict | None = None) -> tuple
         elif not daily or _date_key(daily[-1].get("date")) < live_day:
             daily.append(dict(live_bar))
     if len(daily) < 6:
-        return False, {"reason": "일봉 6봉 미만"}
+        return False, {"reason": "일봉 6봉 미만", "puma_score": 0}
 
     cur = daily[-1]
     prev = daily[-2]
     prev5 = daily[-6:-1]
+    cur_open = float(cur["open"])
+    cur_high = float(cur["high"])
+    cur_close = float(cur["close"])
+    cur_volume = float(cur["volume"])
+
+    prev_high = float(prev["high"])
     prev5_high = max(float(x["high"]) for x in prev5)
-    gap_ok = float(cur["open"]) > prev5_high
+    gap_ok = cur_open > prev5_high
 
     prev_vol = float(prev["volume"])
-    vol_ratio = float(cur["volume"]) / prev_vol if prev_vol > 0 else 0.0
-    volume_ok = vol_ratio >= 3.0
+    day_volume_ratio = cur_volume / prev_vol if prev_vol > 0 else 0.0
+
+    # 장중 누적 거래량을 '전일 하루 전체'와 직접 비교하지 않고,
+    # 현재까지 경과한 5분봉 비율로 환산하여 진행속도를 비교한다.
+    bars = max(1, int(session_bars or 1))
+    elapsed_fraction = min(1.0, max(5.0 / 390.0, (bars * 5.0) / 390.0))
+    expected_vol = prev_vol * elapsed_fraction
+    volume_pace = cur_volume / expected_vol if expected_vol > 0 else 0.0
+
+    prev_turnover = max(0.0, float(prev["close"]) * prev_vol)
+    cur_turnover = max(0.0, cur_close * cur_volume)
+    expected_turnover = prev_turnover * elapsed_fraction
+    turnover_pace = cur_turnover / expected_turnover if expected_turnover > 0 else 0.0
+    flow_pace = max(volume_pace, turnover_pace)
+    flow_ok = flow_pace >= 1.30
+
+    price_strength = cur_close >= cur_open
+
+    # '돌파 완료'만 보지 않고 실제로 최근 고점을 공격하는 종목까지 후보로 인정한다.
+    prev_high_attack = cur_high >= prev_high * 0.995 if prev_high > 0 else False
+    prev5_attack = cur_high >= prev5_high * 0.99 if prev5_high > 0 else False
+    high_attack = bool(prev_high_attack or prev5_attack)
 
     closes = [float(x["close"]) for x in daily]
     long_hits = []
+    long_levels = {}
     for period in (112, 224, 448):
         arr = _eavg(closes, period)
         level = float(arr[-1])
         prev_level = float(arr[-2]) if len(arr) >= 2 else level
-        crossed = (
-            float(cur["high"]) > level
-            and float(cur["close"]) >= level
-            and float(prev["close"]) <= prev_level
+        long_levels[period] = level
+        attacked = (
+            cur_high >= level
+            and cur_close >= level * 0.995
+            and (cur_open <= level or float(prev["close"]) <= prev_level)
         )
-        if crossed:
+        if attacked:
             long_hits.append(period)
 
     bb = _bb_upper(closes, 40, 2.2)
     bb_ok = False
-    if len(bb) >= 2 and bb[-1] is not None and bb[-2] is not None:
+    bb_level = None
+    if len(bb) >= 2 and bb[-1] is not None:
+        bb_level = float(bb[-1])
+        prev_bb = float(bb[-2]) if bb[-2] is not None else bb_level
         bb_ok = (
-            float(cur["high"]) > float(bb[-1])
-            and float(cur["close"]) >= float(bb[-1])
-            and float(prev["close"]) <= float(bb[-2])
+            cur_high >= bb_level
+            and cur_close >= bb_level * 0.995
+            and (cur_open <= bb_level or float(prev["close"]) <= prev_bb)
         )
 
     resistance_ok = bool(long_hits or bb_ok)
-    ok = bool(gap_ok and volume_ok and resistance_ok)
-    reason = (
-        f"이전5봉 갭 {'확인' if gap_ok else '미확인'} · "
-        f"거래량 {vol_ratio:.2f}배 · "
-        f"{'장기EMA '+','.join(map(str,long_hits)) if long_hits else ('BB40/2.2 돌파' if bb_ok else '장기EMA/BB 돌파 미확인')}"
-    )
+
+    score = sum((
+        1 if price_strength else 0,
+        1 if flow_ok else 0,
+        1 if high_attack else 0,
+        1 if resistance_ok else 0,
+    ))
+    ok = score >= max(1, int(min_score))
+
+    reasons = [
+        f"시가위 {'O' if price_strength else 'X'}",
+        f"거래속도 {flow_pace:.2f}x {'O' if flow_ok else 'X'}",
+        f"고점공격 {'O' if high_attack else 'X'}",
+        (
+            "장기저항 " + (
+                "EMA" + ",".join(map(str, long_hits))
+                if long_hits else ("BB40/2.2" if bb_ok else "X")
+            )
+        ),
+    ]
     return ok, {
-        "reason": reason,
-        "basis_open": float(cur["open"]),
+        "reason": " · ".join(reasons) + f" · PUMA {score}/4",
+        "basis_open": cur_open,
+        "prev_high": prev_high,
         "prev5_high": prev5_high,
-        "day_volume_ratio": vol_ratio,
-        "gap_ok": gap_ok,
-        "volume_ok": volume_ok,
+        "day_volume_ratio": day_volume_ratio,
+        "volume_pace": volume_pace,
+        "turnover_pace": turnover_pace,
+        "flow_pace": flow_pace,
+        "gap_ok": gap_ok,  # 정보만 기록. 필수조건 아님.
+        "price_strength": price_strength,
+        "flow_ok": flow_ok,
+        "high_attack": high_attack,
+        "prev_high_attack": prev_high_attack,
+        "prev5_attack": prev5_attack,
         "long_ma_hits": long_hits,
+        "long_ma_levels": long_levels,
         "bb40_22_breakout": bb_ok,
+        "bb40_22_level": bb_level,
+        "resistance_ok": resistance_ok,
+        "puma_score": score,
         "date": _date_key(cur.get("date")),
     }
-
 
 def evaluate_gaboja(
     minute_rows: List[dict],
@@ -126,14 +199,16 @@ def evaluate_gaboja(
     now: datetime | None = None,
     scan_start: str = "08:50",
     scan_end: str = "10:00",
+    apply_secondary_filter: bool = True,
+    secondary_min_score: int = 3,
 ) -> GabojaSignal:
     """가보자 단타 자동진입.
 
-    1) 일봉: 이전 5봉 위 갭 + 전일대비 거래량 300%+ +
-       EMA112/224/448 또는 BB40/2.2 상향돌파.
+    1) 영웅문 검색기 후보를 PUMA가 장중 힘으로 2차 선별한다.
+       갭/전일 하루 거래량 300%는 필수가 아니다.
     2) 5분봉: 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
        영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
-    3) 손절 기준은 일봉 기준봉 시가.
+    3) 손절 기준은 당일 기준봉(장 시작 첫 봉) 시가.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -157,8 +232,8 @@ def evaluate_gaboja(
     if not session:
         return GabojaSignal(False, reason="장중 5분봉 데이터 없음", current_price=latest_price)
 
-    # 일봉은 장중 매 스캔마다 다시 받을 필요가 없다.
-    # 오늘 OHLCV는 최신 5분봉들로 합성해 거래량 300%와 돌파 여부를 실시간 갱신한다.
+    # 일봉 과거값은 캐시하고, 오늘 OHLCV는 최신 5분봉들로 합성한다.
+    # PUMA는 갭 여부가 아니라 장중 가격 힘/거래속도/고점공격/저항공격을 재검증한다.
     live_bar = {
         "date": day,
         "open": float(session[0]["open"]),
@@ -167,13 +242,23 @@ def evaluate_gaboja(
         "close": float(session[-1]["close"]),
         "volume": sum(float(x["volume"]) for x in session),
     }
-    daily_ok, d = _daily_filter(daily_rows, live_bar)
-    basis_open = float(d.get("basis_open", 0.0) or 0.0)
+    candidate_ok, d = _candidate_filter(
+        daily_rows,
+        live_bar,
+        session_bars=len(session),
+        min_score=secondary_min_score,
+    )
+    basis_open = float(d.get("basis_open", live_bar["open"]) or live_bar["open"])
     day_ratio = float(d.get("day_volume_ratio", 0.0) or 0.0)
-    if not daily_ok:
-        return GabojaSignal(False, reason=f"가보자 일봉 선별 대기 · {d.get('reason','-')}",
-                            current_price=float(session[-1]["close"]), basis_open=basis_open,
-                            day_volume_ratio=day_ratio, details=d)
+    if apply_secondary_filter and not candidate_ok:
+        return GabojaSignal(
+            False,
+            reason=f"PUMA 2차 선별 대기 · {d.get('reason','-')}",
+            current_price=float(session[-1]["close"]),
+            basis_open=basis_open,
+            day_volume_ratio=day_ratio,
+            details=d,
+        )
     if len(session) < 4:
         return GabojaSignal(False, reason="가보자 5분봉 구조 형성 대기", current_price=float(candles[-1]["close"]),
                             basis_open=basis_open, day_volume_ratio=day_ratio, details=d)

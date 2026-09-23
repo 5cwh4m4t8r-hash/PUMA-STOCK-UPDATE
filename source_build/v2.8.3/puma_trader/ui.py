@@ -1203,14 +1203,15 @@ class MainWindow(QMainWindow):
         auv.setContentsMargins(5, 5, 5, 5)
         auto = QGroupBox("이 종목만 자동매매")
         afm = QFormLayout(auto)
-        self.focus_budget = self._spin(10_000, 100_000_000, self.settings.order_budget, 10_000)
+        self.focus_budget = self._spin(500_000, 500_000, 500_000, 10_000)
+        self.focus_budget.setEnabled(False)
         self.focus_tp = self._dspin(0.1, 100, self.settings.take_profit_pct, " %")
         self.focus_sl = self._dspin(-50, -0.1, self.settings.stop_loss_pct, " %")
         self.focus_trail = QCheckBox("트레일링 스탑")
         self.focus_trail.setChecked(self.settings.trailing_enabled)
         self.focus_trail_start = self._dspin(0.1, 100, self.settings.trailing_start_pct, " %")
         self.focus_trail_gap = self._dspin(0.1, 30, self.settings.trailing_gap_pct, " %")
-        afm.addRow("종목당 투입금", self.focus_budget)
+        afm.addRow("종목당 투입금(고정)", self.focus_budget)
         afm.addRow("익절", self.focus_tp)
         afm.addRow("손절", self.focus_sl)
         afm.addRow(self.focus_trail)
@@ -1227,7 +1228,7 @@ class MainWindow(QMainWindow):
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("자동매매 신규진입은 가보자 전용: 장초 강한 종목 → 차 눌림 또는 전고 몸통돌파만 매수 · 기준봉 시가 이탈 손절 · +4% 절반익절.")
+        note = QLabel("자동매매: 영웅문 검색기 후보 → PUMA 2차 선별 → 차 눌림/전고 몸통돌파에서만 50만원 매수 · 기준봉 시가 손절 · +4% 절반익절.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -1365,7 +1366,8 @@ class MainWindow(QMainWindow):
 
         risk = QWidget()
         rf = QFormLayout(risk)
-        self.order_budget = self._spin(10_000, 100_000_000, self.settings.order_budget, 10_000)
+        self.order_budget = self._spin(500_000, 500_000, 500_000, 10_000)
+        self.order_budget.setEnabled(False)
         self.max_positions = self._spin(1, 20, self.settings.max_positions)
         self.cooldown = self._spin(0, 240, self.settings.cooldown_min)
         self.max_daily_orders = self._spin(1, 100, self.settings.max_daily_orders)
@@ -1373,13 +1375,13 @@ class MainWindow(QMainWindow):
         self.exchange_combo = NoWheelComboBox()
         self.exchange_combo.addItems(["KRX", "NXT", "SOR"])
         self.exchange_combo.setCurrentText(self.settings.order_exchange)
-        rf.addRow("종목당 투입금", self.order_budget)
+        rf.addRow("종목당 투입금(고정)", self.order_budget)
         rf.addRow("최대 보유종목", self.max_positions)
         rf.addRow("재진입 대기(분)", self.cooldown)
         rf.addRow("PUMA 일일 주문 상한", self.max_daily_orders)
         rf.addRow("실계좌 동기화(초)", self.account_sync_sec)
         rf.addRow("주문 거래소", self.exchange_combo)
-        risk_note = QLabel("실전 자동주문은 LIVE START 안전잠금과 실제 잔고 동기화를 그대로 사용합니다.")
+        risk_note = QLabel("가보자 자동매수는 종목당 50만원으로 고정합니다. 실전 자동주문은 LIVE START 안전잠금과 실제 잔고 동기화를 그대로 사용합니다.")
         risk_note.setWordWrap(True)
         risk_note.setStyleSheet("color:#9eb4c9")
         rf.addRow(risk_note)
@@ -1609,7 +1611,7 @@ class MainWindow(QMainWindow):
 
         info = QLabel(
             "영웅문4 [0150] 조건검색에서 사용자 조건식을 먼저 저장한 뒤 사용하세요.\n"
-            "PUMA는 키움 WebSocket 조건검색 API로 조건식을 불러오고 실시간 편입/이탈 종목을 받습니다."
+            "PUMA는 키움 WebSocket 조건검색으로 후보를 받고, 장중 힘을 2차 선별한 뒤 가보자 타점에서만 자동매수합니다."
         )
         lay.addWidget(info)
 
@@ -1618,7 +1620,7 @@ class MainWindow(QMainWindow):
         self.condition_combo = NoWheelComboBox()
         self.condition_refresh_btn = QPushButton("조건식 목록 불러오기")
         self.condition_refresh_btn.clicked.connect(self.refresh_conditions)
-        self.hero_secondary_filter = QCheckBox("영웅문4 편입 후 PUMA 5분봉 조건을 2차로 적용")
+        self.hero_secondary_filter = QCheckBox("영웅문4 후보 → PUMA 장중 힘 2차 선별 적용")
         self.hero_secondary_filter.setChecked(self.settings.hero_secondary_filter)
         self.hero_entry_only = QCheckBox("신규 편입(I) 종목만 자동매수 대상으로 사용 (권장)")
         self.hero_entry_only.setChecked(self.settings.hero_entry_only)
@@ -2185,7 +2187,7 @@ class MainWindow(QMainWindow):
             hero_condition_name=str(name or ""),
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
             hero_entry_only=self.hero_entry_only.isChecked(),
-            order_budget=self.order_budget.value(),
+            order_budget=500_000,
             max_positions=self.max_positions.value(),
             cooldown_min=self.cooldown.value(),
             max_daily_orders=self.max_daily_orders.value(),
@@ -3685,7 +3687,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "종목 선택", "조건검색 목록에서 종목을 먼저 선택하세요.")
             return
         # 통합화면의 리스크 값을 기존 엔진 설정에 반영한다.
-        self.order_budget.setValue(self.focus_budget.value())
+        self.order_budget.setValue(500_000)
+        self.focus_budget.setValue(500_000)
         self.take_profit.setValue(self.focus_tp.value())
         self.stop_loss.setValue(self.focus_sl.value())
         self.trailing.setChecked(self.focus_trail.isChecked())
@@ -4029,7 +4032,7 @@ class MainWindow(QMainWindow):
         if idx >= 0:
             self.source_combo.setCurrentIndex(idx)
 
-        budget = max(10_000, min(100_000_000, int(float(data.get("order_budget") or self.settings.order_budget))))
+        budget = 500_000
         max_pos = max(1, min(20, int(float(data.get("max_positions") or self.settings.max_positions))))
         daily = max(1, min(100, int(float(data.get("max_daily_orders") or self.settings.max_daily_orders))))
         tp = max(0.1, min(100.0, float(data.get("take_profit_pct") or self.settings.take_profit_pct)))
@@ -4039,7 +4042,7 @@ class MainWindow(QMainWindow):
         trail_gap = max(0.1, min(30.0, float(data.get("trailing_gap_pct") or self.settings.trailing_gap_pct)))
         trailing = bool(data.get("trailing_enabled", self.settings.trailing_enabled))
 
-        self.order_budget.setValue(budget)
+        self.order_budget.setValue(500_000)
         self.max_positions.setValue(max_pos)
         self.max_daily_orders.setValue(daily)
         self.take_profit.setValue(tp)
@@ -4049,7 +4052,7 @@ class MainWindow(QMainWindow):
         self.trailing_gap.setValue(trail_gap)
 
         if getattr(self, "focus_budget", None) is not None:
-            self.focus_budget.setValue(budget)
+            self.focus_budget.setValue(500_000)
             self.focus_tp.setValue(tp)
             self.focus_sl.setValue(sl)
             self.focus_trail.setChecked(trailing)

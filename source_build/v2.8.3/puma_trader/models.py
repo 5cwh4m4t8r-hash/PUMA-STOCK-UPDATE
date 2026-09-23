@@ -21,11 +21,12 @@ class StrategySettings:
     rsi_max: float = 78.0
 
     # 후보 종목 공급원
-    candidate_source: str = "WATCHLIST"  # WATCHLIST / HERO4 / BOTH
+    candidate_source: str = "HERO4"  # WATCHLIST / HERO4 / BOTH
     hero_condition_seq: str = ""
     hero_condition_name: str = ""
     hero_secondary_filter: bool = True
     hero_entry_only: bool = True
+    puma_secondary_min_score: int = 3
 
     # 사용자 전용 가보자 단타
     gabojago_enabled: bool = True
@@ -35,7 +36,7 @@ class StrategySettings:
     gabojago_remainder_exit_time: str = "11:00"
 
     # 주문 / 리스크
-    order_budget: int = 500_000
+    order_budget: int = 500_000  # 가보자 자동매수 고정금액
     max_positions: int = 3
     cooldown_min: int = 10
     max_daily_orders: int = 10
