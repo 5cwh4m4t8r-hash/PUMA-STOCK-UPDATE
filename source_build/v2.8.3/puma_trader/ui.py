@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
 from .broker import BrokerError, KiwoomRestBroker, SimBroker
 from .conditions import (
     ConditionStreamThread,
+    ConditionListThread,
     MultiConditionStreamThread,
     PUMA_DANTA_CONDITION_NAMES,
     fetch_condition_list,
@@ -703,7 +704,11 @@ class MainWindow(QMainWindow):
         self.watchlist = load_watchlist()
         self.condition_candidates: dict[str, dict] = {}
         self.condition_thread: MultiConditionStreamThread | None = None
+        self.condition_list_thread: ConditionListThread | None = None
+        self.condition_stream_generation = 0
         self.manual_condition_thread: ConditionStreamThread | None = None
+        self.manual_condition_generation = 0
+        self.condition_pending_action: str = ""
         self.manual_condition_name: str = ""
         self.manual_condition_seq: str = ""
         self.manual_condition_rows: dict[str, str] = {}
@@ -1731,7 +1736,7 @@ class MainWindow(QMainWindow):
         self.condition_combo = NoWheelComboBox()
         self.condition_combo.setMaxVisibleItems(18)
         self.condition_refresh_btn = QPushButton("조건식 목록 불러오기")
-        self.condition_refresh_btn.clicked.connect(self.refresh_conditions)
+        self.condition_refresh_btn.clicked.connect(lambda: self.refresh_conditions())
         self.hero_secondary_filter = QCheckBox("단타 검색기 후보 → PUMA 2차 선별 적용(필수)")
         self.hero_secondary_filter.setChecked(True)
         self.hero_secondary_filter.setEnabled(False)
