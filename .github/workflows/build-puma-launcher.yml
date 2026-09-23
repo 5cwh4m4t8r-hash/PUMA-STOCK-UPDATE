@@ -1,0 +1,85 @@
+name: Build PUMA Desktop Launcher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/build-puma-launcher.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python for icon conversion
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build ICO from PUMA SVG
+        shell: powershell
+        run: |
+          python -m pip install --disable-pip-version-check pillow cairosvg
+          python -c "import cairosvg; from PIL import Image; cairosvg.svg2png(url='source_build/v2.8.3/PUMA_STOCK_PRO_ICON.svg', write_to='launcher/PUMA_STOCK_PRO.png', output_width=512, output_height=512); im=Image.open('launcher/PUMA_STOCK_PRO.png').convert('RGBA'); im.save('launcher/PUMA_STOCK_PRO.ico', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Compile Windows launcher EXE with icon
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (!(Test-Path $csc)) { throw "csc.exe not found" }
+          & $csc /nologo /target:winexe /optimize+ /out:source_build\v2.8.3\PUMA_STOCK_PRO.exe /win32icon:launcher\PUMA_STOCK_PRO.ico /reference:System.Windows.Forms.dll launcher\PUMA_STOCK_PRO_LAUNCHER.cs
+          if ($LASTEXITCODE -ne 0) { throw "launcher compile failed" }
+          Copy-Item launcher\PUMA_STOCK_PRO.ico source_build\v2.8.3\PUMA_STOCK_PRO.ico -Force
+
+      - name: Desktop-copy launcher smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $testRoot = Join-Path $env:TEMP "PUMA_LAUNCHER_TEST_ROOT"
+          Remove-Item $testRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path (Join-Path $testRoot "runtime") | Out-Null
+
+          $pyw = (Get-Command pythonw.exe).Source
+          Copy-Item $pyw (Join-Path $testRoot "runtime\pythonw.exe")
+          @"
+          from pathlib import Path
+          Path(__file__).with_name("launch_ok.txt").write_text("OK", encoding="utf-8")
+          "@ | Set-Content -Path (Join-Path $testRoot "app.py") -Encoding UTF8
+
+          $markerDir = Join-Path $env:LOCALAPPDATA "PUMA_STOCK_PRO"
+          New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
+          Set-Content -Path (Join-Path $markerDir "install_path.txt") -Value $testRoot -Encoding UTF8
+
+          $desktopCopy = Join-Path $env:TEMP "PUMA_STOCK_PRO_DESKTOP_COPY.exe"
+          Copy-Item source_build\v2.8.3\PUMA_STOCK_PRO.exe $desktopCopy -Force
+          Start-Process -FilePath $desktopCopy
+          Start-Sleep -Seconds 3
+
+          if (!(Test-Path (Join-Path $testRoot "launch_ok.txt"))) {
+            throw "Desktop-copied launcher could not locate and start PUMA"
+          }
+          Write-Host "PUMA DESKTOP LAUNCHER OK"
+
+      - name: Commit launcher binary
+        shell: powershell
+        run: |
+          git config user.name "PUMA Build Bot"
+          git config user.email "puma-build@users.noreply.github.com"
+          git add source_build/v2.8.3/PUMA_STOCK_PRO.exe source_build/v2.8.3/PUMA_STOCK_PRO.ico
+          if (git diff --cached --quiet) {
+            Write-Host "Launcher unchanged."
+            exit 0
+          }
+          git commit -m "Build PUMA desktop launcher executable"
+          git push origin main
