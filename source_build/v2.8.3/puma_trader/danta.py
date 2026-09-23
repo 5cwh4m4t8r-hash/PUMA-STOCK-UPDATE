@@ -6,9 +6,6 @@ from statistics import mean
 from typing import Dict, List, Optional
 
 from .swing import ema, normalize_candles
-from .indicators import ichimoku_cloud
-from .signals import build_arrow_signals, latest_signal_reason
-from .watermelon_proxy import build_puma_watermelon
 
 
 @dataclass
@@ -92,7 +89,9 @@ def analyze_danta(
     """PUMA 단타 분석.
 
     5분봉, 기준선, 장초반 거래량, EMA 정배열, 돌파/눌림을 결합한
-    PUMA 해석판이다. 특정 유료/비공개 검색식의 복제가 아니다.
+    PUMA 해석판이다. 단타 화면에는 일봉용 화살표/공구리/수박 등
+    장기 패턴 오버레이를 표시하지 않는다. 실제 자동주문은 별도의
+    가보자 엔진이 사용자 기준 + PUMA 2차 선별로 판정한다.
     """
     candles = normalize_candles(minute_rows or [])
     if len(candles) < 65:
@@ -174,12 +173,8 @@ def analyze_danta(
     else:
         reasons.append("돌파/눌림 미확인")
 
-    arrow_series = build_arrow_signals(candles)
-    arrow_reason = latest_signal_reason({"candles": candles, **arrow_series})
-
     details = {
         "간단 이유": " · ".join(reasons[:4]),
-        "화살표 신호": arrow_reason,
         "분석 기준일": latest_day,
         "검색 시간": f"{hm} / {scan_start}~{scan_end} · {'진입허용' if in_time else '시간외'}",
         "데이터 시각": data_time,
@@ -200,9 +195,6 @@ def analyze_danta(
         "ema60": e60,
         "kijun": kijun,
     }
-    series.update(ichimoku_cloud(candles))
-    series.update(arrow_series)
-    series.update(build_puma_watermelon(candles, arrow_series))
     return DantaAnalysis(
         stage=stage,
         score=score,
