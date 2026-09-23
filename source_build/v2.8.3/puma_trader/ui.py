@@ -1048,16 +1048,15 @@ class MainWindow(QMainWindow):
         self.focus_filter_buttons["all"].setChecked(True)
         cand_lay.addLayout(filter_row)
 
-        self.focus_condition_table = QTableWidget(0, 4)
-        self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "분류", "상태"])
+        self.focus_condition_table = QTableWidget(0, 3)
+        self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "상태"])
         hdr = self.focus_condition_table.horizontalHeader()
         hdr.setSectionResizeMode(QHeaderView.Interactive)
         hdr.setStretchLastSection(False)
         hdr.setMinimumSectionSize(48)
         self.focus_condition_table.setColumnWidth(0, 72)
         self.focus_condition_table.setColumnWidth(1, 135)
-        self.focus_condition_table.setColumnWidth(2, 115)
-        self.focus_condition_table.setColumnWidth(3, 190)
+        self.focus_condition_table.setColumnWidth(2, 200)
         self.focus_condition_table.verticalHeader().setVisible(False)
         self.focus_condition_table.verticalHeader().setDefaultSectionSize(29)
         self.focus_condition_table.setAlternatingRowColors(True)
@@ -2925,12 +2924,11 @@ class MainWindow(QMainWindow):
         if row is None:
             row = self.focus_condition_table.rowCount()
             self.focus_condition_table.insertRow(row)
-            for col in range(4):
+            for col in range(3):
                 self.focus_condition_table.setItem(row, col, QTableWidgetItem(""))
 
         display_name = str(item.get("name", "") or "").strip()
         readable_name = display_name if display_name and display_name != code else "종목명 조회중…"
-        classification = str(item.get("classification") or "분석중")
         detail = str(item.get("class_detail") or "-")
         status_text = self._focus_status_text(item)
 
@@ -2940,11 +2938,8 @@ class MainWindow(QMainWindow):
         name_cell.setToolTip(readable_name)
         name_cell.setFont(QFont("Malgun Gothic", 10, QFont.Bold))
         name_cell.setForeground(QColor("#f3f8ff"))
-        self.focus_condition_table.item(row, 2).setText(classification)
+        self.focus_condition_table.item(row, 2).setText(status_text)
         self.focus_condition_table.item(row, 2).setToolTip(detail)
-        self.focus_condition_table.item(row, 2).setForeground(self._classification_color(classification))
-        self.focus_condition_table.item(row, 3).setText(status_text)
-        self.focus_condition_table.item(row, 3).setToolTip(detail)
 
         if refresh_count:
             self._refresh_focus_candidate_count()
