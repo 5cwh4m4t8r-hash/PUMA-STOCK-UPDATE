@@ -387,6 +387,58 @@ def find_box_before(candles: list[dict], end_idx: int, settings: Any=None) -> di
     return best
 
 
+def _same_display_box(a: dict, b: dict) -> bool:
+    """Return True when two detected boxes are the same sideways structure.
+
+    Detection is intentionally conservative: boxes must overlap materially in
+    time *and* have nearly identical support/resistance. This keeps historical
+    boxes visible without painting dozens of near-duplicate rectangles.
+    """
+    a0, a1 = int(a.get("start", -1)), int(a.get("end", -1))
+    b0, b1 = int(b.get("start", -1)), int(b.get("end", -1))
+    if min(a0, a1, b0, b1) < 0:
+        return False
+    overlap = max(0, min(a1, b1) - max(a0, b0) + 1)
+    shorter = max(1, min(a1 - a0 + 1, b1 - b0 + 1))
+    if overlap / shorter < 0.45:
+        return False
+
+    ah, al = float(a.get("high", 0) or 0), float(a.get("low", 0) or 0)
+    bh, bl = float(b.get("high", 0) or 0), float(b.get("low", 0) or 0)
+    if min(ah, al, bh, bl) <= 0:
+        return False
+    return abs(ah / bh - 1.0) <= 0.035 and abs(al / bl - 1.0) <= 0.035
+
+
+def _dedupe_display_boxes(items: list[dict]) -> list[dict]:
+    """Keep distinct confirmed concrete boxes in chronological order."""
+    boxes = [dict(x) for x in items if x and x.get("structure_type") == "공구리"]
+    boxes.sort(key=lambda x: (int(x.get("start", -1)), int(x.get("end", -1))))
+    out: list[dict] = []
+    for item in boxes:
+        merged_at = -1
+        for idx, old in enumerate(out):
+            if _same_display_box(old, item):
+                merged_at = idx
+                break
+        if merged_at < 0:
+            out.append(item)
+            continue
+
+        old = out[merged_at]
+        # Prefer the higher-quality geometry, while preserving the full visible
+        # time span and any breakout metadata from either detection.
+        chosen = item if float(item.get("score", 0)) > float(old.get("score", 0)) else old
+        merged = dict(chosen)
+        merged["start"] = min(int(old.get("start", 0)), int(item.get("start", 0)))
+        merged["end"] = max(int(old.get("end", 0)), int(item.get("end", 0)))
+        merged["period"] = merged["end"] - merged["start"] + 1
+        merged["breakout_idx"] = max(int(old.get("breakout_idx", -1)), int(item.get("breakout_idx", -1)))
+        merged["accepted"] = bool(old.get("accepted") or item.get("accepted"))
+        out[merged_at] = merged
+    return out
+
+
 def _fallback_hill(candles: list[dict], end_idx: int, settings: Any=None) -> dict | None:
     lookback = max(30, min(400, int(_s(settings, "box_search_lookback", 160))))
     start = max(0, end_idx-lookback+1)
@@ -500,7 +552,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         "support_hold":False, "structure_type":"-", "context_name":"-", "quality_score":0,
     }
     if n < 30:
-        return {"current":default,"box":None,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+        return {"current":default,"box":None,"boxes":[],"path_breakout":breakout_flags,"path_pullback":pullback_flags,
                 "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
 
     closes=[float(c["close"]) for c in candles]
@@ -653,7 +705,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
                 "box_high":box["high"],"box_low":box["low"],"structure_type":box["structure_type"],
                 "quality_score":int(min(100,box.get("score",0))),
             })
-        return {"current":cur,"box":box,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+        display_boxes = _dedupe_display_boxes([box] if box else [])
+        return {"current":cur,"box":box,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
                 "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
 
     event=events[-1]
@@ -710,7 +763,16 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         cur.update({"stage":"과거 구조","stage_key":"WAIT","active":False,"reason":"현재 신규 타점과 거리 있음","quality_score":0})
 
     event["accepted"]=support_hold
-    return {"current":cur,"box":event,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+
+    # Preserve the historical concrete boxes that actually participated in
+    # confirmed breakout paths, plus the newest still-forming concrete box.
+    # The chart can therefore show recent + past concrete zones together.
+    latest_box = find_box_before(candles, n - 1, settings)
+    display_boxes = _dedupe_display_boxes(
+        [x for x in events if x.get("structure_type") == "공구리"]
+        + ([latest_box] if latest_box else [])
+    )
+    return {"current":cur,"box":event,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
             "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
 
 def analyze_market_path(candles: list[dict], settings: Any=None) -> dict:
