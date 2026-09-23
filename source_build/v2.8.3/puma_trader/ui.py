@@ -1014,45 +1014,49 @@ class MainWindow(QMainWindow):
         cand_tools.addWidget(self.focus_candidate_delete_btn)
         cand_lay.addLayout(cand_tools)
 
-        bucket_row = QHBoxLayout()
-        bucket_row.setSpacing(6)
-        self.focus_bucket_tables = {}
-        self.focus_bucket_counts = {}
-        self.focus_selected_bucket_table = None
+        # 조건검색 결과는 한 개 리스트로 유지하고 버튼으로 분류만 전환한다.
+        self.focus_candidate_filter = "all"
+        self.focus_filter_buttons = {}
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(5)
+        for key, title in (
+            ("all", "전체"),
+            ("danta", "단타"),
+            ("swing", "스윙"),
+            ("bowl", "중장기"),
+        ):
+            btn = QPushButton(title)
+            btn.setCheckable(True)
+            btn.setMinimumHeight(30)
+            btn.setStyleSheet(
+                "QPushButton{font-weight:900;padding:4px 9px;}"
+                "QPushButton:checked{border:2px solid #61d4ff;background:#17304a;}"
+            )
+            btn.clicked.connect(lambda checked=False, k=key: self._set_focus_candidate_filter(k))
+            self.focus_filter_buttons[key] = btn
+            filter_row.addWidget(btn)
+        self.focus_filter_buttons["all"].setChecked(True)
+        cand_lay.addLayout(filter_row)
 
-        def make_bucket(key: str, title: str, accent: str):
-            group = QGroupBox(title)
-            gl = QVBoxLayout(group)
-            count = QLabel("0종목")
-            count.setStyleSheet(f"color:{accent};font-weight:900")
-            gl.addWidget(count)
-            table = QTableWidget(0, 3)
-            table.setHorizontalHeaderLabels(["코드", "종목명", "점수"])
-            bh = table.horizontalHeader()
-            bh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-            bh.setSectionResizeMode(1, QHeaderView.Stretch)
-            bh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-            bh.setMinimumSectionSize(44)
-            table.verticalHeader().setVisible(False)
-            table.verticalHeader().setDefaultSectionSize(29)
-            table.setAlternatingRowColors(True)
-            table.setSelectionBehavior(QAbstractItemView.SelectRows)
-            table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-            table.cellClicked.connect(lambda row, col, t=table: self._focus_bucket_row_clicked(t, row, col))
-            gl.addWidget(table, 1)
-            self.focus_bucket_tables[key] = table
-            self.focus_bucket_counts[key] = count
-            bucket_row.addWidget(group, 1)
-            return table
+        self.focus_condition_table = QTableWidget(0, 4)
+        self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "분류", "상태"])
+        hdr = self.focus_condition_table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hdr.setMinimumSectionSize(54)
+        self.focus_condition_table.verticalHeader().setVisible(False)
+        self.focus_condition_table.verticalHeader().setDefaultSectionSize(31)
+        self.focus_condition_table.setAlternatingRowColors(True)
+        self.focus_condition_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.focus_condition_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.focus_condition_table.cellClicked.connect(self._focus_condition_row_clicked)
+        self.focus_condition_table.setMinimumWidth(380)
+        self.focus_condition_table.setMaximumWidth(600)
+        cand_lay.addWidget(self.focus_condition_table, 1)
 
-        self.focus_danta_table = make_bucket("danta", "단타 · PUMA 선별", "#61d4ff")
-        self.focus_swing_table = make_bucket("swing", "스윙 · 검색기 로직+PUMA", "#61ff8f")
-        self.focus_long_table = make_bucket("bowl", "중장기 · 밥그릇3번", "#d58cff")
-        cand_lay.addLayout(bucket_row, 1)
-        candidates.setMinimumWidth(720)
-        candidates.setMaximumWidth(980)
-
-        cand_help = QLabel("조건식 이름으로 단타/스윙/중장기를 정하지 않습니다. 선택한 조건검색 결과 전체를 PUMA가 분석해 각 칸에 넣고, 한 종목이 여러 기준을 만족하면 여러 칸에 동시에 표시합니다.")
+        cand_help = QLabel("한 리스트에서 전체/단타/스윙/중장기 버튼으로 전환합니다. 조건식 이름이 아니라 PUMA 실제 분석 결과로 분류하며, 복수 기준을 만족한 종목은 해당 버튼들에서 모두 보입니다.")
         cand_help.setWordWrap(True)
         cand_help.setStyleSheet("color:#8fb6d9")
         cand_lay.addWidget(cand_help)
@@ -2776,32 +2780,129 @@ class MainWindow(QMainWindow):
             if cell and cell.text().strip() == code:
                 table.removeRow(row)
 
+    def _focus_filter_accepts(self, item: dict, key: str | None = None) -> bool:
+        if not item or not item.get("active"):
+            return False
+        key = str(key or getattr(self, "focus_candidate_filter", "all"))
+        if key == "all":
+            return True
+        return key in bucket_scores(item.get("scores"), threshold=55)
+
+    def _focus_status_text(self, item: dict) -> str:
+        auto_count, manual_count = self._candidate_source_counts(item)
+        if not item.get("active"):
+            return "이탈"
+        if auto_count and manual_count:
+            return f"자동 {auto_count}식 + 수동"
+        if manual_count:
+            return "수동편입"
+        return f"편입 · {auto_count}식" if auto_count > 1 else "편입"
+
     def _refresh_focus_candidate_count(self):
-        if not hasattr(self, "focus_bucket_tables"):
+        if not hasattr(self, "focus_filter_buttons"):
             return
-        unique = set()
-        for key, table in self.focus_bucket_tables.items():
-            codes = set()
-            for row in range(table.rowCount()):
-                cell = table.item(row, 0)
-                if cell and cell.text().strip():
-                    codes.add(cell.text().strip())
-            unique.update(codes)
-            label = self.focus_bucket_counts.get(key)
-            if label is not None:
-                label.setText(f"{len(codes)}종목")
+        counts = {"all": 0, "danta": 0, "swing": 0, "bowl": 0}
+        for code, item in self.condition_candidates.items():
+            if code in self.session_excluded_codes or not item.get("active"):
+                continue
+            counts["all"] += 1
+            for key in bucket_scores(item.get("scores"), threshold=55):
+                counts[key] += 1
+
+        titles = {"all": "전체", "danta": "단타", "swing": "스윙", "bowl": "중장기"}
+        for key, btn in self.focus_filter_buttons.items():
+            btn.setText(f"{titles[key]} {counts[key]}")
+
+        current = str(getattr(self, "focus_candidate_filter", "all"))
         if hasattr(self, "focus_candidate_count"):
-            self.focus_candidate_count.setText(f"분류 {len(unique)}종목")
+            self.focus_candidate_count.setText(f"{titles.get(current, '전체')} {counts.get(current, 0)}종목")
+
+    def _set_focus_candidate_filter(self, key: str):
+        key = key if key in ("all", "danta", "swing", "bowl") else "all"
+        self.focus_candidate_filter = key
+        for button_key, btn in self.focus_filter_buttons.items():
+            btn.blockSignals(True)
+            btn.setChecked(button_key == key)
+            btn.blockSignals(False)
+        self._refresh_focus_candidate_table()
+
+    def _refresh_focus_candidate_table(self):
+        if not hasattr(self, "focus_condition_table"):
+            return
+        selected_code = ""
+        row = self.focus_condition_table.currentRow()
+        if row >= 0:
+            cell = self.focus_condition_table.item(row, 0)
+            selected_code = cell.text().strip() if cell else ""
+
+        self.focus_condition_table.setRowCount(0)
+        for code, item in self.condition_candidates.items():
+            if code in self.session_excluded_codes:
+                continue
+            if not self._focus_filter_accepts(item):
+                continue
+            self._upsert_focus_candidate_row(code, refresh_count=False)
+
+        if selected_code:
+            for r in range(self.focus_condition_table.rowCount()):
+                cell = self.focus_condition_table.item(r, 0)
+                if cell and cell.text().strip() == selected_code:
+                    self.focus_condition_table.selectRow(r)
+                    break
+        self._refresh_focus_candidate_count()
+
+    def _upsert_focus_candidate_row(self, code: str, refresh_count: bool = True):
+        if not hasattr(self, "focus_condition_table"):
+            return
+        item = self.condition_candidates.get(code, {})
+        row = None
+        for r in range(self.focus_condition_table.rowCount()):
+            cell = self.focus_condition_table.item(r, 0)
+            if cell and cell.text().strip() == code:
+                row = r
+                break
+
+        visible = (
+            code not in self.session_excluded_codes
+            and self._focus_filter_accepts(item)
+        )
+        if not visible:
+            if row is not None:
+                self.focus_condition_table.removeRow(row)
+            if refresh_count:
+                self._refresh_focus_candidate_count()
+            return
+
+        if row is None:
+            row = self.focus_condition_table.rowCount()
+            self.focus_condition_table.insertRow(row)
+            for col in range(4):
+                self.focus_condition_table.setItem(row, col, QTableWidgetItem(""))
+
+        display_name = str(item.get("name", "") or "").strip()
+        readable_name = display_name if display_name and display_name != code else "종목명 조회중…"
+        classification = str(item.get("classification") or "분석중")
+        detail = str(item.get("class_detail") or "-")
+        status_text = self._focus_status_text(item)
+
+        self.focus_condition_table.item(row, 0).setText(code)
+        name_cell = self.focus_condition_table.item(row, 1)
+        name_cell.setText(readable_name)
+        name_cell.setToolTip(readable_name)
+        name_cell.setFont(QFont("Malgun Gothic", 10, QFont.Bold))
+        name_cell.setForeground(QColor("#f3f8ff"))
+        self.focus_condition_table.item(row, 2).setText(classification)
+        self.focus_condition_table.item(row, 2).setToolTip(detail)
+        self.focus_condition_table.item(row, 2).setForeground(self._classification_color(classification))
+        self.focus_condition_table.item(row, 3).setText(status_text)
+        self.focus_condition_table.item(row, 3).setToolTip(detail)
+
+        if refresh_count:
+            self._refresh_focus_candidate_count()
 
     def delete_selected_focus_candidate(self):
-        table = getattr(self, "focus_selected_bucket_table", None)
+        table = getattr(self, "focus_condition_table", None)
         if table is None or table.currentRow() < 0:
-            table = None
-            for candidate in getattr(self, "focus_bucket_tables", {}).values():
-                if candidate.currentRow() >= 0:
-                    table = candidate
-                    break
-        if table is None:
             QMessageBox.information(self, "선택 삭제", "삭제할 종목을 먼저 선택하세요.")
             return
         row = table.currentRow()
@@ -2824,8 +2925,8 @@ class MainWindow(QMainWindow):
         self.session_excluded_codes.add(code)
         self.classification_queue = [x for x in self.classification_queue if x != code]
 
-        for bucket in getattr(self, "focus_bucket_tables", {}).values():
-            self._remove_code_from_table(bucket, code)
+        if hasattr(self, "focus_condition_table"):
+            self._remove_code_from_table(self.focus_condition_table, code)
         if hasattr(self, "condition_table"):
             self._remove_code_from_table(self.condition_table, code)
 
@@ -2870,9 +2971,8 @@ class MainWindow(QMainWindow):
 
         self.condition_candidates.clear()
         self.condition_table.setRowCount(0)
-        if hasattr(self, "focus_bucket_tables"):
-            for table in self.focus_bucket_tables.values():
-                table.setRowCount(0)
+        if hasattr(self, "focus_condition_table"):
+            self.focus_condition_table.setRowCount(0)
         self.classification_queue.clear()
 
         for code, stock_name, source_seq, source_name, entered_at in manual_keep:
@@ -3099,9 +3199,8 @@ class MainWindow(QMainWindow):
         if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
             if hasattr(self, "condition_table"):
                 self._remove_code_from_table(self.condition_table, code)
-            if hasattr(self, "focus_bucket_tables"):
-                for bucket in self.focus_bucket_tables.values():
-                    self._remove_code_from_table(bucket, code)
+            if hasattr(self, "focus_condition_table"):
+                self._remove_code_from_table(self.focus_condition_table, code)
                 self._refresh_focus_candidate_count()
             return
         classification = str(item.get("classification") or "분석중")
@@ -3145,42 +3244,17 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 5).setText("▶ 클릭해서 열기")
         self.condition_table.item(row, 5).setForeground(QColor("#62b8ff"))
 
-        if hasattr(self, "focus_bucket_tables"):
-            # 통합 트레이딩 조건검색 결과는 반드시 3칸으로 분리한다.
-            # 조건식 이름은 사용하지 않고 실제 분석 점수만 사용한다.
-            for bucket in self.focus_bucket_tables.values():
-                self._remove_code_from_table(bucket, code)
+        if hasattr(self, "focus_condition_table"):
+            self._upsert_focus_candidate_row(code)
 
-            if item.get("active"):
-                scores = bucket_scores(item.get("scores"), threshold=55)
-                colors = {"danta": "#61d4ff", "swing": "#61ff8f", "bowl": "#d58cff"}
-                for key, score in scores.items():
-                    color = colors[key]
-                    table = self.focus_bucket_tables[key]
-                    frow = table.rowCount()
-                    table.insertRow(frow)
-                    for cc in range(3):
-                        table.setItem(frow, cc, QTableWidgetItem(""))
-                    table.item(frow, 0).setText(code)
-                    fname = table.item(frow, 1)
-                    fname.setText(readable_name)
-                    fname.setToolTip(f"{detail} · {status_text}")
-                    fname.setFont(QFont("Malgun Gothic", 9, QFont.Bold))
-                    fname.setForeground(QColor("#f3f8ff"))
-                    table.item(frow, 2).setText(str(score))
-                    table.item(frow, 2).setToolTip(f"{detail} · {status_text}")
-                    table.item(frow, 2).setForeground(QColor(color))
-            self._refresh_focus_candidate_count()
-
-    def _focus_bucket_row_clicked(self, table: QTableWidget, row: int, column: int):
-        self.focus_selected_bucket_table = table
-        item = table.item(row, 0)
+    def _focus_condition_row_clicked(self, row: int, column: int):
+        item = self.focus_condition_table.item(row, 0)
         if not item:
             return
         code = item.text().strip()
         if not code:
             return
-        name_item = table.item(row, 1)
+        name_item = self.focus_condition_table.item(row, 1)
         name = name_item.text().strip() if name_item else code
         self.open_focus_stock(code, name if "조회중" not in name else code)
 
