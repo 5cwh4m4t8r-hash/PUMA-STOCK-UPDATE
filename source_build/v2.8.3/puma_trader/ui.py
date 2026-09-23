@@ -51,6 +51,7 @@ from .conditions import (
     PUMA_DANTA_CONDITION_NAMES,
     fetch_condition_list,
     is_puma_danta_condition,
+    normalize_condition_name,
     select_puma_conditions,
     update_candidate_source,
 )
@@ -2591,10 +2592,10 @@ class MainWindow(QMainWindow):
             if not restored:
                 self.condition_combo.setCurrentIndex(0)
             matched = select_puma_conditions(rows, PUMA_DANTA_CONDITION_NAMES)
-            found = {str(name).replace(" ", "").replace("★", "").replace("☆", "") for _, name in matched}
+            found = {normalize_condition_name(name) for _, name in matched}
             missing = [
                 name for name in PUMA_DANTA_CONDITION_NAMES
-                if str(name).replace(" ", "").replace("★", "").replace("☆", "") not in found
+                if normalize_condition_name(name) not in found
             ]
             text = f"저장 조건식 {len(rows)}개 · 단타 자동 검색기 {len(matched)}/{len(PUMA_DANTA_CONDITION_NAMES)}개 확인"
             if missing:
