@@ -1,0 +1,122 @@
+name: Build PUMA v2.9.4 Portable
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-puma-portable-v294.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout clean source
+        uses: actions/checkout@v4
+        with:
+          ref: clean-v2.9.4
+
+      - name: Set up builder Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile source
+        shell: cmd
+        run: python -m compileall -q app.py puma_trader
+
+      - name: Prepare portable folder
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE"
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Copy-Item app.py $root
+          Copy-Item requirements.txt $root
+          Copy-Item PUMA_STOCK_PRO_ICON.svg $root
+          Copy-Item SECURITY_NOTES.txt $root
+          Copy-Item README_FIRST.txt $root
+          Copy-Item puma_trader $root -Recurse
+          Copy-Item config $root -Recurse
+          if (Test-Path knowledge) { Copy-Item knowledge $root -Recurse }
+          if (Test-Path PERFORMANCE_v2.7.json) { Copy-Item PERFORMANCE_v2.7.json $root }
+          if (Test-Path demo_reverse_ma.csv) { Copy-Item demo_reverse_ma.csv $root }
+
+      - name: Download official Python embedded runtime
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile python-embed.zip
+          $runtime = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE\runtime"
+          Expand-Archive python-embed.zip -DestinationPath $runtime
+
+      - name: Install dependencies into portable runtime
+        shell: cmd
+        run: |
+          mkdir PUMA_STOCK_PRO_v2.9.4_PORTABLE\runtime\Lib\site-packages
+          python -m pip install --disable-pip-version-check --no-cache-dir --target PUMA_STOCK_PRO_v2.9.4_PORTABLE\runtime\Lib\site-packages -r requirements.txt
+
+      - name: Enable portable site-packages
+        shell: powershell
+        run: |
+          $pth = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE\runtime\python312._pth"
+          @"
+          python312.zip
+          .
+          Lib\site-packages
+          import site
+          "@ | Set-Content -Path $pth -Encoding ASCII
+
+      - name: Create one-click launcher
+        shell: powershell
+        run: |
+          $bat = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE\START_PUMA.bat"
+          @"
+          @echo off
+          chcp 65001 >nul
+          cd /d "%~dp0"
+          "runtime\python.exe" app.py
+          if errorlevel 1 (
+            echo.
+            echo PUMA 실행 중 오류가 발생했습니다.
+            pause
+          )
+          "@ | Set-Content -Path $bat -Encoding UTF8
+
+          $info = Join-Path $PWD "PUMA_STOCK_PRO_v2.9.4_PORTABLE\PORTABLE_README.txt"
+          @"
+          PUMA STOCK PRO v2.9.4 PORTABLE COMPLETE
+
+          별도 Python 설치 필요 없음.
+          별도 SETUP 필요 없음.
+          압축을 완전히 푼 뒤 START_PUMA.bat 더블클릭.
+
+          공식 Python 3.12.10 임베디드 런타임 포함.
+          PySide6 / requests / websockets 포함.
+          EXE 패킹(PyInstaller) 사용 안 함.
+          VBS / 자동 자기수정 업데이터 없음.
+          "@ | Set-Content -Path $info -Encoding UTF8
+
+      - name: Portable import smoke test
+        shell: cmd
+        working-directory: PUMA_STOCK_PRO_v2.9.4_PORTABLE
+        run: |
+          runtime\python.exe -c "import PySide6, requests, websockets; import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions; print('PUMA PORTABLE IMPORT OK')"
+
+      - name: Create ZIP
+        shell: powershell
+        run: |
+          Compress-Archive -Path PUMA_STOCK_PRO_v2.9.4_PORTABLE -DestinationPath PUMA_STOCK_PRO_v2.9.4_PORTABLE_COMPLETE.zip -CompressionLevel Optimal
+
+      - name: Upload portable complete build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PUMA_STOCK_PRO_v2.9.4_PORTABLE_COMPLETE
+          path: PUMA_STOCK_PRO_v2.9.4_PORTABLE_COMPLETE.zip
+          retention-days: 30
+          if-no-files-found: error
