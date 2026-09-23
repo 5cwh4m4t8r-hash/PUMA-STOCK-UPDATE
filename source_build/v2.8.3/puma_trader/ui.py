@@ -48,7 +48,10 @@ from .broker import BrokerError, KiwoomRestBroker, SimBroker
 from .conditions import (
     ConditionStreamThread,
     MultiConditionStreamThread,
+    PUMA_DANTA_CONDITION_NAMES,
     fetch_condition_list,
+    is_puma_danta_condition,
+    select_puma_conditions,
     update_candidate_source,
 )
 from .engine import TradeEngine
@@ -713,6 +716,7 @@ class MainWindow(QMainWindow):
         self.selected_code: str = ""
         self.selected_name: str = ""
         self.focus_only_code: str | None = None
+        self.focus_auto_danta_pool: bool = False
 
         self.broker = SimBroker()
         self.engine = TradeEngine(self.broker, self.settings)
@@ -826,7 +830,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.focus_widget, "통합 트레이딩")
         self.tabs.addTab(self.hero_widget, "조건검색")
         self.tabs.addTab(self.dashboard_widget, "잔고 · 로그")
-        self.tabs.addTab(self.strategy_widget, "단타 분석")
+        # 단타 상세분석은 통합 트레이딩의 버튼에서 별도 창으로 연다.
         self.tabs.addTab(self.manual_widget, "직접 주문")
         self.tabs.addTab(self.connection_widget, "설정 · 키움연결")
         self.tabs.addTab(self.mobile_widget, "모바일 연동")
@@ -1111,8 +1115,8 @@ class MainWindow(QMainWindow):
             dg.addWidget(a, i, 0)
             dg.addWidget(b, i, 1)
             self.focus_danta_labels[name] = b
-        open_danta = QPushButton("단타 상세 분석 열기")
-        open_danta.clicked.connect(lambda: self.tabs.setCurrentWidget(self.strategy_widget))
+        open_danta = QPushButton("단타 상세분석 열기")
+        open_danta.clicked.connect(self.open_danta_detail_window)
         dg.addWidget(open_danta, len(danta_names), 0, 1, 2)
         av.addWidget(dantabox)
 
@@ -1316,7 +1320,7 @@ class MainWindow(QMainWindow):
         selected_start = QPushButton("선택 종목만")
         stop = QPushButton("■ 중지")
         stop.setObjectName("stopBtn")
-        start.clicked.connect(self.start_auto)
+        start.clicked.connect(self.start_danta_pool_auto)
         selected_start.clicked.connect(self.start_focus_auto)
         stop.clicked.connect(self.stop_auto)
         ar.addWidget(start)
@@ -1324,7 +1328,7 @@ class MainWindow(QMainWindow):
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("기본: 가보자 조건검색 합집합 전체 → PUMA 2차 선별 → 차 눌림/전고 몸통돌파에서만 50만원 매수. '선택 종목만'은 수동 점검용 보조 기능입니다.")
+        note = QLabel("단타 검색기 7개 결과 합집합 → 종목코드 중복 제거 → PUMA 단타 2차 선별 → 가보자 차 눌림/전고 몸통돌파에서만 50만원 매수. 관심종목 등록은 필요 없습니다. '선택 종목만'은 수동 점검용 보조 기능입니다.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -1707,7 +1711,7 @@ class MainWindow(QMainWindow):
 
         info = QLabel(
             "영웅문4 [0150] 조건검색에서 사용자 조건식을 먼저 저장한 뒤 사용하세요.\n"
-            "선택한 조건식의 검색 결과 전체를 PUMA가 받아 단타 / 스윙 / 중장기(밥3)로 다시 분석합니다. 조건식 이름 자체는 분류 기준이 아니며, 단타1을 특별취급하지 않습니다."
+            "단타 자동 후보는 지정된 단타 검색기 7개를 동시에 실행해 합집합으로 받습니다. 종목코드 기준 중복은 한 번만 저장하고, 단타 목록에는 자동편입한 뒤 PUMA가 다시 선별합니다. 단타1 하나만 특별취급하지 않습니다."
         )
         lay.addWidget(info)
 
@@ -1722,7 +1726,7 @@ class MainWindow(QMainWindow):
         self.hero_entry_only = QCheckBox()
         self.hero_entry_only.setChecked(False)
         self.hero_entry_only.hide()
-        self.condition_start_btn = QPushButton("▶ 선택 조건식 실시간 시작")
+        self.condition_start_btn = QPushButton("▶ 단타 검색기들 동시 시작")
         self.condition_start_btn.setObjectName("conditionBtn")
         self.condition_start_btn.clicked.connect(self.start_condition_stream)
         self.condition_stop_btn = QPushButton("■ 조건검색 중지")
@@ -1743,7 +1747,7 @@ class MainWindow(QMainWindow):
         self.manual_condition_status = QLabel("원하는 조건식을 선택한 뒤 '종목 보기'를 누르세요.")
         self.manual_condition_status.setStyleSheet("color:#8fb6d9")
         form.addRow("수동 조회", self.manual_condition_status)
-        bundle = QLabel("고정 단타 검색기 묶음 없음 · 현재 선택한 조건식 결과를 후보 풀로 받고 PUMA가 다시 단타/스윙/중장기(밥3)로 분류합니다.\n※ 단타1은 다른 조건식과 완전히 동일한 후보 공급원일 뿐 특별취급하지 않습니다.")
+        bundle = QLabel("단타 자동 후보 7개 합집합: 단타단타(시원놈) · 5분봉_단타(시원놈) · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티\n※ 중복 종목은 한 번만 편입합니다. 아래 콤보박스는 다른 조건식을 수동 조회/편입할 때 사용합니다.")
         bundle.setWordWrap(True)
         bundle.setStyleSheet("color:#9eb4c9")
         form.addRow(bundle)
@@ -2543,15 +2547,9 @@ class MainWindow(QMainWindow):
         return self.broker
 
     def _puma_condition_rows(self) -> list[tuple[str, str]]:
-        # 조건식은 후보 공급원일 뿐 전략 분류기가 아니다.
-        # 사용자가 현재 선택한 조건식 하나를 정확히 실행하고,
-        # 검색 결과 전체를 PUMA가 단타/스윙/중장기로 재분류한다.
-        data = self.condition_combo.currentData() if hasattr(self, "condition_combo") else None
-        if isinstance(data, tuple) and len(data) == 2:
-            seq, name = str(data[0]).strip(), str(data[1]).strip()
-            if seq:
-                return [(seq, name)]
-        return []
+        # 자동 단타 후보는 지정된 7개 검색기의 합집합이다.
+        # 특정 하나(예: 단타1)에 고정하지 않는다.
+        return select_puma_conditions(self.condition_list, PUMA_DANTA_CONDITION_NAMES)
 
     def refresh_conditions(self):
         broker = self._require_kiwoom()
@@ -2578,11 +2576,16 @@ class MainWindow(QMainWindow):
                         break
             if not restored:
                 self.condition_combo.setCurrentIndex(0)
-            selected = self.condition_combo.currentData()
-            if isinstance(selected, tuple) and len(selected) == 2:
-                self.condition_status.setText(f"저장 조건식 {len(rows)}개 · 현재 선택: [{selected[0]}] {selected[1]}")
-            else:
-                self.condition_status.setText(f"저장 조건식 {len(rows)}개")
+            matched = select_puma_conditions(rows, PUMA_DANTA_CONDITION_NAMES)
+            found = {str(name).replace(" ", "").replace("★", "").replace("☆", "") for _, name in matched}
+            missing = [
+                name for name in PUMA_DANTA_CONDITION_NAMES
+                if str(name).replace(" ", "").replace("★", "").replace("☆", "") not in found
+            ]
+            text = f"저장 조건식 {len(rows)}개 · 단타 자동 검색기 {len(matched)}/{len(PUMA_DANTA_CONDITION_NAMES)}개 확인"
+            if missing:
+                text += " · 미확인: " + ", ".join(missing)
+            self.condition_status.setText(text)
             if not rows:
                 QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
         except Exception as exc:
@@ -3006,7 +3009,7 @@ class MainWindow(QMainWindow):
         self.condition_thread = thread
         thread.start()
         names = ", ".join(name for _, name in rows)
-        self.condition_status.setText(f"조건검색 실시간 연결 중 · {names} · 결과는 PUMA가 3분류")
+        self.condition_status.setText(f"단타 검색기 {len(rows)}개 동시 연결 · {names} · 합집합/중복제거 후 PUMA 2차선별")
 
     def stop_condition_stream(self):
         if self.condition_thread:
