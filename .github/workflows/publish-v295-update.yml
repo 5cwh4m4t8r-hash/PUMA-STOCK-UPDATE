@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.6 In-App Update
+name: Publish PUMA v2.9.7 In-App Update
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.6 UPDATE SMOKE OK')"
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.7 UPDATE SMOKE OK')"
 
       - name: Build update package
         shell: powershell
@@ -57,15 +57,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.6_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.7_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.6"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.6_UPDATE.zip"
-            notes = "v2.9.6: 조건검색 7개 합집합의 초기 조회 종목과 이후 신규 편입 종목을 모두 자동검토. 모든 활성 후보는 PUMA 2차 선별 + 가보자 타점 통과 시에만 자동주문. 수동/예비 조건식 드롭다운은 펼친 상태에서 마우스 휠 스크롤 가능. 매매전략 자체는 변경 없음."
+            version = "2.9.7"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.7_UPDATE.zip"
+            notes = "v2.9.7: 단타 5분봉 화면에서 화살표·공구리·수박·장기 패턴 오버레이 제거. 단타 화면은 가보자 자동매매 기준과 PUMA 판단 중심으로 단순화. 실제 자동매매는 7개 조건검색 합집합 → PUMA 장중 힘 2차 선별 → 영1 → 차 눌림 또는 전고 몸통돌파로 기존과 동일. 스윙/밥그릇 일봉 표시는 유지. 매매전략 자체는 변경 없음."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -76,10 +76,10 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.6_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.7_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.6 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.7 in-app update"
           git push origin main
