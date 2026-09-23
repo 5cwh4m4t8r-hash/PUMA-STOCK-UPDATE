@@ -208,7 +208,8 @@ def evaluate_gaboja(
        갭/전일 하루 거래량 300%는 필수가 아니다.
     2) 5분봉: 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
        영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
-    3) 손절 기준은 당일 기준봉(장 시작 첫 봉) 시가.
+    3) 차 눌림 진입은 당일 기준봉 시가 손절.
+       전고 몸통돌파 진입은 직전 차 눌림 저점 손절.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -331,7 +332,10 @@ def evaluate_gaboja(
     kind = "PULLBACK" if pullback_entry else ("BODY_REBREAK" if body_rebreak else "")
     if passed:
         label = "차 눌림" if kind == "PULLBACK" else "전고 몸통돌파"
-        reason = f"가보자 {label} 진입 · 기준봉 시가 {basis_open:,.0f} 이탈 손절"
+        if kind == "BODY_REBREAK":
+            reason = f"가보자 {label} 진입 · 직전 차 저점 {pullback_low:,.0f} 이탈 손절"
+        else:
+            reason = f"가보자 {label} 진입 · 기준봉 시가 {basis_open:,.0f} 이탈 손절"
     elif not time_ok:
         reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
     else:

@@ -104,9 +104,12 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
     now = now or datetime.now()
 
     if stop_price > 0:
-        # 가보자 포지션: 기준봉 시가 이탈은 언제나 최우선 전량 손절.
+        # 가보자 손절은 진입형태에 따라 구조적으로 올라간다.
+        # 차 눌림: 기준봉 시가 / 전고 몸통돌파: 직전 차 눌림 저점.
         if current_price <= stop_price:
-            return True, f"가보자 기준봉 시가 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
+            entry_kind = str(getattr(position, "entry_kind", "") or "")
+            stop_label = "직전 차 저점" if entry_kind == "BODY_REBREAK" else "기준봉 시가"
+            return True, f"가보자 {stop_label} 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
 
         # +4% 최초 도달은 엔진에서 절반익절 처리.
         if not partial_taken:

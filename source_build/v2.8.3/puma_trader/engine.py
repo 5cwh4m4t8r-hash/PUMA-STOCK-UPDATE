@@ -451,9 +451,14 @@ class TradeEngine:
         )
 
         if self.enabled and sig.passed and self.can_open(code) and current > 0:
+            # 차 눌림 진입은 당일 기준봉 시가,
+            # 전고 몸통돌파 진입은 직전 차 눌림 저점까지 손절선을 끌어올린다.
+            stop_price = float(sig.basis_open or 0)
+            if str(sig.entry_kind or "") == "BODY_REBREAK" and float(sig.pullback_low or 0) > stop_price:
+                stop_price = float(sig.pullback_low)
             return self._submit_buy(
                 code, name, current, sig.reason,
-                stop_price=sig.basis_open,
+                stop_price=stop_price,
                 entry_kind=sig.entry_kind,
             )
 
