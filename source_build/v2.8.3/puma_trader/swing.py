@@ -406,6 +406,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     required_acc = max(2, int(settings.accumulation_min_count or 2))
     market_path = analyze_market_path(candles, settings)
     box = market_path.get('box')
+    boxes = market_path.get('boxes', [])
     core_path = market_path.get('current', {})
     bval = blue[last] or 0.0
     current = closes[last]
@@ -518,6 +519,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         'ema5': e5, 'ema20': e20, 'ema60': e60, 'ema112': e112, 'ema224': e224, 'ema448': e448,
         'blue': blue, 'acc_flags': acc_flags, 'acc_meta': acc_meta,
         'box': box,
+        'boxes': boxes,
         'pullback': core_path,
         'core_path': core_path,
         'path_breakout': market_path.get('path_breakout', []),
