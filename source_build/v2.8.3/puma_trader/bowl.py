@@ -166,15 +166,22 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
 
     accepted = False
     accepted_count = 0
+    accepted_idx = -1
     retest = False
+    retest_idx = -1
     if breakout_idx >= 0:
         after = range(breakout_idx, min(n, breakout_idx + int(settings.acceptance_window)))
-        accepted_count = sum(
-            1 for j in after
-            if e224[j] is not None
-            and closes[j] >= float(e224[j]) * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-        )
-        accepted = accepted_count >= int(settings.acceptance_min_closes)
+        running_accepts = 0
+        for j in after:
+            if (
+                e224[j] is not None
+                and closes[j] >= float(e224[j]) * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+            ):
+                running_accepts += 1
+                if accepted_idx < 0 and running_accepts >= int(settings.acceptance_min_closes):
+                    accepted_idx = j
+        accepted_count = running_accepts
+        accepted = accepted_idx >= 0
 
         tail_start = max(breakout_idx, n - 30)
         for j in range(tail_start, n):
@@ -184,6 +191,7 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
             held = closes[j] >= float(e224[j]) * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
             if touched and held:
                 retest = True
+                retest_idx = j
 
     # Score is a progression score, not a probability.
     score = 0
@@ -284,6 +292,36 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         details=details,
     )
 
+    bowl3_markers = []
+    if breakout_idx < 0 and stage2_ready:
+        bowl3_markers.append({
+            'index': last,
+            'kind': 'prebreak',
+            'label': '밥3 직전',
+            'stage': stage,
+        })
+    if breakout_idx >= 0:
+        bowl3_markers.append({
+            'index': breakout_idx,
+            'kind': 'breakout',
+            'label': '밥3 돌파',
+            'stage': '224EMA 돌파',
+        })
+    if accepted and accepted_idx >= 0:
+        bowl3_markers.append({
+            'index': accepted_idx,
+            'kind': 'accepted',
+            'label': '밥3 안착',
+            'stage': '224EMA 위 안착',
+        })
+    if retest and retest_idx >= 0:
+        bowl3_markers.append({
+            'index': retest_idx,
+            'kind': 'core',
+            'label': '밥3 핵심',
+            'stage': '224EMA 눌림/지지',
+        })
+
     series = {
         'candles': candles,
         'ema60': e60,
@@ -291,6 +329,9 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         'ema224': e224,
         'bowl_stage2_ready': stage2_ready,
         'bowl_breakout_idx': breakout_idx,
+        'bowl_accepted_idx': accepted_idx,
+        'bowl_retest_idx': retest_idx,
+        'bowl3_markers': bowl3_markers,
         'bowl_reference_a': ref_a,
     }
     series.update(arrow_series)
