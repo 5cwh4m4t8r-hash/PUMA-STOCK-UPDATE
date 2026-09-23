@@ -1,6 +1,6 @@
-{
-  "version": "2.9.15",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.15_UPDATE.zip",
-  "notes": "v2.9.15: 통합 트레이딩 조건검색 결과를 한 개 리스트로 복원. 상단 전체/단타/스윙/중장기 버튼을 클릭하면 같은 리스트가 해당 분류 종목으로 즉시 전환되며 버튼에 종목 수 표시. 복수 분류 종목은 해당 필터마다 모두 표시. v2.9.14의 고정 7개/단타1 특별취급 제거 및 v2.9.13 스윙 A/B/C·밥3 로직 유지. 가보자 매매규칙 변경 없음.",
-  "sha256": "661f0f1257431203d5cf4448e0158cdf43d88bc734ce9e38ef9a0ed20c6bfd58"
+﻿{
+    "version":  "2.9.16",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.16_UPDATE.zip",
+    "notes":  "v2.9.16: removed the top Danta Analysis tab; Danta Detail opens in a separate window from Integrated Trading. Integrated full-candidate auto trading no longer requires watchlist entries. It uses the union of the 7 configured day-trading condition searches, deduplicates by stock code, then applies mandatory live PUMA secondary filtering and Gaboja entry rules before any buy. Keeps v2.9.15 single-list filters and v2.9.13 swing A/B/C and Bowl-3 logic.",
+    "sha256":  "59c696759b171c706b9f60cf3729b168f8d74957799456ea78436d64b8c5a8eb"
 }
