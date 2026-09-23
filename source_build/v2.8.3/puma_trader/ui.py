@@ -699,7 +699,10 @@ class MainWindow(QMainWindow):
         self.condition_thread: MultiConditionStreamThread | None = None
         self.manual_condition_thread: ConditionStreamThread | None = None
         self.manual_condition_name: str = ""
+        self.manual_condition_seq: str = ""
         self.manual_condition_rows: dict[str, str] = {}
+        self._manual_import_after_snapshot = False
+        self.session_excluded_codes: set[str] = set()
         self.condition_list: list[tuple[str, str]] = []
         self.row_by_code: dict[str, int] = {}
         self.name_cache: dict[str, str] = {}
@@ -997,6 +1000,19 @@ class MainWindow(QMainWindow):
 
         candidates = QGroupBox("조건검색 결과")
         cand_lay = QVBoxLayout(candidates)
+
+        cand_tools = QHBoxLayout()
+        self.focus_candidate_count = QLabel("0종목")
+        self.focus_candidate_count.setStyleSheet("color:#8fb6d9;font-weight:800")
+        self.focus_candidate_delete_btn = QPushButton("선택 삭제")
+        self.focus_candidate_delete_btn.setObjectName("stopBtn")
+        self.focus_candidate_delete_btn.setToolTip("선택 종목을 현재 세션의 신규 자동매매 후보에서도 제외합니다.")
+        self.focus_candidate_delete_btn.clicked.connect(self.delete_selected_focus_candidate)
+        cand_tools.addWidget(self.focus_candidate_count)
+        cand_tools.addStretch()
+        cand_tools.addWidget(self.focus_candidate_delete_btn)
+        cand_lay.addLayout(cand_tools)
+
         self.focus_condition_table = QTableWidget(0, 4)
         self.focus_condition_table.setHorizontalHeaderLabels(["코드", "종목명", "분류", "상태"])
         hdr = self.focus_condition_table.horizontalHeader()
@@ -1014,7 +1030,7 @@ class MainWindow(QMainWindow):
         self.focus_condition_table.setMinimumWidth(360)
         self.focus_condition_table.setMaximumWidth(560)
         cand_lay.addWidget(self.focus_condition_table)
-        cand_help = QLabel("종목 클릭 → 차트·스윙분석·주문·단타분석이 같은 종목으로 연동")
+        cand_help = QLabel("가보자 7개 조건식은 자동 편입 · 조건검색 탭에서 원하는 조건식 결과도 수동 편입 가능 · 삭제한 종목은 현재 세션 신규매매 후보에서 제외")
         cand_help.setWordWrap(True)
         cand_help.setStyleSheet("color:#8fb6d9")
         cand_lay.addWidget(cand_help)
@@ -1688,10 +1704,14 @@ class MainWindow(QMainWindow):
         form.addRow("수동/예비 조건식", self.condition_combo)
         manual_row = QHBoxLayout()
         self.manual_condition_view_btn = QPushButton("선택 조건식 종목 보기")
+        self.manual_condition_import_btn = QPushButton("→ 종합 트레이딩에 편입")
+        self.manual_condition_import_btn.setObjectName("startBtn")
         self.manual_condition_stop_btn = QPushButton("조회 중지")
         self.manual_condition_view_btn.clicked.connect(self.start_manual_condition_preview)
+        self.manual_condition_import_btn.clicked.connect(self.import_selected_condition_to_focus)
         self.manual_condition_stop_btn.clicked.connect(self.stop_manual_condition_preview)
         manual_row.addWidget(self.manual_condition_view_btn)
+        manual_row.addWidget(self.manual_condition_import_btn)
         manual_row.addWidget(self.manual_condition_stop_btn)
         form.addRow(manual_row)
         self.manual_condition_status = QLabel("원하는 조건식을 선택한 뒤 '종목 보기'를 누르세요.")
@@ -2072,8 +2092,11 @@ class MainWindow(QMainWindow):
             parts.append("관심")
         cond = self.condition_candidates.get(code, {})
         if cond.get("active"):
-            count = max(1, int(cond.get("source_count", 1) or 1))
-            parts.append(f"영웅문4×{count}" if count > 1 else "영웅문4")
+            auto_count, manual_count = self._candidate_source_counts(cond)
+            if auto_count:
+                parts.append(f"영웅문4×{auto_count}" if auto_count > 1 else "영웅문4")
+            if manual_count:
+                parts.append("수동조건")
         if code in self.engine.positions:
             parts.append("보유")
         if code in self.engine.pending_orders:
@@ -2543,6 +2566,7 @@ class MainWindow(QMainWindow):
             return
         seq, name = str(data[0]), str(data[1])
         self.stop_manual_condition_preview()
+        self.manual_condition_seq = seq
         self.manual_condition_name = name
         self.manual_condition_rows.clear()
         self.manual_condition_table.setRowCount(0)
@@ -2598,6 +2622,9 @@ class MainWindow(QMainWindow):
         self.manual_condition_status.setText(
             f"{self.manual_condition_name} · 현재 {len(self.manual_condition_rows)}종목"
         )
+        if self._manual_import_after_snapshot:
+            self._manual_import_after_snapshot = False
+            self._import_manual_rows_to_candidates()
 
     def on_manual_condition_enter(self, code: str, name: str):
         self._upsert_manual_condition_row(code, name, "신규편입")
@@ -2625,6 +2652,135 @@ class MainWindow(QMainWindow):
         name_cell = self.manual_condition_table.item(row, 1)
         name = name_cell.text().strip() if name_cell else code
         self.open_focus_stock(code, code if "조회중" in name else name)
+
+    def import_selected_condition_to_focus(self):
+        data = self.condition_combo.currentData()
+        if not (isinstance(data, tuple) and len(data) == 2):
+            QMessageBox.information(self, "조건식 선택", "편입할 조건식을 먼저 선택하세요.")
+            return
+
+        seq, name = str(data[0]), str(data[1])
+        same_loaded = (
+            self.manual_condition_seq == seq
+            and self.manual_condition_name == name
+            and bool(self.manual_condition_rows)
+        )
+        if same_loaded:
+            self._import_manual_rows_to_candidates()
+            return
+
+        self._manual_import_after_snapshot = True
+        self.start_manual_condition_preview()
+
+    def _import_manual_rows_to_candidates(self):
+        if not self.manual_condition_rows:
+            QMessageBox.information(self, "편입할 종목 없음", "선택 조건식의 현재 검색 결과가 없습니다.")
+            return
+
+        seq = str(self.manual_condition_seq or "").strip()
+        name = str(self.manual_condition_name or "수동 조건식").strip()
+        if not seq:
+            QMessageBox.warning(self, "조건식", "조건식 번호를 확인할 수 없습니다.")
+            return
+
+        source_seq = f"MANUAL:{seq}"
+        now = datetime.now().strftime("%H:%M:%S")
+        added = 0
+
+        for code, stock_name in list(self.manual_condition_rows.items()):
+            code = str(code or "").strip()
+            if not code:
+                continue
+
+            # 사용자가 다시 편입하면 이전 수동 제외를 해제한다.
+            self.session_excluded_codes.discard(code)
+
+            item = update_candidate_source(
+                self.condition_candidates,
+                seq=source_seq,
+                condition_name=f"수동 · {name}",
+                code=code,
+                stock_name=stock_name or self.name_cache.get(code) or code,
+                active=True,
+                entry_event=False,
+                now=now,
+            )
+            item["manual_pinned"] = True
+            self._upsert_condition_row(code)
+            self._ensure_market_row(code, item.get("name", code), "수동조건")
+            if not stock_name or stock_name == code:
+                self._queue_name_lookup(code)
+            self._queue_candidate_classification(code)
+            added += 1
+
+        self._refresh_focus_candidate_count()
+        self.log("HERO4", "MANUAL IN", "-", f"{name} · {added}종목 종합 트레이딩 편입")
+        self.manual_condition_status.setText(f"{name} · {added}종목 종합 트레이딩 편입 완료")
+        if self.engine.enabled and added:
+            QTimer.singleShot(0, self.scan_one)
+
+    def _candidate_has_manual_source(self, item: dict) -> bool:
+        for seq, src in (item.get("sources") or {}).items():
+            if str(seq).startswith("MANUAL:") and src.get("active"):
+                return True
+        return False
+
+    def _candidate_source_counts(self, item: dict) -> tuple[int, int]:
+        auto_count = 0
+        manual_count = 0
+        for seq, src in (item.get("sources") or {}).items():
+            if not src.get("active"):
+                continue
+            if str(seq).startswith("MANUAL:"):
+                manual_count += 1
+            else:
+                auto_count += 1
+        return auto_count, manual_count
+
+    def _remove_code_from_table(self, table: QTableWidget, code: str):
+        for row in range(table.rowCount() - 1, -1, -1):
+            cell = table.item(row, 0)
+            if cell and cell.text().strip() == code:
+                table.removeRow(row)
+
+    def _refresh_focus_candidate_count(self):
+        if hasattr(self, "focus_candidate_count"):
+            self.focus_candidate_count.setText(f"{self.focus_condition_table.rowCount()}종목")
+
+    def delete_selected_focus_candidate(self):
+        table = self.focus_condition_table
+        row = table.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "선택 삭제", "삭제할 종목을 먼저 선택하세요.")
+            return
+        cell = table.item(row, 0)
+        if not cell:
+            return
+        code = cell.text().strip()
+        if not code:
+            return
+
+        if code in self.engine.positions or code in self.engine.pending_orders:
+            QMessageBox.warning(
+                self,
+                "삭제 불가",
+                "보유 중이거나 주문 처리 중인 종목은 청산/체결 감시 때문에 삭제할 수 없습니다."
+            )
+            return
+
+        name = self.condition_candidates.get(code, {}).get("name", code)
+        self.session_excluded_codes.add(code)
+        self.classification_queue = [x for x in self.classification_queue if x != code]
+
+        self._remove_code_from_table(self.focus_condition_table, code)
+        if hasattr(self, "condition_table"):
+            self._remove_code_from_table(self.condition_table, code)
+
+        self._refresh_focus_candidate_count()
+        self.log(name, "CANDIDATE DEL", "-", "사용자 삭제 · 현재 세션 신규 자동매매 후보 제외")
+
+        if self.selected_code == code:
+            self.focus_origin.setText(f"{name} · 후보에서 삭제됨")
 
     def start_condition_stream(self):
         broker = self._require_kiwoom()
@@ -2782,7 +2938,7 @@ class MainWindow(QMainWindow):
 
     def _queue_candidate_classification(self, code: str):
         code = str(code).strip()
-        if not code or code in self.classification_queue:
+        if not code or code in self.session_excluded_codes or code in self.classification_queue:
             return
         if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
             return
@@ -2853,6 +3009,14 @@ class MainWindow(QMainWindow):
 
     def _upsert_condition_row(self, code: str):
         item = self.condition_candidates.get(code, {})
+
+        if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
+            if hasattr(self, "condition_table"):
+                self._remove_code_from_table(self.condition_table, code)
+            if hasattr(self, "focus_condition_table"):
+                self._remove_code_from_table(self.focus_condition_table, code)
+                self._refresh_focus_candidate_count()
+            return
         classification = str(item.get("classification") or "분석중")
         detail = str(item.get("class_detail") or "-")
 
@@ -2878,11 +3042,18 @@ class MainWindow(QMainWindow):
         self.condition_table.item(row, 2).setText(classification)
         self.condition_table.item(row, 2).setToolTip(detail)
         self.condition_table.item(row, 2).setForeground(self._classification_color(classification))
-        active_count = int(item.get("source_count", 0) or 0)
-        self.condition_table.item(row, 3).setText(
-            (f"편입 · {active_count}식" if active_count > 1 else "편입")
-            if item.get("active") else "이탈"
-        )
+        auto_count, manual_count = self._candidate_source_counts(item)
+        active_count = auto_count + manual_count
+        if item.get("active"):
+            if auto_count and manual_count:
+                status_text = f"자동 {auto_count}식 + 수동"
+            elif manual_count:
+                status_text = "수동편입"
+            else:
+                status_text = f"편입 · {auto_count}식" if auto_count > 1 else "편입"
+        else:
+            status_text = "이탈"
+        self.condition_table.item(row, 3).setText(status_text)
         self.condition_table.item(row, 4).setText(item.get("entered_at", "-"))
         self.condition_table.item(row, 5).setText("▶ 클릭해서 열기")
         self.condition_table.item(row, 5).setForeground(QColor("#62b8ff"))
@@ -2907,10 +3078,8 @@ class MainWindow(QMainWindow):
             self.focus_condition_table.item(frow, 2).setText(classification)
             self.focus_condition_table.item(frow, 2).setToolTip(detail)
             self.focus_condition_table.item(frow, 2).setForeground(self._classification_color(classification))
-            self.focus_condition_table.item(frow, 3).setText(
-                (f"편입 · {active_count}식" if active_count > 1 else "편입")
-                if item.get("active") else "이탈"
-            )
+            self.focus_condition_table.item(frow, 3).setText(status_text)
+            self._refresh_focus_candidate_count()
 
     def _focus_condition_row_clicked(self, row: int, column: int):
         item = self.focus_condition_table.item(row, 0)
@@ -4037,6 +4206,8 @@ class MainWindow(QMainWindow):
 
         if source in ("HERO4", "BOTH"):
             for code, item in self.condition_candidates.items():
+                if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
+                    continue
                 if item.get("active"):
                     # 초기 조회 종목과 이후 신규 편입 종목을 모두 PUMA 자동검토 대상으로 사용한다.
                     # 조건검색 편입은 후보 공급일 뿐이며 실제 주문은 엔진의 2차 선별/가보자 타점을 통과해야 한다.
