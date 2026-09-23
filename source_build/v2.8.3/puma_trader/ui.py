@@ -1721,8 +1721,9 @@ class MainWindow(QMainWindow):
         self.condition_combo.setMaxVisibleItems(18)
         self.condition_refresh_btn = QPushButton("조건식 목록 불러오기")
         self.condition_refresh_btn.clicked.connect(self.refresh_conditions)
-        self.hero_secondary_filter = QCheckBox("영웅문4 후보 → PUMA 장중 힘 2차 선별 적용")
-        self.hero_secondary_filter.setChecked(self.settings.hero_secondary_filter)
+        self.hero_secondary_filter = QCheckBox("단타 검색기 후보 → PUMA 2차 선별 적용(필수)")
+        self.hero_secondary_filter.setChecked(True)
+        self.hero_secondary_filter.setEnabled(False)
         self.hero_entry_only = QCheckBox()
         self.hero_entry_only.setChecked(False)
         self.hero_entry_only.hide()
@@ -2783,18 +2784,47 @@ class MainWindow(QMainWindow):
             if cell and cell.text().strip() == code:
                 table.removeRow(row)
 
+    def _candidate_in_danta_feed(self, item: dict) -> bool:
+        if not item or not item.get("active"):
+            return False
+        for source_seq, src in (item.get("sources") or {}).items():
+            if not src.get("active"):
+                continue
+            if str(source_seq).startswith("MANUAL:"):
+                continue
+            if is_puma_danta_condition(str(src.get("name") or "")):
+                return True
+        return False
+
+    def _candidate_passes_danta_selection(self, item: dict) -> bool:
+        # 단타 검색기 합집합에 들어온 종목 중 PUMA가 한 번 더 선별한 종목만
+        # 자동매매 신규매수 대상으로 넘긴다.
+        if not self._candidate_in_danta_feed(item):
+            return False
+        score = int(dict(item.get("scores") or {}).get("danta", 0) or 0)
+        return score >= 55
+
     def _focus_filter_accepts(self, item: dict, key: str | None = None) -> bool:
         if not item or not item.get("active"):
             return False
         key = str(key or getattr(self, "focus_candidate_filter", "all"))
         if key == "all":
             return True
+        if key == "danta":
+            # 지정 단타 검색기 7개 중 하나라도 검색되면 단타 목록에는 즉시 편입.
+            # PUMA 점수는 목록 편입이 아니라 실제 자동매매 2차 선별에 사용한다.
+            return self._candidate_in_danta_feed(item) or ("danta" in bucket_scores(item.get("scores"), threshold=55))
         return key in bucket_scores(item.get("scores"), threshold=55)
 
     def _focus_status_text(self, item: dict) -> str:
         auto_count, manual_count = self._candidate_source_counts(item)
         if not item.get("active"):
             return "이탈"
+        if self._candidate_in_danta_feed(item):
+            dscore = int(dict(item.get("scores") or {}).get("danta", 0) or 0)
+            selected = "PUMA선별" if dscore >= 55 else ("분석중" if not item.get("scores") else "PUMA대기")
+            overlap = f"{auto_count}식" if auto_count > 1 else "1식"
+            return f"단타검색 {overlap} · {selected}"
         if auto_count and manual_count:
             return f"자동 {auto_count}식 + 수동"
         if manual_count:
@@ -2809,8 +2839,13 @@ class MainWindow(QMainWindow):
             if code in self.session_excluded_codes or not item.get("active"):
                 continue
             counts["all"] += 1
-            for key in bucket_scores(item.get("scores"), threshold=55):
-                counts[key] += 1
+            passed = bucket_scores(item.get("scores"), threshold=55)
+            if self._candidate_in_danta_feed(item) or "danta" in passed:
+                counts["danta"] += 1
+            if "swing" in passed:
+                counts["swing"] += 1
+            if "bowl" in passed:
+                counts["bowl"] += 1
 
         titles = {"all": "전체", "danta": "단타", "swing": "스윙", "bowl": "중장기"}
         for key, btn in self.focus_filter_buttons.items():
@@ -3527,6 +3562,17 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self.strategy_refresh_selected)
         elif widget is getattr(self, "manual_widget", None):
             QTimer.singleShot(0, self.manual_quote)
+
+    def open_danta_detail_window(self):
+        if not self.selected_code:
+            QMessageBox.information(self, "단타 상세분석", "조건검색 목록에서 종목을 먼저 선택하세요.")
+            return
+        self.strategy_widget.setWindowTitle(f"단타 상세분석 · {self.selected_name or self.selected_code} {self.selected_code}")
+        self.strategy_widget.resize(1180, 820)
+        self.strategy_widget.show()
+        self.strategy_widget.raise_()
+        self.strategy_widget.activateWindow()
+        QTimer.singleShot(0, self.strategy_refresh_selected)
 
     def strategy_refresh_selected(self):
         code = (self.selected_code or "").strip()
@@ -4345,6 +4391,7 @@ class MainWindow(QMainWindow):
                 self.engine.sync_account(force=True)
             except Exception as exc:
                 QMessageBox.critical(self, "실계좌 동기화 실패", str(exc)); return
+        self.focus_auto_danta_pool = False
         self.focus_only_code = self.selected_code
         self.engine.enabled = True
         self.timer.start()
@@ -4361,6 +4408,22 @@ class MainWindow(QMainWindow):
             name = self.name_cache.get(code) or (self.selected_name if self.selected_code == code else code)
             merged[code] = {"code": code, "name": name, "hero": False}
             # 보유/주문 중 종목은 청산/체결 확인을 위해 함께 감시
+            for c, pos in self.engine.positions.items():
+                merged.setdefault(c, {"code": c, "name": pos.name, "hero": False})
+            for c in self.engine.pending_orders:
+                merged.setdefault(c, {"code": c, "name": self.name_cache.get(c, c), "hero": False})
+            return list(merged.values())
+
+        if self.focus_auto_danta_pool:
+            # 통합 트레이딩의 '전체 후보 자동매매'는 관심종목과 무관하다.
+            # 단타 검색기 7개 합집합 중 PUMA 2차 선별을 통과한 종목만 신규매수 감시한다.
+            for code, item in self.condition_candidates.items():
+                if code in self.session_excluded_codes:
+                    continue
+                if self._candidate_passes_danta_selection(item):
+                    merged[code] = {"code": code, "name": item.get("name", code), "hero": True}
+
+            # 이미 보유/주문 중인 종목은 선별 상태가 바뀌어도 청산/체결 확인을 계속한다.
             for c, pos in self.engine.positions.items():
                 merged.setdefault(c, {"code": c, "name": pos.name, "hero": False})
             for c in self.engine.pending_orders:
@@ -4393,7 +4456,67 @@ class MainWindow(QMainWindow):
 
         return list(merged.values())
 
+    def start_danta_pool_auto(self):
+        # 통합 트레이딩 전용: 관심종목 등록 여부를 보지 않는다.
+        # 필요하면 단타 검색기 7개 스트림부터 자동으로 시작한다.
+        self.focus_only_code = None
+        self.focus_auto_danta_pool = True
+
+        # 통합화면 리스크 값을 엔진 설정에 반영.
+        self.order_budget.setValue(500_000)
+        self.focus_budget.setValue(500_000)
+        self.take_profit.setValue(self.focus_tp.value())
+        self.stop_loss.setValue(self.focus_sl.value())
+        self.trailing.setChecked(self.focus_trail.isChecked())
+        self.trailing_start.setValue(self.focus_trail_start.value())
+        self.trailing_gap.setValue(self.focus_trail_gap.value())
+        self.hero_secondary_filter.setChecked(True)
+        self.save_settings_silent()
+
+        if not self.condition_thread or not self.condition_thread.isRunning():
+            self.start_condition_stream()
+
+        # 키움 연결/검색기 확인 실패로 스트림을 시작하지 못한 경우에만 중단.
+        if isinstance(self.broker, KiwoomRestBroker):
+            if not self.condition_thread or not self.condition_thread.isRunning():
+                self.focus_auto_danta_pool = False
+                QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 먼저 연결할 수 있어야 합니다.")
+                return
+
+        if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
+            if not self.real_armed:
+                self.focus_auto_danta_pool = False
+                QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
+                return
+            phrase, ok = QInputDialog.getText(
+                self,
+                "단타 전체 후보 실전 자동매매",
+                f"단타 검색기 합집합 → PUMA 2차 선별 → 가보자 진입조건 통과 종목에 실제 주문이 전송됩니다.\n"
+                f"종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회\n"
+                "계속하려면 LIVE START 를 입력하세요.",
+            )
+            if not ok or phrase.strip().upper() != "LIVE START":
+                self.focus_auto_danta_pool = False
+                return
+            try:
+                self.engine.sync_account(force=True)
+                self._refresh_position_rows()
+            except Exception as exc:
+                self.focus_auto_danta_pool = False
+                QMessageBox.critical(self, "실계좌 동기화 실패", f"잔고 동기화에 실패하여 실전 자동매매를 시작하지 않습니다.\n{exc}")
+                return
+
+        self.engine.enabled = True
+        self.timer.start()
+        selected_count = sum(
+            1 for item in self.condition_candidates.values()
+            if self._candidate_passes_danta_selection(item)
+        )
+        self.log("SYSTEM", "AUTO", "0", f"단타 검색기 합집합 → PUMA 2차선별 자동매매 시작 · 현재 {selected_count}종목")
+        self.scan_one()
+
     def start_auto(self):
+        self.focus_auto_danta_pool = False
         self.focus_only_code = None
         self.save_settings_silent()
         source = self.settings.candidate_source
@@ -4432,6 +4555,7 @@ class MainWindow(QMainWindow):
         self.engine.enabled = False
         self.timer.stop()
         self.focus_only_code = None
+        self.focus_auto_danta_pool = False
         if hasattr(self, "log_table"):
             self.log("SYSTEM", "STOP", "0", "자동매매 중지")
 
@@ -4450,7 +4574,8 @@ class MainWindow(QMainWindow):
         code = item["code"]
         name = item.get("name", code)
         hero = bool(item.get("hero"))
-        require_filter = not (hero and not self.settings.hero_secondary_filter)
+        # 조건검색 후보는 반드시 PUMA 2차 선별을 거친 뒤 가보자 진입조건을 평가한다.
+        require_filter = True
 
         worker = AutoScanThread(self.engine, code, name, require_filter, self)
         self.auto_scan_thread = worker
@@ -5025,6 +5150,8 @@ class MainWindow(QMainWindow):
             self.name_lookup_timer.stop()
             self.mobile_publish_timer.stop()
             self.mobile_bridge.stop()
+            if getattr(self, "strategy_widget", None) is not None:
+                self.strategy_widget.close()
             self.classification_queue.clear()
             self.focus_analysis_pending = None
             self.danta_analysis_pending = False
