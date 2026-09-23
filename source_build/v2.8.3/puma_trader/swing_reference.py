@@ -163,10 +163,11 @@ def _record_volume_recent(volumes: list[float], record_period: int, lookback: in
     """True when a bar in the recent window sets a new record vs prior N bars."""
     if len(volumes) < 2:
         return False, -1
-    start = max(1, len(volumes) - max(1, int(lookback)))
+    record_period = max(1, int(record_period))
+    start = max(record_period, len(volumes) - max(1, int(lookback)))
     for i in range(start, len(volumes)):
-        prior = volumes[max(0, i - int(record_period)):i]
-        if prior and float(volumes[i]) >= max(float(x) for x in prior):
+        prior = volumes[i - record_period:i]
+        if len(prior) == record_period and float(volumes[i]) >= max(float(x) for x in prior):
             return True, i
     return False, -1
 
