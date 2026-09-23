@@ -119,6 +119,11 @@ def evaluate_sell(
             stop_label = "직전 차 저점" if entry_kind == "BODY_REBREAK" else "기준봉 시가"
             return True, f"가보자 {stop_label} 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
 
+        # 가보자는 당일 단타: 13:00에 남은 수량을 조건과 무관하게 전량청산.
+        day_exit = str(getattr(settings, "gabojago_force_exit_time", "13:00") or "13:00")
+        if now.strftime("%H:%M") >= day_exit:
+            return True, f"가보자 당일 단타 {day_exit} 전량청산"
+
         # +4% 최초 도달은 엔진에서 절반익절 처리.
         if not partial_taken:
             if pnl >= settings.take_profit_pct:

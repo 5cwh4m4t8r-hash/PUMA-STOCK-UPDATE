@@ -43,6 +43,7 @@ class StrategySettings:
     gabojago_min_stop_gap_pct: float = 0.5
     gabojago_partial_profit_pct: float = 4.0
     gabojago_remainder_band_pct: float = 2.0
+    gabojago_force_exit_time: str = "13:00"
 
     # 주문 / 리스크
     order_budget: int = 500_000  # 가보자 자동매수 고정금액
