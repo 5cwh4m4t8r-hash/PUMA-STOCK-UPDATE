@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.21",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.21_UPDATE.zip",
-    "notes":  "v2.9.21: darkens the chart canvas to medium gray to reduce contrast with the black main UI; Ichimoku cloud fill is now opaque and concrete zones use stronger translucent fill. Bowl-3 is no longer assigned from a score-only 224 breakout: it requires EMA224 breakout followed by a real pullback that holds EMA224 or at minimum EMA112, with that support still alive and no excessive distance above EMA224. Pre-confirmation stages are not labeled Bowl-3. The 7 day-search initial union now uses complete paged general queries first, then realtime registration with pacing/retry; status separately shows initial-union and realtime registration counts so candidates such as stocks beyond the first result page are not silently missed.",
-    "sha256":  "d3d55a2b221259b1ac5bbe366b2e903cf046b77a05e5573675f928da73237336"
+    "version":  "2.9.22",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.22_UPDATE.zip",
+    "notes":  "v2.9.22: makes condition-search loading single-click and nonblocking. If the condition list is not loaded, one click fetches it asynchronously and automatically resumes the requested action. Manual selected-condition preview fetches the full current result first, bulk-renders rows, then attaches realtime monitoring without blocking the UI. The seven day-trading searches pipeline their initial queries on one WebSocket, collect the complete paged union, and replace the candidate list atomically only after the union is ready. Duplicate start clicks are ignored, old threads no longer block the GUI, and name/classification work is deferred until after the list is visible.",
+    "sha256":  "65c01c3ff291f669ddd2ee18d550452cd471baf5ecdd9ed6218befee56c9ec9d"
 }
