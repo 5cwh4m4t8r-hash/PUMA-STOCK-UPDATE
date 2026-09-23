@@ -351,32 +351,66 @@ class SwingChart(QWidget):
                     for j in range(1, len(pts)):
                         p.drawLine(pts[j-1], pts[j])
 
-        # 공구리/전고점언덕: 구조 종류를 구분해서 표시.
-        box = self.series.get('box')
-        if box and box.get('start',-1) < end and box.get('end',-1) >= start:
-            bs = max(start, box['start']); be = min(end-1, box['end'])
+        # 공구리: 최근 박스만 덮어쓰지 말고 확정된 과거 박스까지 누적 표시.
+        # 과거는 얇고 투명하게, 가장 최근 박스는 굵고 선명하게 표시한다.
+        one_box = self.series.get('box')
+        boxes = self.series.get('boxes')
+        if not isinstance(boxes, list):
+            boxes = [one_box] if isinstance(one_box, dict) else []
+        elif isinstance(one_box, dict) and one_box.get('structure_type') != '공구리':
+            # 전고점언덕은 공구리 목록과 별도로 유지한다.
+            boxes = list(boxes) + [one_box]
+
+        visible_boxes = [
+            b for b in boxes
+            if isinstance(b, dict)
+            and b.get('start', -1) < end
+            and b.get('end', -1) >= start
+        ]
+        latest_concrete = None
+        concrete_only = [b for b in boxes if isinstance(b, dict) and b.get('structure_type') == '공구리']
+        if concrete_only:
+            latest_concrete = max(concrete_only, key=lambda b: int(b.get('end', -1)))
+
+        for box in visible_boxes:
+            bs = max(start, int(box.get('start', start)))
+            be = min(end - 1, int(box.get('end', end - 1)))
             xs = x(bs-start)-4; xe = x(be-start)+4
             structure_type = str(box.get('structure_type') or '공구리')
 
             if structure_type == '공구리':
+                is_latest = bool(
+                    latest_concrete
+                    and int(box.get('start', -1)) == int(latest_concrete.get('start', -2))
+                    and int(box.get('end', -1)) == int(latest_concrete.get('end', -2))
+                )
+                pen_w = 2.6 if is_latest else 1.4
+                fill_alpha = 34 if is_latest else 14
+                border = QColor('#ffd84f') if is_latest else QColor('#bda33e')
                 r = QRectF(xs, y(box['high']), xe-xs, y(box['low'])-y(box['high']))
-                p.setPen(QPen(QColor('#f4ce48'),2,Qt.DashLine))
-                p.setBrush(QColor(244,206,72,24))
+                p.setPen(QPen(border, pen_w, Qt.DashLine))
+                p.setBrush(QColor(244,206,72,fill_alpha))
                 p.drawRect(r)
-                p.setPen(QColor('#f4ce48'))
+
+                # 상단/하단이 한눈에 보이도록 두 가격 경계를 별도로 강조.
+                p.setPen(QPen(border, 1.2 if is_latest else 0.9, Qt.DashLine))
+                p.drawLine(QPointF(xs, y(box['high'])), QPointF(xe, y(box['high'])))
+                p.drawLine(QPointF(xs, y(box['low'])), QPointF(xe, y(box['low'])))
+                p.setPen(border)
+                label = '공구리 최근' if is_latest else '공구리 과거'
                 p.drawText(
                     int(xs+6), int(y(box['high'])-6),
-                    f"공구리 · 지지/저항 {box.get('period','-')}봉"
+                    f"{label} · {box.get('period','-')}봉 · {box.get('low',0):,.0f}~{box.get('high',0):,.0f}"
                 )
+
+                if is_latest and box.get('breakout_idx', -1) >= 0:
+                    p.setPen(QPen(QColor('#ffd84f'), 1.8, Qt.DashLine))
+                    p.drawLine(QPointF(xe, y(box['high'])), QPointF(price_rect.right(), y(box['high'])))
+                    p.drawText(int(min(price_rect.right()-85, xe+6)), int(y(box['high'])-7), '돌파기준선')
             else:
                 p.setPen(QPen(QColor('#f4ce48'),2,Qt.DashLine))
                 p.drawLine(QPointF(xs, y(box['high'])), QPointF(xe, y(box['high'])))
                 p.drawText(int(xs+6), int(y(box['high'])-6), '전고점언덕 저항')
-
-            if box.get('breakout_idx', -1) >= 0:
-                p.setPen(QPen(QColor('#f4ce48'), 1.6, Qt.DashLine))
-                p.drawLine(QPointF(xe, y(box['high'])), QPointF(price_rect.right(), y(box['high'])))
-                p.drawText(int(min(price_rect.right()-85, xe+6)), int(y(box['high'])-7), '돌파기준선')
 
         maxvol = max(c['volume'] for c in cs) or 1
         p.setPen(QColor('#91a8bd'))
