@@ -19,7 +19,7 @@ def test_no_gap_can_pass_puma_secondary_filter():
     # 최근 5일 고가(111) 위 갭은 아니지만,
     # 시가위 + 거래속도 + 전일고/최근고점 공격으로 3/4를 충족한다.
     live = {"date": "20260923", "open": 100, "high": 110, "low": 99, "close": 108, "volume": 100}
-    ok, d = _candidate_filter(_daily(), live, session_bars=2, min_score=3)
+    ok, d = _candidate_filter(_daily(), live, session_bars=2, morning_volume_ratio=3.5, min_score=3)
     assert d["gap_ok"] is False
     assert d["price_strength"] is True
     assert d["flow_ok"] is True
@@ -30,7 +30,7 @@ def test_no_gap_can_pass_puma_secondary_filter():
 
 def test_weak_candidate_is_rejected():
     live = {"date": "20260923", "open": 100, "high": 101, "low": 96, "close": 98, "volume": 5}
-    ok, d = _candidate_filter(_daily(), live, session_bars=4, min_score=3)
+    ok, d = _candidate_filter(_daily(), live, session_bars=4, morning_volume_ratio=1.0, min_score=3)
     assert d["gap_ok"] is False
     assert d["puma_score"] < 3
     assert ok is False
