@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.22 In-App Update
+name: Publish PUMA v2.9.23 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.22 UPDATE SMOKE OK')"
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.23 UPDATE SMOKE OK')"
           python -m pytest -q tests/test_v273_watermelon.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.22_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.23_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.22"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.22_UPDATE.zip"
-            notes = "v2.9.22: makes condition-search loading single-click and nonblocking. If the condition list is not loaded, one click fetches it asynchronously and automatically resumes the requested action. Manual selected-condition preview fetches the full current result first, bulk-renders rows, then attaches realtime monitoring without blocking the UI. The seven day-trading searches pipeline their initial queries on one WebSocket, collect the complete paged union, and replace the candidate list atomically only after the union is ready. Duplicate start clicks are ignored, old threads no longer block the GUI, and name/classification work is deferred until after the list is visible."
+            version = "2.9.23"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.23_UPDATE.zip"
+            notes = "v2.9.23: keeps the v2.9.22 single-click nonblocking condition-search pipeline and hardens partial-failure recovery. When one or more of the seven day-search initial refreshes time out or fail after retries, successful searches are refreshed normally while the failed search keeps its previous active candidates instead of deleting them. Any partial rows already returned are merged and realtime I/D events continue reconciling the pool. This prevents transient Kiwoom errors from shrinking or blanking the combined day-trading candidate list; trading rules are unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.22_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.23_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.22 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.23 in-app update"
           git pull --rebase origin main
           git push origin main
