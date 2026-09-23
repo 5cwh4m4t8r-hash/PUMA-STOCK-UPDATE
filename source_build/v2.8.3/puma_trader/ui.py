@@ -63,7 +63,7 @@ from .probability import estimate_from_flags, strategy_flags
 from .entry_signal import evaluate_core_entry
 from .market_path import analyze_market_path
 from .swing_chart import SwingChart
-from .updater import CURRENT_VERSION, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply
+from .updater import CURRENT_VERSION, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply, restart_app
 from .secure_credentials import load_credentials, save_credentials, clear_credentials, CredentialError
 from .mobile_bridge import MobileBridge
 
@@ -1207,7 +1207,7 @@ class MainWindow(QMainWindow):
         auto_page = QWidget()
         auv = QVBoxLayout(auto_page)
         auv.setContentsMargins(5, 5, 5, 5)
-        auto = QGroupBox("이 종목만 자동매매")
+        auto = QGroupBox("가보자 자동매매")
         afm = QFormLayout(auto)
         self.focus_budget = self._spin(500_000, 500_000, 500_000, 10_000)
         self.focus_budget.setEnabled(False)
@@ -1224,17 +1224,20 @@ class MainWindow(QMainWindow):
         afm.addRow("트레일링 시작", self.focus_trail_start)
         afm.addRow("고점대비 하락", self.focus_trail_gap)
         ar = QHBoxLayout()
-        start = QPushButton("▶ 선택 종목 자동매매 시작")
+        start = QPushButton("▶ 전체 후보 자동매매 시작")
         start.setObjectName("startBtn")
+        selected_start = QPushButton("선택 종목만")
         stop = QPushButton("■ 중지")
         stop.setObjectName("stopBtn")
-        start.clicked.connect(self.start_focus_auto)
+        start.clicked.connect(self.start_auto)
+        selected_start.clicked.connect(self.start_focus_auto)
         stop.clicked.connect(self.stop_auto)
         ar.addWidget(start)
+        ar.addWidget(selected_start)
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("자동매매: 영웅문 검색기 후보 → PUMA 2차 선별 → 차 눌림/전고 몸통돌파에서만 50만원 매수 · 기준봉 시가 손절 · +4% 절반익절.")
+        note = QLabel("기본: 가보자 조건검색 합집합 전체 → PUMA 2차 선별 → 차 눌림/전고 몸통돌파에서만 50만원 매수. '선택 종목만'은 수동 점검용 보조 기능입니다.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -1636,7 +1639,7 @@ class MainWindow(QMainWindow):
         self.condition_stop_btn = QPushButton("■ 조건검색 중지")
         self.condition_stop_btn.clicked.connect(self.stop_condition_stream)
         form.addRow("수동/예비 조건식", self.condition_combo)
-        bundle = QLabel("PUMA 기본 묶음: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티")
+        bundle = QLabel("가보자 조건검색 대상 · 7개 합집합: 단타단타 · 5분봉_단타 · 단타1 · 시초가1번 · 시초가1-1번 · 시초가2번 · 시초가멀티\n※ 겹치는 종목만 보는 것이 아니라 1개 조건식에만 잡혀도 PUMA 2차 선별 대상입니다.")
         bundle.setWordWrap(True)
         bundle.setStyleSheet("color:#9eb4c9")
         form.addRow(bundle)
@@ -1822,7 +1825,7 @@ class MainWindow(QMainWindow):
             return
         ans = QMessageBox.question(
             self, "업데이트 적용",
-            f"v{info.version}을 다운로드하고 적용합니다.\n프로그램이 종료된 뒤 자동으로 백업/교체/재실행됩니다.\n계속할까요?"
+            f"v{info.version}을 다운로드하고 적용합니다.\n프로그램 안에서 SHA256 검증 후 소스만 안전하게 교체하고 바로 재시작합니다.\n계속할까요?"
         )
         if ans != QMessageBox.Yes:
             return
@@ -1830,9 +1833,12 @@ class MainWindow(QMainWindow):
             self.update_status.setText("업데이트 다운로드 중...")
             QApplication.processEvents()
             package = download_package(info)
-            self.update_status.setText("업데이트 준비 완료. 프로그램을 재시작합니다.")
+            self.update_status.setText("업데이트 검증 완료 · 프로그램 파일 적용 중...")
+            QApplication.processEvents()
             stage_and_apply(package, info.version)
-            QApplication.quit()
+            self.update_status.setText(f"v{info.version} 적용 완료 · 재시작합니다.")
+            QApplication.processEvents()
+            restart_app()
         except Exception as exc:
             self.update_status.setText("업데이트 실패")
             QMessageBox.critical(self, "업데이트 실패", str(exc))
