@@ -34,7 +34,7 @@ class StrategySettings:
         "시초가멀티",
     ])
     hero_secondary_filter: bool = True
-    hero_entry_only: bool = True
+    hero_entry_only: bool = False
     puma_secondary_min_score: int = 3
 
     # 사용자 전용 가보자 단타
