@@ -1,0 +1,73 @@
+name: Validate PUMA v2.9.8
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        shell: cmd
+        working-directory: source_build/v2.8.3
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Compile PUMA source
+        shell: cmd
+        working-directory: source_build/v2.8.3
+        run: python -m compileall -q app.py puma_trader
+
+      - name: Import smoke test
+        shell: cmd
+        working-directory: source_build/v2.8.3
+        run: python -c "import puma_trader.ui, puma_trader.conditions, puma_trader.engine, puma_trader.gaboja, puma_trader.updater; print('PUMA v2.9.8 IMPORT OK')"
+
+      - name: Verify manual condition preview wiring
+        shell: powershell
+        working-directory: source_build/v2.8.3
+        run: |
+          $ui = Get-Content puma_trader\ui.py -Raw
+          if ($ui -notmatch "start_manual_condition_preview") { throw "manual condition preview missing" }
+          if ($ui -notmatch "ConditionStreamThread") { throw "manual condition thread missing" }
+          if ($ui -notmatch "바탕화면 PUMA 실행파일 만들기") { throw "desktop launcher button missing" }
+          Write-Host "UI WIRING OK"
+
+      - name: Restart process smoke test
+        shell: powershell
+        working-directory: source_build/v2.8.3
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tmp = Join-Path $env:TEMP "PUMA_RESTART_TEST"
+          Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          @"
+          from pathlib import Path
+          Path(__file__).with_name("restart_ok.txt").write_text("OK", encoding="utf-8")
+          "@ | Set-Content -Path (Join-Path $tmp "app.py") -Encoding UTF8
+
+          python -c "from pathlib import Path; from puma_trader.updater import restart_app; pid=restart_app(Path(r'$tmp\app.py'), Path(r'$tmp')); print('RESTART PID', pid)"
+          Start-Sleep -Seconds 3
+          if (!(Test-Path (Join-Path $tmp "restart_ok.txt"))) { throw "restart_app did not start replacement process" }
+          Write-Host "PUMA RESTART OK"
+
+      - name: Verify desktop launcher exists
+        shell: powershell
+        working-directory: source_build/v2.8.3
+        run: |
+          if (!(Test-Path PUMA_STOCK_PRO.exe)) { throw "PUMA_STOCK_PRO.exe missing" }
+          if (!(Test-Path PUMA_STOCK_PRO.ico)) { throw "PUMA_STOCK_PRO.ico missing" }
+          Write-Host "PUMA LAUNCHER ASSETS OK"
