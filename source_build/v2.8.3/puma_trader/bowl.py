@@ -54,6 +54,11 @@ def _crossed_above_recent(closes: list[float], line, lookback: int) -> bool:
     return False
 
 
+def is_bowl3_overextended(distance_pct: float, settings: BowlSettings | None = None) -> bool:
+    settings = settings or BowlSettings()
+    return bool(float(distance_pct) > float(settings.max_entry_distance_pct))
+
+
 def _directionality(values: list[float]) -> float:
     if len(values) < 3:
         return 1.0
@@ -226,10 +231,7 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
 
     # 224 위로 이미 크게 이격되어 상승한 종목은 '현재 밥3 자리'가 아니다.
     # 과거 밥3 위치는 차트에 남기되, 현재 중장기 후보 점수에서는 제외한다.
-    extended_above_224 = bool(
-        last_ema > 0
-        and distance > float(settings.max_entry_distance_pct)
-    )
+    extended_above_224 = bool(last_ema > 0 and is_bowl3_overextended(distance, settings))
     if extended_above_224:
         score = min(score, 49)
 
