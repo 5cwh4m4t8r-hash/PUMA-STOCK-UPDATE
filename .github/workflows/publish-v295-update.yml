@@ -95,4 +95,5 @@ jobs:
             exit 0
           }
           git commit -m "Publish PUMA STOCK PRO v2.9.17 in-app update"
+          git pull --rebase origin main
           git push origin main
