@@ -70,6 +70,7 @@ jobs:
           @"
           python312.zip
           .
+          ..
           Lib\site-packages
           import site
           "@ | Set-Content -Path $pth -Encoding ASCII
