@@ -385,29 +385,15 @@ class SwingChart(QWidget):
                     and int(box.get('start', -1)) == int(latest_concrete.get('start', -2))
                     and int(box.get('end', -1)) == int(latest_concrete.get('end', -2))
                 )
-                pen_w = 2.6 if is_latest else 1.4
-                fill_alpha = 82 if is_latest else 48
-                border = QColor('#ffd84f') if is_latest else QColor('#bda33e')
+                # 공구리는 노란 네모 테두리만 표시한다.
+                # 내부를 채우지 않아 캔들/이평선/구름/화살표를 가리지 않고,
+                # 이 레이어가 먼저 그려지므로 뒤에 그리는 봉/지표에도 영향을 주지 않는다.
+                border = QColor('#ffe04b')
+                pen_w = 2.5 if is_latest else 1.8
                 r = QRectF(xs, y(box['high']), xe-xs, y(box['low'])-y(box['high']))
-                p.setPen(QPen(border, pen_w, Qt.DashLine))
-                p.setBrush(QColor(214,177,54,fill_alpha))
+                p.setBrush(Qt.NoBrush)
+                p.setPen(QPen(border, pen_w, Qt.SolidLine))
                 p.drawRect(r)
-
-                # 상단/하단이 한눈에 보이도록 두 가격 경계를 별도로 강조.
-                p.setPen(QPen(border, 1.2 if is_latest else 0.9, Qt.DashLine))
-                p.drawLine(QPointF(xs, y(box['high'])), QPointF(xe, y(box['high'])))
-                p.drawLine(QPointF(xs, y(box['low'])), QPointF(xe, y(box['low'])))
-                p.setPen(border)
-                label = '공구리 최근' if is_latest else '공구리 과거'
-                p.drawText(
-                    int(xs+6), int(y(box['high'])-6),
-                    f"{label} · {box.get('period','-')}봉 · {box.get('low',0):,.0f}~{box.get('high',0):,.0f}"
-                )
-
-                if is_latest and box.get('breakout_idx', -1) >= 0:
-                    p.setPen(QPen(QColor('#ffd84f'), 1.8, Qt.DashLine))
-                    p.drawLine(QPointF(xe, y(box['high'])), QPointF(price_rect.right(), y(box['high'])))
-                    p.drawText(int(min(price_rect.right()-85, xe+6)), int(y(box['high'])-7), '돌파기준선')
             else:
                 p.setPen(QPen(QColor('#f4ce48'),2,Qt.DashLine))
                 p.drawLine(QPointF(xs, y(box['high'])), QPointF(xe, y(box['high'])))
@@ -486,6 +472,7 @@ class SwingChart(QWidget):
                 'prebreak': QColor('#7a5d00'),
                 'breakout': QColor('#b33a24'),
                 'accepted': QColor('#176b39'),
+                'historical_core': QColor('#8b55b7'),
                 'core': QColor('#6f2da8'),
             }
             for marker_info in bowl3_markers:
