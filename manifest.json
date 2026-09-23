@@ -2,5 +2,5 @@
     "version":  "2.9.18",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.18_UPDATE.zip",
     "notes":  "v2.9.18: fixes false \u0027missing\u0027 status for the 5-minute day-trading condition search by canonicalizing Kiwoom condition names. Spaces, underscores, brackets, stars, hyphens and full-width punctuation are ignored consistently by both actual bundle selection and the UI missing-status check. Keeps the v2.9.17 integrated union UI, one-time LIVE START confirmation, source-isolated Day/Swing/Long lists, and Gaboja auto-trading flow.",
-    "sha256":  "7cf8d91d8aeb41174e29fa93a502ad4a7bafca9fcacba0295ffefea7145d8744"
+    "sha256":  "55d4085d871ca66f08ac509fc42dee9676d765b73e80aef7b7ef93326e30fad3"
 }
