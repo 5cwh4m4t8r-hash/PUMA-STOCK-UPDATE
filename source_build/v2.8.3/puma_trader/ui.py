@@ -604,10 +604,38 @@ class DantaAnalysisThread(QThread):
 
 
 
+class AutoScanThread(QThread):
+    """Run one trading scan outside the GUI event loop.
+
+    Only one instance is allowed at a time by MainWindow.scan_one(), preventing
+    overlapping engine.process() calls from timer re-entry.
+    """
+    resultReady = Signal(object)
+    failed = Signal(object)
+
+    def __init__(self, engine, code: str, name: str, require_buy_filter: bool, parent=None):
+        super().__init__(parent)
+        self.engine = engine
+        self.code = str(code)
+        self.name = str(name)
+        self.require_buy_filter = bool(require_buy_filter)
+
+    def run(self):
+        try:
+            result = self.engine.process(
+                self.code,
+                self.name,
+                require_buy_filter=self.require_buy_filter,
+            )
+            self.resultReady.emit(result)
+        except Exception as exc:
+            self.failed.emit(exc)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PUMA STOCK PRO v2.8.4")
+        self.setWindowTitle(f"PUMA STOCK PRO v{CURRENT_VERSION}")
         self.setMinimumSize(1024, 680)
         self.resize(1280, 800)
         self.setStyleSheet(DARK)
@@ -693,6 +721,7 @@ class MainWindow(QMainWindow):
         self.focus_analysis_pending: dict | None = None
         self.danta_analysis_thread: DantaAnalysisThread | None = None
         self.danta_analysis_pending: bool = False
+        self.auto_scan_thread: AutoScanThread | None = None
 
         self.timer = QTimer(self)
         self.timer.setInterval(1800)
@@ -714,7 +743,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(root)
 
         header = QHBoxLayout()
-        title = QLabel("🐆  PUMA STOCK PRO  v2.8.3")
+        title = QLabel(f"🐆  PUMA STOCK PRO  v{CURRENT_VERSION}")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
         header.addStretch()
@@ -3765,6 +3794,12 @@ class MainWindow(QMainWindow):
             self.log("SYSTEM", "STOP", "0", "자동매매 중지")
 
     def scan_one(self):
+        # REST 조회/주문은 GUI event loop에서 절대 직접 실행하지 않는다.
+        # 1.8초 타이머가 다시 울려도 이전 scan이 끝나지 않았다면 겹쳐 실행하지 않는다.
+        worker = self.auto_scan_thread
+        if worker is not None and worker.isRunning():
+            return
+
         targets = self._active_targets()
         if not targets:
             return
@@ -3774,17 +3809,38 @@ class MainWindow(QMainWindow):
         name = item.get("name", code)
         hero = bool(item.get("hero"))
         require_filter = not (hero and not self.settings.hero_secondary_filter)
-        try:
-            res = self.engine.process(code, name, require_buy_filter=require_filter)
-            self.update_row(res)
-            if res.get("status") in ("BUY", "SELL", "BUY_SENT", "SELL_SENT"):
-                self.log(res["name"], res["status"], f"{res['price']:,.0f}", res["signal"])
-            self._refresh_position_rows()
-        except BrokerError as exc:
+
+        worker = AutoScanThread(self.engine, code, name, require_filter, self)
+        self.auto_scan_thread = worker
+        worker.resultReady.connect(self._on_auto_scan_result)
+        worker.failed.connect(self._on_auto_scan_error)
+        worker.finished.connect(self._on_auto_scan_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_auto_scan_result(self, res):
+        if self._closing:
+            return
+        self.update_row(res)
+        if res.get("status") in (
+            "BUY", "SELL", "BUY_SENT", "SELL_SENT",
+            "PARTIAL_SELL", "PARTIAL_SELL_SENT",
+        ):
+            self.log(res["name"], res["status"], f"{res['price']:,.0f}", res["signal"])
+        self._refresh_position_rows()
+
+    def _on_auto_scan_error(self, exc):
+        if self._closing:
+            return
+        name = getattr(self.auto_scan_thread, "name", "SYSTEM") if self.auto_scan_thread else "SYSTEM"
+        if isinstance(exc, BrokerError):
             self.log(name, "ERROR", "0", str(exc))
             self.stop_auto()
-        except Exception as exc:
+        else:
             self.log(name, "ERROR", "0", repr(exc))
+
+    def _on_auto_scan_finished(self):
+        self.auto_scan_thread = None
 
     def _refresh_position_rows(self):
         for code, pos in self.engine.positions.items():
@@ -3805,7 +3861,7 @@ class MainWindow(QMainWindow):
         self.market_table.item(r, 6).setText(str(pos.qty if pos else 0))
         self.market_table.item(r, 7).setText(f"{pos.pnl_pct(res.get('price', 0)):+.2f}%" if pos else "-")
         status = res.get("status")
-        color = QColor("#59d98e") if status in ("BUY", "BUY_SENT", "READY") else QColor("#ff7070") if status in ("SELL", "SELL_SENT") else QColor("#e8eef7")
+        color = QColor("#59d98e") if status in ("BUY", "BUY_SENT", "READY") else QColor("#ff7070") if status in ("SELL", "SELL_SENT", "PARTIAL_SELL", "PARTIAL_SELL_SENT") else QColor("#e8eef7")
         self.market_table.item(r, 4).setForeground(color)
 
     def log(self, stock, kind, price, text):
@@ -4331,7 +4387,7 @@ class MainWindow(QMainWindow):
             self.danta_analysis_pending = False
             self._range_pending = None
         workers = list(self._focus_readers) + [self.focus_analysis_thread, self.danta_analysis_thread,
-            self.classification_thread, self._name_worker, self._range_worker]
+            self.classification_thread, self._name_worker, self._range_worker, self.auto_scan_thread]
         running = [w for w in workers if w is not None and w.isRunning()]
         for worker in running:
             worker.requestInterruption()

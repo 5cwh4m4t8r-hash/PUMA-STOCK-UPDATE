@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from .models import StrategySettings
 from .swing import SwingSettings
@@ -72,6 +73,8 @@ def load_runtime() -> dict:
                 "stop_price": float(item.get("stop_price", 0) or 0),
                 "entry_kind": str(item.get("entry_kind", "")),
                 "partial_taken": bool(item.get("partial_taken", False)),
+                "partial_price": float(item.get("partial_price", 0) or 0),
+                "partial_time": str(item.get("partial_time", "")),
             }
 
         managed_meta = raw.get("managed_meta", {})
@@ -98,6 +101,8 @@ def load_runtime() -> dict:
                 "stop_price": float(item.get("stop_price", 0) or 0),
                 "entry_kind": str(item.get("entry_kind", "")),
                 "partial_taken_after": bool(item.get("partial_taken_after", False)),
+                "partial_price_after": float(item.get("partial_price_after", 0) or 0),
+                "partial_time_after": str(item.get("partial_time_after", "")),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
@@ -120,6 +125,8 @@ def save_runtime(data: dict):
             "stop_price": float(item.get("stop_price", 0) or 0),
             "entry_kind": str(item.get("entry_kind", "")),
             "partial_taken": bool(item.get("partial_taken", False)),
+            "partial_price": float(item.get("partial_price", 0) or 0),
+            "partial_time": str(item.get("partial_time", "")),
         }
 
     pending = {}
@@ -140,6 +147,8 @@ def save_runtime(data: dict):
             "stop_price": float(item.get("stop_price", 0) or 0),
             "entry_kind": str(item.get("entry_kind", "")),
             "partial_taken_after": bool(item.get("partial_taken_after", False)),
+            "partial_price_after": float(item.get("partial_price_after", 0) or 0),
+            "partial_time_after": str(item.get("partial_time_after", "")),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
@@ -148,7 +157,20 @@ def save_runtime(data: dict):
         "managed_meta": managed_meta,
         "pending_orders": pending,
     }
-    RUNTIME_PATH.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 주문 상태 파일은 중간 종료/전원 차단 중 반쪽 JSON이 남지 않도록 원자적으로 교체한다.
+    payload = json.dumps(safe, ensure_ascii=False, indent=2)
+    tmp_path = RUNTIME_PATH.with_suffix(RUNTIME_PATH.suffix + ".tmp")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, RUNTIME_PATH)
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def load_swing_settings() -> SwingSettings:
