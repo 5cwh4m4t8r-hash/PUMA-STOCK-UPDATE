@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.24",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.24_UPDATE.zip",
-    "notes":  "v2.9.24: chart-visual patch only; trading rules are unchanged. Concrete zones are now shown as clean bright-yellow outline rectangles only: no text, numbers, price labels, extra breakout guide, or interior fill, so candles, moving averages, clouds and other indicators remain unobscured. Bowl-3 display now keeps historical similar breakout-pullback/EMA224-or-112 support locations instead of only the latest structure. It also fixes two causes of Bowl-3 tags appearing and then disappearing: stale Bowl marker data from a previously selected stock is cleared on stock change, and the daily chart now redraws when Bowl analysis arrives rather than only when swing analysis changes.",
-    "sha256":  "dbf3827dacebd3767516a75399bb9f76b25efdd84db5db500536f2d593fdbd58"
+    "version":  "2.9.25",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.25_UPDATE.zip",
+    "notes":  "v2.9.25: aligns PUMA\u0027s long-EMA calculations so the chart, four arrow formulas, Bowl-3, swing reference and market-path logic all use the same Hero-style cumulative EAVG engine. The user\u0027s four Kiwoom arrow formulas and SAR parameters remain unchanged; raw formula arrays are now kept separately from display signals for direct HTS comparison. New context rule: when EMA112\u003eEMA224\u003eEMA448 and price is already more than +8% above EMA224, reversal/bottom overlays are not used or shown (arrows, concrete boxes, Bowl-3 tags, watermelon/path/accumulation overlays and non-EMA extra lines). This fixes an internal cause of arrows appearing on different crossings from the visible long EMAs while preserving the literal source formulas for diagnostics.",
+    "sha256":  "c29efe53c3b944e59fb3b26900c0ab6b92445a931820c8a7c04858f3221dc173"
 }
