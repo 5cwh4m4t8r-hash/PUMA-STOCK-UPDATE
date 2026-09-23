@@ -4,19 +4,11 @@ from math import sqrt
 from statistics import mean
 from typing import Optional
 
+from .indicators import hero_eavg
+
 
 def _ema(values: list[float], period: int) -> list[Optional[float]]:
-    out: list[Optional[float]] = [None] * len(values)
-    if period <= 0 or len(values) < period:
-        return out
-    seed = sum(float(x) for x in values[:period]) / period
-    out[period - 1] = seed
-    k = 2.0 / (period + 1.0)
-    prev = seed
-    for i in range(period, len(values)):
-        prev = float(values[i]) * k + prev * (1.0 - k)
-        out[i] = prev
-    return out
+    return hero_eavg(values, period)
 
 
 def _rolling_mean(values: list[float], period: int) -> list[Optional[float]]:
