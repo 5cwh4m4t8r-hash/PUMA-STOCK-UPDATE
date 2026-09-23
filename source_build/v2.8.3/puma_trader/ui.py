@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import importlib
 import shutil
 from pathlib import Path
 import time
@@ -1941,10 +1942,17 @@ class MainWindow(QMainWindow):
             self.update_status.setText("업데이트 검증 완료 · 프로그램 파일 적용 중...")
             QApplication.processEvents()
             stage_and_apply(package, info.version)
-            self.update_status.setText(f"v{info.version} 적용 완료 · 재시작합니다.")
+            self.update_status.setText(f"v{info.version} 적용 완료 · 새 실행기를 불러와 재시작합니다.")
             QApplication.processEvents()
-            restart_app()
-            QApplication.quit()
+
+            # updater.py itself may have been replaced by this update.
+            # Reload it from disk so the NEW restart code is used, not the stale
+            # function object imported when the old PUMA process started.
+            from . import updater as updater_module
+            updater_module = importlib.reload(updater_module)
+            updater_module.write_install_marker(Path(__file__).resolve().parent.parent)
+            updater_module.restart_app()
+            QTimer.singleShot(250, QApplication.quit)
         except Exception as exc:
             self.update_status.setText("업데이트 실패")
             QMessageBox.critical(self, "업데이트 실패", str(exc))
