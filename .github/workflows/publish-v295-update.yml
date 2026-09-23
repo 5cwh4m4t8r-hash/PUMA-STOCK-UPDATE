@@ -74,7 +74,7 @@ jobs:
           $manifest = [ordered]@{
             version = "2.9.16"
             url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.16_UPDATE.zip"
-            notes = "v2.9.16: 상단 단타 분석 탭 제거, 통합 트레이딩 우측 분석의 단타 상세분석 버튼을 별도 창으로 변경. 전체 후보 자동매매는 관심종목을 요구하지 않고 사용자 지정 단타 검색기 7개 합집합을 자동 사용. 동일 종목은 코드 기준 1회 편입하고 출처만 누적. 단타 목록에는 7개 검색기 결과를 자동편입하며 실제 주문은 전체 후보를 PUMA 실시간 2차 선별한 뒤 가보자 진입조건 통과 시에만 실행. v2.9.15 단일 리스트 필터 UI와 v2.9.13 스윙 A/B/C·밥3 로직 유지."
+            notes = "v2.9.16: removed the top Danta Analysis tab; Danta Detail opens in a separate window from Integrated Trading. Integrated full-candidate auto trading no longer requires watchlist entries. It uses the union of the 7 configured day-trading condition searches, deduplicates by stock code, then applies mandatory live PUMA secondary filtering and Gaboja entry rules before any buy. Keeps v2.9.15 single-list filters and v2.9.13 swing A/B/C and Bowl-3 logic."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
