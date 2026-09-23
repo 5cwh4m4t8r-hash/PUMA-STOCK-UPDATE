@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.11 In-App Update
+name: Publish PUMA v2.9.12 In-App Update
 
 on:
   push:
@@ -29,14 +29,15 @@ jobs:
       - name: Install runtime dependencies
         shell: cmd
         working-directory: source_build/v2.8.3
-        run: python -m pip install --disable-pip-version-check -r requirements.txt
+        run: python -m pip install --disable-pip-version-check -r requirements.txt pytest
 
       - name: Compile and import smoke test
         shell: cmd
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.11 UPDATE SMOKE OK')"
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.12 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v2912_visuals.py
 
       - name: Build update package
         shell: powershell
@@ -63,15 +64,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.11_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.12_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.11"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.11_UPDATE.zip"
-            notes = "v2.9.11: 가보자 자동 조건검색 7개 묶음을 과거 저장 설정과 완전히 분리. 자동매매는 항상 단타단타(시원놈), 5분봉_단타(시원놈), 단타1, 시초가1번, 시초가1-1번, 시초가2번, 시초가멀티를 대상으로 실행. 사용자가 콤보에서 선택한 조건식은 수동 조회/수동 편입용일 뿐 자동 7개 묶음을 덮어쓰지 않음. 매매전략 자체는 변경 없음."
+            version = "2.9.12"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.12_UPDATE.zip"
+            notes = "v2.9.12: 통합 트레이딩 중장기 후보를 중장기(밥3)로 명확히 표기. 공구리는 과거 확정 박스와 최신 박스를 함께 보존/표시하고 중복 박스는 병합. 최신 공구리는 굵고 선명하게, 과거는 얇게 표시. 수박은 최근 장기EMA 재돌파+안착+EMA20 회복+바닥/역배열 맥락+선행 거래량/매집 근거가 모두 확인될 때만 표시하며 화살표 단독 오탐을 차단. 기존 가보자 매매전략 자체는 변경 없음."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -82,10 +83,10 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.11_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.12_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.11 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.12 in-app update"
           git push origin main
