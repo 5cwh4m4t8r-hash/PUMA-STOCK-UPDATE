@@ -139,10 +139,23 @@ def evaluate_gaboja(
     if not candles:
         return GabojaSignal(False, reason="5분봉 데이터 없음")
 
-    day = _date_key(candles[-1].get("date"))
+    now = now or datetime.now()
+    hm = now.strftime("%H:%M")
+    latest_day = _date_key(candles[-1].get("date"))
+    today_key = now.strftime("%Y%m%d")
+    latest_price = float(candles[-1]["close"])
+
+    # 08:50부터 후보 감시는 가능하지만 실제 주문은 정규장 시작 뒤에만 허용한다.
+    # 장 시작 전 API가 전일 마지막 5분봉을 반환할 수 있으므로 stale 재진입을 막는다.
+    if hm < "09:00":
+        return GabojaSignal(False, reason=f"장 시작 전 · 자동매수 대기 {hm}", current_price=latest_price)
+    if latest_day != today_key:
+        return GabojaSignal(False, reason=f"당일 5분봉 대기 · 최신 데이터 {latest_day or '없음'}", current_price=latest_price)
+
+    day = latest_day
     session = [c for c in candles if _date_key(c.get("date")) == day and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")]
     if not session:
-        return GabojaSignal(False, reason="장중 5분봉 데이터 없음")
+        return GabojaSignal(False, reason="장중 5분봉 데이터 없음", current_price=latest_price)
 
     # 일봉은 장중 매 스캔마다 다시 받을 필요가 없다.
     # 오늘 OHLCV는 최신 5분봉들로 합성해 거래량 300%와 돌파 여부를 실시간 갱신한다.
@@ -165,8 +178,6 @@ def evaluate_gaboja(
         return GabojaSignal(False, reason="가보자 5분봉 구조 형성 대기", current_price=float(candles[-1]["close"]),
                             basis_open=basis_open, day_volume_ratio=day_ratio, details=d)
 
-    now = now or datetime.now()
-    hm = now.strftime("%H:%M")
     time_ok = scan_start <= hm <= scan_end
     current = session[-1]
     current_price = float(current["close"])

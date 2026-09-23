@@ -1,6 +1,6 @@
 {
-  "version": "2.8.4",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.4_UPDATE.zip",
-  "notes": "v2.8.4: 사용자 전용 가보자 자동매매 적용. 일봉 강한 종목 선별 후 5분봉 차 눌림 또는 전고 몸통돌파만 진입, 기준봉 시가 이탈 손절, +4% 절반익절.",
-  "sha256": "a02a9a3bf897c92b2f62d749668b9f279f5e225c0b6cd24dcf95d1754be5c425"
+  "version": "2.8.5",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.5_UPDATE.zip",
+  "notes": "v2.8.5: 가보자 자동매매 순서 고정. 09:00 이전/전일 stale 5분봉 진입 차단, +4% 이전 트레일링 금지, +4% 절반익절 후 잔량만 트레일링.",
+  "sha256": "0d9e566dfdb71e00ad87ab615d627ba5e1c0ecac48cae5f77f4171ea1f7af4d8"
 }

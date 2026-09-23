@@ -99,23 +99,34 @@ def evaluate_sell(position: Position, current_price: float, settings: StrategySe
     pnl = position.pnl_pct(current_price)
     position.highest_price = max(position.highest_price, current_price)
 
-    # 가보자 포지션은 퍼센트 손절보다 '일봉 기준봉 시가 이탈'을 우선한다.
     stop_price = float(getattr(position, "stop_price", 0) or 0)
+    partial_taken = bool(getattr(position, "partial_taken", False))
+
     if stop_price > 0:
+        # 가보자 포지션: 기준봉 시가 이탈이 최우선 전량 손절선.
         if current_price <= stop_price:
             return True, f"가보자 기준봉 시가 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
-    elif pnl <= settings.stop_loss_pct:
-        return True, f"손절 {pnl:.2f}%"
 
-    # +4% 최초 도달은 엔진에서 절반 익절한다.
-    # 절반 익절 완료 후에는 같은 +4% 조건으로 잔량을 즉시 전량매도하지 않는다.
-    if not bool(getattr(position, "partial_taken", False)) and pnl >= settings.take_profit_pct:
-        return True, f"1차 익절 {pnl:.2f}%"
-
-    if settings.trailing_enabled and pnl >= settings.trailing_start_pct:
-        drop_from_high = (current_price / position.highest_price - 1) * 100 if position.highest_price else 0
-        if drop_from_high <= -abs(settings.trailing_gap_pct):
-            return True, f"트레일링 {drop_from_high:.2f}%"
+        # +4% 최초 도달 전에는 트레일링으로 전량청산하지 않는다.
+        # 엔진이 먼저 절반익절을 실행하고 partial_taken=True로 바꾼 뒤에만 잔량을 추적한다.
+        if not partial_taken:
+            if pnl >= settings.take_profit_pct:
+                return True, f"가보자 1차 절반익절 대기 {pnl:.2f}%"
+        elif settings.trailing_enabled and position.highest_price > 0:
+            # 절반익절 후에는 현재 수익률이 trailing_start 밑으로 내려가도 고점 대비 낙폭으로 계속 추적.
+            drop_from_high = (current_price / position.highest_price - 1) * 100
+            if drop_from_high <= -abs(settings.trailing_gap_pct):
+                return True, f"가보자 잔량 트레일링 {drop_from_high:.2f}%"
+    else:
+        # 비-가보자 기존 포지션 규칙은 유지.
+        if pnl <= settings.stop_loss_pct:
+            return True, f"손절 {pnl:.2f}%"
+        if pnl >= settings.take_profit_pct:
+            return True, f"익절 {pnl:.2f}%"
+        if settings.trailing_enabled and pnl >= settings.trailing_start_pct:
+            drop_from_high = (current_price / position.highest_price - 1) * 100 if position.highest_price else 0
+            if drop_from_high <= -abs(settings.trailing_gap_pct):
+                return True, f"트레일링 {drop_from_high:.2f}%"
 
     now = now or datetime.now()
     if settings.force_exit_enabled and now.strftime("%H:%M") >= settings.force_exit_time:
