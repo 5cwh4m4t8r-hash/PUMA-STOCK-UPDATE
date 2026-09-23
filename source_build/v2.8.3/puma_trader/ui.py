@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import re
 import importlib
 import shutil
 from pathlib import Path
@@ -724,6 +725,7 @@ class MainWindow(QMainWindow):
         self.real_armed = False
         self.live_auto_confirmed_session = False
         self.condition_snapshot_seen: set[str] = set()
+        self.condition_live_registered_count = 0
         self.scan_index = 0
         self.swing_settings = load_swing_settings()
         self.ui_state = QSettings("PUMA", "PUMA_STOCK_PRO")
@@ -2999,6 +3001,7 @@ class MainWindow(QMainWindow):
 
         self.stop_condition_stream()
         self.condition_snapshot_seen.clear()
+        self.condition_live_registered_count = 0
 
         # 단타 검색기 7개 스트림을 다시 시작해도 사용자가 직접 편입한 종목은 보존한다.
         # 자동 단타 소스만 새 합집합 결과로 다시 구성한다.
@@ -3072,11 +3075,18 @@ class MainWindow(QMainWindow):
         )
         received = len(getattr(self, "condition_snapshot_seen", set()))
         total = len(configured)
+        live_registered = int(getattr(self, "condition_live_registered_count", 0) or 0)
         self.condition_status.setText(
-            f"단타 검색기 통합 실행 · {total}개 연결 · 초기수신 {received}/{total} · 합집합 {active_union}종목"
+            f"단타 검색기 통합 · 초기통합 {received}/{total} · 실시간 {live_registered}/{total} · 합집합 {active_union}종목"
         )
 
     def on_condition_status(self, text: str):
+        m = re.search(r"실시간 등록 완료\s*·\s*전체\s*(\d+)/(\d+)", str(text or ""))
+        if m:
+            self.condition_live_registered_count = max(
+                int(getattr(self, "condition_live_registered_count", 0) or 0),
+                int(m.group(1)),
+            )
         self._update_condition_union_status()
         self.log("HERO4", "COND", "-", text)
 
