@@ -50,19 +50,25 @@ def slice_series_for_date(series: dict, target_date: str) -> dict:
     candles = list(series.get("candles", []) or [])
     idx = [i for i, c in enumerate(candles) if _date_key(c.get("date")) == target_date]
     if not idx:
-        return {"candles": [], "acc_flags": [], "box": None}
+        return {"candles": []}
 
     out = {}
+    blocked = {
+        "box", "acc_flags",
+        "signal_pink", "signal_blue", "signal_red", "signal_black",
+        "signal_sar", "signal_bb40_22",
+        "core_path", "path_breakout", "path_pullback", "path_rebreakout",
+        "watermelon_stage", "watermelon_score", "watermelon_reason",
+        "watermelon_confirmed", "watermelon_display",
+    }
     for key, value in series.items():
+        if key in blocked:
+            continue
         if isinstance(value, list) and len(value) == len(candles):
             out[key] = [value[i] for i in idx]
-        elif key == "box":
-            out[key] = None
         else:
             out[key] = value
     out["candles"] = [candles[i] for i in idx]
-    out.setdefault("acc_flags", [False] * len(idx))
-    out["box"] = None
     return out
 
 
