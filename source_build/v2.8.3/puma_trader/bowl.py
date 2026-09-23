@@ -223,9 +223,21 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     # candidate when neither the photo-A prebreak setup nor the 224 breakout exists.
     if not stage2_ready and breakout_idx < 0:
         score = min(score, 49)
+
+    # 224 위로 이미 크게 이격되어 상승한 종목은 '현재 밥3 자리'가 아니다.
+    # 과거 밥3 위치는 차트에 남기되, 현재 중장기 후보 점수에서는 제외한다.
+    extended_above_224 = bool(
+        last_ema > 0
+        and distance > float(settings.max_entry_distance_pct)
+    )
+    if extended_above_224:
+        score = min(score, 49)
+
     score = min(100, score)
 
-    if retest:
+    if extended_above_224:
+        stage = f'밥3 지나감 · 224EMA +{distance:.1f}% 이격과다'
+    elif retest:
         stage = '밥3 핵심 · 224EMA 눌림/지지 확인'
     elif accepted:
         stage = '밥3 진행 · 224EMA 위 안착'
@@ -273,7 +285,11 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         ),
         '224EMA 위 안착': f'확인 · {accepted_count}봉' if accepted else '대기',
         '눌림/지지': '확인' if retest else '대기',
-        '224EMA 거리': f'{last_ema:,.0f} / {distance:+.2f}%' if last_ema else '데이터 부족',
+        '224EMA 거리': (
+            f'{last_ema:,.0f} / {distance:+.2f}% · '
+            f"{'이격과다·현재자리 제외' if extended_above_224 else '유효범위'}"
+            if last_ema else '데이터 부족'
+        ),
         '사진검색기 A': str(ref_a.get('summary') or '-'),
         '화살표 신호': arrow_reason,
     }
