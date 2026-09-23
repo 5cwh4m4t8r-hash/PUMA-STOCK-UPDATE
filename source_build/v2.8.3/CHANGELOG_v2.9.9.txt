@@ -1,0 +1,10 @@
+PUMA STOCK PRO v2.9.9
+
+- 업데이트 직후 메모리에 남아있는 구버전 restart_app 함수 사용 문제 수정.
+- 파일 적용 후 puma_trader.updater 모듈을 디스크에서 다시 reload한 뒤 새 restart_app 실행.
+- 새 프로세스 시작 후 기존 GUI 자동 종료.
+- Windows 창/작업표시줄 아이콘은 PUMA_STOCK_PRO.ico를 우선 사용.
+- PUMA_STOCK_PRO.exe / PUMA_STOCK_PRO.ico 업데이트 설치 허용 유지.
+- 바탕화면에 복사한 PUMA_STOCK_PRO.exe는 저장된 설치 경로를 찾아 본 프로그램 실행.
+- 조건검색 수동 조회/가보자 7개 자동매매 분리 유지.
+- 가보자 매매전략 자체는 변경 없음.
