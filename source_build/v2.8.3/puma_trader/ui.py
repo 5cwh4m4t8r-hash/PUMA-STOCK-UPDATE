@@ -3938,7 +3938,7 @@ class MainWindow(QMainWindow):
         self.focus_daily_raw = []; self.focus_minute_raw = []
         self.danta_raw_daily = []; self.danta_raw_minute = []
         self.focus_daily_analysis = self.focus_bowl_analysis = self.focus_danta_analysis = None
-        self.focus_daily_series = self.focus_danta_series = None
+        self.focus_daily_series = self.focus_bowl_series = self.focus_danta_series = None
         self.danta_analysis = self.danta_series = None
         self._preview_series = {}
         self._shown_daily_revision = ""
@@ -4325,7 +4325,10 @@ class MainWindow(QMainWindow):
             self._set_candidate_classification(code, label, detail, {"danta": ds, "swing": ss, "bowl": bs})
 
         chart_changed = (
-            (self.focus_chart_mode == "DAY" and "swing" in changed_parts)
+            (
+                self.focus_chart_mode == "DAY"
+                and ("swing" in changed_parts or "bowl" in changed_parts)
+            )
             or (self.focus_chart_mode == "MIN" and "danta" in changed_parts)
         )
         if chart_changed or not (self.focus_chart.series and self.focus_chart.series.get("candles")):
