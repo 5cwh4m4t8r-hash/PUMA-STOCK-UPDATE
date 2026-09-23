@@ -174,6 +174,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     accepted_idx = -1
     retest = False
     retest_idx = -1
+    retest_line = 0
+    support_alive = False
     if breakout_idx >= 0:
         after = range(breakout_idx, min(n, breakout_idx + int(settings.acceptance_window)))
         running_accepts = 0
@@ -188,15 +190,44 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         accepted_count = running_accepts
         accepted = accepted_idx >= 0
 
-        tail_start = max(breakout_idx, n - 30)
+        # 밥3 핵심은 '224 돌파 그 자체'가 아니라 이후 눌림이 224 또는 최소 112에서
+        # 실제로 지지/안착되는 자리다. 돌파봉 자체는 눌림으로 인정하지 않는다.
+        tail_start = max(breakout_idx + 1, n - 35)
         for j in range(tail_start, n):
-            if e224[j] is None:
-                continue
-            touched = float(candles[j]['low']) <= float(e224[j]) * (1 + float(settings.retest_tolerance_pct) / 100.0)
-            held = closes[j] >= float(e224[j]) * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-            if touched and held:
+            low = float(candles[j]['low'])
+            close = closes[j]
+
+            held224 = False
+            if e224[j] is not None:
+                line224 = float(e224[j])
+                held224 = (
+                    low <= line224 * (1 + float(settings.retest_tolerance_pct) / 100.0)
+                    and close >= line224 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+                )
+
+            held112 = False
+            if e112[j] is not None:
+                line112 = float(e112[j])
+                held112 = (
+                    low <= line112 * (1 + float(settings.retest_tolerance_pct) / 100.0)
+                    and close >= line112 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+                )
+
+            if held224 or held112:
                 retest = True
                 retest_idx = j
+                retest_line = 224 if held224 else 112
+
+        if retest:
+            current_support = (
+                float(e224[last]) if retest_line == 224 and e224[last] is not None
+                else float(e112[last]) if retest_line == 112 and e112[last] is not None
+                else 0.0
+            )
+            support_alive = bool(
+                current_support > 0
+                and current >= current_support * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
+            )
 
     # Score is a progression score, not a probability.
     score = 0
@@ -230,25 +261,36 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         score = min(score, 49)
 
     # 224 위로 이미 크게 이격되어 상승한 종목은 '현재 밥3 자리'가 아니다.
-    # 과거 밥3 위치는 차트에 남기되, 현재 중장기 후보 점수에서는 제외한다.
+    # 과거 구조는 차트에 남기되 현재 중장기 후보에서는 제외한다.
     extended_above_224 = bool(last_ema > 0 and is_bowl3_overextended(distance, settings))
-    if extended_above_224:
+    bowl3_confirmed = bool(
+        breakout_idx >= 0
+        and retest
+        and support_alive
+        and not extended_above_224
+    )
+
+    # 사용자가 말한 밥3 정의를 엄격히 적용:
+    # 224 돌파 → 눌림 → 224 또는 112 안착까지 와야 목록상 밥3이다.
+    if not bowl3_confirmed:
         score = min(score, 49)
 
     score = min(100, score)
 
     if extended_above_224:
-        stage = f'밥3 지나감 · 224EMA +{distance:.1f}% 이격과다'
-    elif retest:
-        stage = '밥3 핵심 · 224EMA 눌림/지지 확인'
+        stage = f'224 돌파 후 이격과다 · +{distance:.1f}%'
+    elif bowl3_confirmed:
+        stage = f'밥3 핵심 · {retest_line}EMA 눌림/안착 확인'
+    elif retest and not support_alive:
+        stage = f'224 돌파 후 {retest_line}EMA 지지 이탈'
     elif accepted:
-        stage = '밥3 진행 · 224EMA 위 안착'
+        stage = '224 돌파 유지 · 눌림/안착 대기'
     elif breakout_idx >= 0:
-        stage = '밥3 진입 · 224EMA 돌파'
+        stage = '224EMA 돌파 · 눌림 대기'
     elif stage2_ready:
-        stage = '밥3 직전 후보 · 224EMA 돌파 대기'
+        stage = '224EMA 돌파 직전 준비구간'
     elif long_below:
-        stage = '밥2 바닥/역배열 형성 · 3번 조건 대기'
+        stage = '밥2 바닥/역배열 형성 · 224 돌파 대기'
     else:
         stage = '밥1/2 구조 확인 중'
 
@@ -285,8 +327,12 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
             f'확인 · 돌파봉 거래량/20봉평균 {breakout_volume_ratio:.2f}배'
             if breakout_idx >= 0 else '대기'
         ),
-        '224EMA 위 안착': f'확인 · {accepted_count}봉' if accepted else '대기',
-        '눌림/지지': '확인' if retest else '대기',
+        '224EMA 위 유지': f'확인 · {accepted_count}봉' if accepted else '대기',
+        '눌림/안착': (
+            f'확인 · {retest_line}EMA 지지 · 현재유지 {"O" if support_alive else "X"}'
+            if retest else '대기'
+        ),
+        '밥3 확정': '확정' if bowl3_confirmed else '미확정',
         '224EMA 거리': (
             f'{last_ema:,.0f} / {distance:+.2f}% · '
             f"{'이격과다·현재자리 제외' if extended_above_224 else '유효범위'}"
@@ -315,29 +361,29 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         bowl3_markers.append({
             'index': last,
             'kind': 'prebreak',
-            'label': '밥3 직전',
+            'label': '224 직전',
             'stage': stage,
         })
     if breakout_idx >= 0:
         bowl3_markers.append({
             'index': breakout_idx,
             'kind': 'breakout',
-            'label': '밥3 돌파',
+            'label': '224 돌파',
             'stage': '224EMA 돌파',
         })
     if accepted and accepted_idx >= 0:
         bowl3_markers.append({
             'index': accepted_idx,
             'kind': 'accepted',
-            'label': '밥3 안착',
-            'stage': '224EMA 위 안착',
+            'label': '돌파 유지',
+            'stage': '224EMA 위 유지',
         })
-    if retest and retest_idx >= 0:
+    if bowl3_confirmed and retest_idx >= 0:
         bowl3_markers.append({
             'index': retest_idx,
             'kind': 'core',
-            'label': '밥3 핵심',
-            'stage': '224EMA 눌림/지지',
+            'label': f'밥3 {retest_line}안착',
+            'stage': f'{retest_line}EMA 눌림/안착',
         })
 
     series = {
@@ -349,6 +395,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         'bowl_breakout_idx': breakout_idx,
         'bowl_accepted_idx': accepted_idx,
         'bowl_retest_idx': retest_idx,
+        'bowl_retest_line': retest_line,
+        'bowl3_confirmed': bowl3_confirmed,
         'bowl3_markers': bowl3_markers,
         'bowl_reference_a': ref_a,
     }
