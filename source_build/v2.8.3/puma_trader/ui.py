@@ -51,6 +51,7 @@ from .conditions import (
     PUMA_DEFAULT_CONDITION_NAMES,
     fetch_condition_list,
     select_puma_conditions,
+    normalize_condition_name,
     update_candidate_source,
 )
 from .engine import TradeEngine
@@ -2350,7 +2351,7 @@ class MainWindow(QMainWindow):
             candidate_source=str(self.source_combo.currentData()),
             hero_condition_seq=str(seq or ""),
             hero_condition_name=str(name or ""),
-            hero_condition_names=list(getattr(self.settings, "hero_condition_names", []) or PUMA_DEFAULT_CONDITION_NAMES),
+            hero_condition_names=list(PUMA_DEFAULT_CONDITION_NAMES),
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
             hero_entry_only=False,
             order_budget=500_000,
@@ -2517,15 +2518,10 @@ class MainWindow(QMainWindow):
         return self.broker
 
     def _puma_condition_rows(self) -> list[tuple[str, str]]:
-        names = list(getattr(self.settings, "hero_condition_names", []) or PUMA_DEFAULT_CONDITION_NAMES)
-        rows = select_puma_conditions(self.condition_list, names)
-        if rows:
-            return rows
-        # 이름이 바뀐 경우 안전한 fallback: 화면에서 직접 고른 조건식 1개만 사용.
-        data = self.condition_combo.currentData() if self.condition_combo.count() else None
-        if data and isinstance(data, tuple) and len(data) == 2:
-            return [(str(data[0]), str(data[1]))]
-        return []
+        # 가보자 자동매매 후보 공급기는 항상 이 7개 고정 묶음이다.
+        # 과거 strategy.json의 hero_condition_names나 사용자가 수동으로
+        # 선택한 콤보박스 값이 자동매매 묶음을 축소시키면 안 된다.
+        return select_puma_conditions(self.condition_list, PUMA_DEFAULT_CONDITION_NAMES)
 
     def refresh_conditions(self):
         broker = self._require_kiwoom()
@@ -2544,8 +2540,13 @@ class MainWindow(QMainWindow):
                 if data and str(data[0]) == str(restore):
                     self.condition_combo.setCurrentIndex(i)
                     break
-            matched = select_puma_conditions(rows, getattr(self.settings, "hero_condition_names", None))
-            self.condition_status.setText(f"저장 조건식 {len(rows)}개 · PUMA 단타 조건식 {len(matched)}개 확인")
+            matched = select_puma_conditions(rows, PUMA_DEFAULT_CONDITION_NAMES)
+            found = {normalize_condition_name(name) for _, name in matched}
+            missing = [name for name in PUMA_DEFAULT_CONDITION_NAMES if normalize_condition_name(name) not in found]
+            text = f"저장 조건식 {len(rows)}개 · 가보자 자동 조건식 {len(matched)}/7개 확인"
+            if missing:
+                text += " · 미확인: " + ", ".join(missing)
+            self.condition_status.setText(text)
             if not rows:
                 QMessageBox.information(self, "조건식 없음", "영웅문4 [0150]에서 사용자 조건식을 저장한 뒤 다시 불러오세요.")
         except Exception as exc:
@@ -2838,7 +2839,7 @@ class MainWindow(QMainWindow):
 
         self._refresh_focus_candidate_count()
 
-        self.settings.hero_condition_names = [name for _, name in rows]
+        self.settings.hero_condition_names = list(PUMA_DEFAULT_CONDITION_NAMES)
         self.settings.hero_condition_seq = ",".join(seq for seq, _ in rows)
         self.settings.hero_condition_name = " + ".join(name for _, name in rows)
         save_strategy(self.settings)
