@@ -1,6 +1,6 @@
 {
-  "version": "2.9.7",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.7_UPDATE.zip",
-  "notes": "v2.9.7: 단타 5분봉 화면에서 화살표·공구리·수박·장기 패턴 오버레이 제거. 단타 화면은 가보자 자동매매 기준과 PUMA 판단 중심으로 단순화. 실제 자동매매는 7개 조건검색 합집합 → PUMA 장중 힘 2차 선별 → 영1 → 차 눌림 또는 전고 몸통돌파로 기존과 동일. 스윙/밥그릇 일봉 표시는 유지. 매매전략 자체는 변경 없음.",
-  "sha256": "7b568adfe182726c5cc9c450eb00d0b0ff109cca30ebc3669b7df648ad4e405b"
+  "version": "2.9.8",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.8_UPDATE.zip",
+  "notes": "v2.9.8: 업데이트 후 자동 재시작을 QProcess 방식으로 수정. 아이콘 포함 PUMA_STOCK_PRO.exe 데스크톱 런처 추가(설치 폴더 밖에서도 실행). 업데이트 화면에서 바탕화면 실행파일 생성 가능. 수동/예비 조건식에서 원하는 조건식을 선택해 해당 조건의 현재 종목과 실시간 편입/이탈을 별도 조회. 가보자 자동매매 7개 합집합과 수동 조회는 분리. 매매전략 자체는 변경 없음.",
+  "sha256": "18bd454a4cb69b5051d9cef333989c439dbd3d78f91d6f547c2233501abf4ae0"
 }
