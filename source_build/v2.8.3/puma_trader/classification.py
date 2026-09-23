@@ -22,7 +22,7 @@ def classify_scores(danta_score: int, swing_score: int, bowl_score: int) -> tupl
     if tags:
         label = "+".join(tags)
     else:
-        best = max((d, "단타관찰"), (s, "스윙관찰"), (b, "밥3관찰"), key=lambda x: x[0])
+        best = max((d, "단타관찰"), (s, "스윙관찰"), (b, "중장기관찰"), key=lambda x: x[0])
         label = best[1] if best[0] >= 25 else "관찰"
 
     detail = f"단 {d} · 스 {s} · 밥3 {b}"
