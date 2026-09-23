@@ -1,6 +1,6 @@
 {
-  "version": "2.8.5",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.5_UPDATE.zip",
-  "notes": "v2.8.5: 가보자 자동매매 순서 고정. 09:00 이전/전일 stale 5분봉 진입 차단, +4% 이전 트레일링 금지, +4% 절반익절 후 잔량만 트레일링.",
-  "sha256": "0d9e566dfdb71e00ad87ab615d627ba5e1c0ecac48cae5f77f4171ea1f7af4d8"
+  "version": "2.8.6",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.8.6_UPDATE.zip",
+  "notes": "v2.8.6: +4% 절반익절 후 잔량은 절반익절 기준가보다 상승해도 전량매도, 하락해도 전량매도. 11:00에는 방향과 무관하게 잔량 전량청산.",
+  "sha256": ""
 }
