@@ -135,3 +135,28 @@ class NameLookupThread(QThread):
         finally:
             if broker is not self.broker:
                 broker.session.close()
+
+
+class StockUniverseThread(QThread):
+    """Fetch the stock-name/code index without blocking the trading GUI."""
+    loaded = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, broker, parent=None):
+        super().__init__(parent)
+        self.broker = broker
+
+    def run(self):
+        broker = reader_broker(self.broker, self.isInterruptionRequested)
+        try:
+            if not hasattr(broker, "list_domestic_stocks"):
+                raise RuntimeError("종목 목록 조회 기능을 사용할 수 없습니다.")
+            rows = broker.list_domestic_stocks()
+            if not self.isInterruptionRequested():
+                self.loaded.emit(rows)
+        except Exception as exc:
+            if not self.isInterruptionRequested():
+                self.failed.emit(str(exc))
+        finally:
+            if broker is not self.broker:
+                broker.session.close()
