@@ -229,6 +229,9 @@ def build_arrow_signals(candles: List[dict]) -> dict:
             "signal_pink_raw": [], "signal_blue_raw": [], "signal_red_raw": [], "signal_black_raw": [],
             "signal_pink": [], "signal_blue": [], "signal_red": [], "signal_black": [],
             "signal_sar": [], "signal_bb40_22": [],
+            "signal_ema112": [], "signal_ema224": [], "signal_ema448": [],
+            "signal_x_bb40_22": [], "signal_x_ema112": [], "signal_x_ema224": [], "signal_x_ema448": [],
+            "signal_sar_ok": [], "signal_vema40": [], "signal_disparity224": [],
             "long_trend_suppressed": [], "long_trend_suppressed_now": False,
         }
 
@@ -250,8 +253,11 @@ def build_arrow_signals(candles: List[dict]) -> dict:
     blue_raw = [False] * n
     red_raw = [False] * n
     black_raw = [False] * n
+    sar_ok_arr = [False] * n
+    disparity224_arr: List[Optional[float]] = [None] * n
     for i in range(n):
         sar_ok = sar[i] is not None and c[i] >= float(sar[i])
+        sar_ok_arr[i] = bool(sar_ok)
 
         # if(b or b2 or b3,a,0)
         pink_raw[i] = bool((x112[i] or x224[i] or x448[i]) and x_bb[i])
@@ -272,6 +278,7 @@ def build_arrow_signals(candles: List[dict]) -> dict:
             # User chart rule: all price moving averages are exponential.
             # Therefore 224-period disparity is measured against EAVG/EMA224.
             disparity224 = c[i] / float(e224[i]) * 100.0 if float(e224[i]) else 999.0
+            disparity224_arr[i] = disparity224
             black_raw[i] = bool(
                 disparity224 <= 109.0
                 and x_bb[i]
@@ -298,6 +305,18 @@ def build_arrow_signals(candles: List[dict]) -> dict:
         "signal_black": black,
         "signal_sar": sar,
         "signal_bb40_22": bb,
+        # Diagnostics: exact inputs behind each Hero-style arrow. These do not
+        # alter trading/visual signals; they make date-by-date HTS comparison auditable.
+        "signal_ema112": e112,
+        "signal_ema224": e224,
+        "signal_ema448": e448,
+        "signal_x_bb40_22": x_bb,
+        "signal_x_ema112": x112,
+        "signal_x_ema224": x224,
+        "signal_x_ema448": x448,
+        "signal_sar_ok": sar_ok_arr,
+        "signal_vema40": vema40,
+        "signal_disparity224": disparity224_arr,
         "long_trend_suppressed": suppressed,
         "long_trend_suppressed_now": bool(suppressed[-1]) if suppressed else False,
     }
