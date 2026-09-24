@@ -74,7 +74,7 @@ class SwingSettings:
     ema_long2: int = 224
     ema_long3: int = 448
     volume_period: int = 20
-    volume_ratio: float = 3.0
+    volume_ratio: float = 1.8
     upper_wick_ratio: float = 0.42
     upper_wick_vs_body: float = 1.2
     bearish_body_ratio: float = 0.58
@@ -210,9 +210,12 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             recent_p95 = recent[p95_idx]
 
         current_vol = float(c['volume'])
+        # Old saved configs may still contain 3.0. Treat this as a reference
+        # sensitivity, never as a hard 300% gate.
+        relative_ref = min(2.20, max(1.35, float(settings.volume_ratio)))
         visually_high = bool(
-            ratio >= 1.80
-            or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
+            ratio >= relative_ref
+            or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.30)
             or (recent_p95 > 0 and current_vol >= recent_p95)
         )
 
@@ -236,8 +239,9 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         bear_volume = bool(
             big_bear
             and (
-                ratio >= 1.80
-                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.45)
+                ratio >= relative_ref
+                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
+                or (recent_p95 > 0 and current_vol >= recent_p95)
             )
         )
 
@@ -252,8 +256,9 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             meaningful_body
             and -3.5 <= close_change_pct <= 3.0
             and (
-                ratio >= 1.70
-                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
+                ratio >= max(1.50, relative_ref * 0.90)
+                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.25)
+                or (recent_p95 > 0 and current_vol >= recent_p95)
             )
         )
 
@@ -282,6 +287,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             'volume_recent_p85': recent_p85,
             'volume_recent_p95': recent_p95,
             'volume_visually_high': visually_high,
+            'volume_relative_reference': relative_ref,
             'upper_wick_ratio': upper_ratio,
             'body_ratio': body_ratio,
             'close_change_pct': close_change_pct,
