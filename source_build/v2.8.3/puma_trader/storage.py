@@ -113,6 +113,7 @@ def load_runtime() -> dict:
                 "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
                 "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
                 "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
+                "seed_budget": float(item.get("seed_budget", 0) or 0),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
@@ -168,6 +169,7 @@ def save_runtime(data: dict):
             "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
             "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
             "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
+            "seed_budget": float(item.get("seed_budget", 0) or 0),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
