@@ -739,7 +739,9 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
             # A 112-only cross never creates a concrete box.
             if 224 in crossed:
                 raw_box = find_box_before(candles, end_idx, settings)
-                if raw_box and concrete_allowed_below_long_mas(raw_box):
+                if raw_box:
+                    # Re-anchor the top FIRST; the old quantile top is only
+                    # provisional and must not reject a valid hill/green-close top.
                     concrete = _anchor_concrete_before_224_breakout(
                         candles, raw_box, breakout_idx, e112, settings
                     )
