@@ -1680,7 +1680,7 @@ class MainWindow(QMainWindow):
         af.addRow("긴 윗꼬리 / 전체폭 ≥", self.sw_wick_ratio)
         af.addRow("장대음봉 몸통 / 전체폭 ≥", self.sw_bear_body)
         af.addRow("매집 확인 Lookback", self.sw_acc_lookback)
-        af.addRow(QLabel("※ 매집은 당일 거래량이 전일보다 반드시 증가해야 함. 거래량이 전일보다 낮거나 파란 거래량봉이면 무조건 제외. 그다음 최근 20봉 평균·60봉 상위권과 긴 윗꼬리·장대음봉·가격반응 대비 이상거래량을 함께 판정."))
+        af.addRow(QLabel("※ 매집은 당일 거래량 > 전일 거래량 필수. 일반 음봉은 제외하고 장대음봉만 허용. 양봉/보합은 긴 윗꼬리+증가거래량이 기본이며, 윗꼬리가 짧으면 평균 2.5배급 압도적 거래량일 때만 허용."))
         right.addWidget(acc)
 
         box = QGroupBox("공구리(박스권) 기준")
