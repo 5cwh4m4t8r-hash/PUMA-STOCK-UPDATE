@@ -730,6 +730,7 @@ class MainWindow(QMainWindow):
         self.real_armed = False
         self.live_auto_confirmed_session = False
         self.condition_snapshot_seen: set[str] = set()
+        self.condition_initial_partial_seen: set[str] = set()
         self.condition_live_registered_count = 0
         self.scan_index = 0
         self.swing_settings = load_swing_settings()
@@ -3153,6 +3154,7 @@ class MainWindow(QMainWindow):
         # 이전 스레드가 종료 중이어도 UI에서 기다리지 않는다.
         self.stop_condition_stream(update_status=False, block=False)
         self.condition_snapshot_seen.clear()
+        self.condition_initial_partial_seen.clear()
         self.condition_live_registered_count = 0
         self.condition_start_btn.setEnabled(False)
 
@@ -3173,6 +3175,10 @@ class MainWindow(QMainWindow):
         thread.initial_union.connect(
             lambda payload, t=thread:
                 self.on_condition_initial_union(payload) if self.condition_thread is t else None
+        )
+        thread.initial_partial.connect(
+            lambda seq, name, result_rows, t=thread:
+                self.on_condition_initial_partial(seq, name, result_rows) if self.condition_thread is t else None
         )
         thread.snapshot.connect(
             lambda seq, name, result_rows, t=thread:
@@ -3218,8 +3224,48 @@ class MainWindow(QMainWindow):
         if update_status and hasattr(self, "condition_status"):
             self.condition_status.setText("조건검색 중지")
 
+    def on_condition_initial_partial(self, seq: str, condition_name: str, rows):
+        """Show each condition's received stocks immediately without waiting for all 7."""
+        rows = list(rows or [])
+        if not rows:
+            return
+        seq = str(seq or "").strip()
+        condition_name = str(condition_name or seq)
+        now = datetime.now().strftime("%H:%M:%S")
+        self.condition_initial_partial_seen.add(seq)
+
+        tables = [getattr(self, "condition_table", None), getattr(self, "focus_condition_table", None)]
+        for table in tables:
+            if table is not None:
+                table.setUpdatesEnabled(False)
+        try:
+            for code, stock_name in rows:
+                item = update_candidate_source(
+                    self.condition_candidates,
+                    seq=seq,
+                    condition_name=condition_name,
+                    code=code,
+                    stock_name=stock_name or self.name_cache.get(code) or code,
+                    active=True,
+                    entry_event=False,
+                    now=now,
+                )
+                self._upsert_condition_row(code, refresh_focus_count=False)
+                # General condition-search response normally contains name (302).
+                # Only queue REST name lookup when it is genuinely missing.
+                if not stock_name or stock_name == code:
+                    self._queue_name_lookup(code)
+        finally:
+            for table in tables:
+                if table is not None:
+                    table.setUpdatesEnabled(True)
+                    table.viewport().update()
+
+        self._refresh_focus_candidate_count()
+        self._update_condition_union_status()
+
     def on_condition_initial_union(self, payload):
-        """Atomically replace automatic candidates after all initial searches finish."""
+        """Atomically reconcile automatic candidates after all initial searches finish."""
         entries = list(payload or [])
         now = datetime.now().strftime("%H:%M:%S")
 
@@ -3281,6 +3327,7 @@ class MainWindow(QMainWindow):
 
         self.condition_candidates = new_candidates
         self.condition_snapshot_seen = successful
+        self.condition_initial_partial_seen.update(successful)
         self.classification_queue.clear()
 
         tables = [getattr(self, "condition_table", None), getattr(self, "focus_condition_table", None)]
@@ -3333,11 +3380,13 @@ class MainWindow(QMainWindow):
             1 for item in self.condition_candidates.values()
             if item.get("active") and self._candidate_in_danta_feed(item)
         )
-        received = len(getattr(self, "condition_snapshot_seen", set()))
+        completed = len(getattr(self, "condition_snapshot_seen", set()))
+        receiving = len(getattr(self, "condition_initial_partial_seen", set()))
         total = len(configured)
         live_registered = int(getattr(self, "condition_live_registered_count", 0) or 0)
         self.condition_status.setText(
-            f"단타 검색기 통합 · 초기통합 {received}/{total} · 실시간 {live_registered}/{total} · 합집합 {active_union}종목"
+            f"단타 검색기 통합 · 즉시수신 {receiving}/{total} · 초기완료 {completed}/{total} · "
+            f"실시간 {live_registered}/{total} · 합집합 {active_union}종목"
         )
 
     def on_condition_status(self, text: str):
