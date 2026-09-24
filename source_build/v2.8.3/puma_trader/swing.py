@@ -171,8 +171,9 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
       - today's volume MUST be strictly greater than the previous bar's volume,
       - volume does not need to be 3x the 20-bar average; a visually standout
         volume spike versus recent history is enough,
-      - unusually large volume with only a muted price response is suspicious
-        accumulation/absorption,
+      - bearish candles are allowed only when they are large bearish dump bars,
+      - non-bearish candles require either a clear long upper wick or truly
+        overwhelming volume,
       - tiny ambiguous cross/doji candles remain excluded.
 
     Final chart/scoring still uses confirm_accumulation_flags(), so repeated
@@ -237,9 +238,12 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             and upper >= max(body * wick_body_req, lower * 1.15)
         )
 
-        # 장대음봉 급락도 거래량이 확실히 터졌다면 매집 후보.
+        is_bearish = float(c['close']) < float(c['open'])
+
+        # 음봉은 장대음봉만 예외적으로 허용한다.
+        # 장대음봉이 아닌 일반 음봉은 윗꼬리/흡수형 조건이 맞아도 매집에서 제외한다.
         big_bear = (
-            float(c['close']) < float(c['open'])
+            is_bearish
             and body_ratio >= float(settings.bearish_body_ratio)
             and close_pos <= 0.42
         )
@@ -261,6 +265,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         )
         muted_price_response = bool(
             meaningful_body
+            and not is_bearish
             and -3.5 <= close_change_pct <= 3.0
             and (
                 ratio >= max(1.50, relative_ref * 0.90)
@@ -269,13 +274,37 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             )
         )
 
+        # 윗꼬리가 짧은 봉은 거래량이 '압도적'일 때만 허용.
+        # 20봉 평균 2.5배 이상, 또는 최근 60봉 최상위권이면서
+        # 평균 2배 + 전일 대비 1.5배 이상일 때를 압도적 거래량으로 본다.
+        overwhelming_volume = bool(
+            volume_up_vs_prev
+            and (
+                ratio >= 2.50
+                or (
+                    recent_p95 > 0
+                    and current_vol >= recent_p95
+                    and ratio >= 2.00
+                    and prev_vol > 0
+                    and current_vol >= prev_vol * 1.50
+                )
+            )
+        )
+
+        non_bear_candidate = bool(
+            not is_bearish
+            and (
+                (long_upper and visually_high)
+                or overwhelming_volume
+            )
+        )
+
         candidate = bool(
             volume_up_vs_prev
             and meaningful_body
             and (
-                (visually_high and long_upper)
-                or bear_volume
-                or muted_price_response
+                bear_volume
+                or non_bear_candidate
             )
         )
 
@@ -285,7 +314,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             elif long_upper:
                 pattern = '고거래량 긴 윗꼬리'
             else:
-                pattern = '가격반응대비 이상거래량'
+                pattern = '압도적 거래량'
         else:
             pattern = '-'
 
@@ -305,10 +334,16 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             'raw_candidate': candidate,
             'confirmed': False,
             'cluster_size': 0,
+            'is_bearish': bool(is_bearish),
             'big_bear': bool(big_bear),
             'muted_price_response': bool(muted_price_response),
+            'overwhelming_volume': bool(overwhelming_volume),
             'excluded_small_cross': bool(not meaningful_body),
             'excluded_volume_not_up': bool(not volume_up_vs_prev),
+            'excluded_non_big_bear': bool(is_bearish and not big_bear),
+            'excluded_short_wick_without_overwhelming_volume': bool(
+                (not is_bearish) and (not long_upper) and (not overwhelming_volume)
+            ),
         })
     return raw, meta
 
