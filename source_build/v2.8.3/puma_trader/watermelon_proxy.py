@@ -121,7 +121,7 @@ def build_puma_watermelon(
     *,
     acc_flags: list[bool] | None = None,
 ) -> dict:
-    """PUMA watermelon approximation v3.
+    """PUMA watermelon approximation v4.
 
     Important:
       The proprietary Stock Dante watermelon formula is not public.
@@ -130,8 +130,8 @@ def build_puma_watermelon(
       with EMA112/224 and Ichimoku cloud, prior accumulation, and arrow confluence.
 
     Goal:
-      Mark sparse bottom-area locations where concentrated-capital footprints
-      appear, then strengthen them when reclaim/reversal confirmation follows.
+      Mark only the sparse preparation zone immediately before a Bowl-3 style
+      EMA224 breakout setup, using concentrated-capital footprints as evidence.
 
     Uses only current/past bars. No future-bar confirmation is used.
     """
@@ -143,6 +143,7 @@ def build_puma_watermelon(
     display = [0] * n
     footprint_scores = [0] * n
     footprint_reasons = [""] * n
+    pre_bowl3_flags = [False] * n
     if n == 0:
         return {
             "watermelon_stage": stages,
@@ -152,6 +153,7 @@ def build_puma_watermelon(
             "watermelon_display": display,
             "watermelon_footprint_score": footprint_scores,
             "watermelon_footprint_reason": footprint_reasons,
+            "watermelon_pre_bowl3": pre_bowl3_flags,
         }
 
     closes = [float(c["close"]) for c in candles]
@@ -178,7 +180,10 @@ def build_puma_watermelon(
         acc_flags.extend([False] * (n - len(acc_flags)))
 
     last_display = -10**9
-    min_display_gap = 20
+    # 수박은 밥3 직전 준비구간에만 드물게 표시한다.
+    min_display_gap = 35
+
+    pre_bowl_prev = False
 
     for i in range(n):
         if i < 20 or e112[i] is None:
@@ -375,39 +380,74 @@ def build_puma_watermelon(
         context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
         evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
 
-        # Watermelon = bottom-area intervention footprint first, reversal confirmation second.
-        # A huge-volume absorption bar touching a long EMA/cloud may mark the intervention
-        # itself before the later rebound is fully mature. Otherwise require reclaim/settling.
-        intervention_now = bool(
-            bottom_context
-            and big_money_footprint
-            and structural_touch
-            and not_overextended
-            and context_confirmed
-            and footprint_score >= 50
+        # 밥3 직전 준비구간:
+        # - 바닥권
+        # - 60 < 112 < 224 장기 역배열/수렴
+        # - 종가가 EMA224 ±2.5% 안쪽이며 아직 224 위로 멀리 이격되지 않음
+        # - EMA112는 이미 회복/접촉해 올라오는 흐름
+        # - 최근 10봉 안에 대형자금/매집 흔적이 존재
+        near_224_prebreak = False
+        if e224[i] is not None and float(e224[i]) > 0:
+            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.025
+
+        reverse_60_112_224 = False
+        if e60[i] is not None and e112[i] is not None and e224[i] is not None:
+            reverse_60_112_224 = bool(
+                float(e60[i]) <= float(e112[i]) * 1.015
+                and float(e112[i]) <= float(e224[i]) * 1.015
+            )
+
+        reclaimed_112_recent = _latest_reclaim_index(closes, e112, i, 10) >= 0
+        near_or_above_112 = bool(
+            e112[i] is not None
+            and price >= float(e112[i]) * 0.985
         )
-        reversal_confirmed = bool(
-            bottom_context
-            and near_long
-            and reclaim_recent
-            and settled
-            and reversal
-            and ema20_recovery
-            and not_overextended
-            and context_confirmed
-            and evidence_confirmed
+
+        recent_large_money = bool(
+            big_money_footprint
+            or acc_recent
+            or any(int(x) >= 50 for x in footprint_scores[max(0, i - 9):i])
         )
+
+        # 현재 봉이 이미 224를 강한 양봉 몸통으로 돌파한 뒤라면 '직전 수박'이 아니다.
+        bullish_224_body_break = False
+        if i > 0 and e224[i] is not None:
+            bullish_224_body_break = bool(
+                closes[i] > opens[i]
+                and opens[i] <= float(e224[i])
+                and closes[i] > float(e224[i]) * 1.003
+            )
+
+        pre_bowl3 = bool(
+            bottom_context
+            and reverse_60_112_224
+            and near_224_prebreak
+            and near_or_above_112
+            and (reclaimed_112_recent or long_reclaim)
+            and recent_large_money
+            and context_confirmed
+            and not bullish_224_body_break
+        )
+
+        pre_bowl3_flags[i] = pre_bowl3
+
+        # 점수는 보조값이고, 실제 표시는 밥3 직전 구조를 통과해야만 허용한다.
         strict = bool(
-            (intervention_now or reversal_confirmed)
-            and score >= 75
+            pre_bowl3
+            and evidence_confirmed
+            and score >= 80
         )
 
         if strict:
             stage = 3
             confirmed[i] = True
-            if i - last_display >= min_display_gap:
+            # 같은 준비구간에 여러 개 난사하지 않고, 구간에 처음 진입한 자리만 우선 표시.
+            entered_pre_bowl = not pre_bowl_prev
+            if entered_pre_bowl and i - last_display >= min_display_gap:
                 display[i] = 3
                 last_display = i
+
+        pre_bowl_prev = pre_bowl3
 
         stages[i] = stage
         scores[i] = score
@@ -421,4 +461,5 @@ def build_puma_watermelon(
         "watermelon_display": display,
         "watermelon_footprint_score": footprint_scores,
         "watermelon_footprint_reason": footprint_reasons,
+        "watermelon_pre_bowl3": pre_bowl3_flags,
     }
