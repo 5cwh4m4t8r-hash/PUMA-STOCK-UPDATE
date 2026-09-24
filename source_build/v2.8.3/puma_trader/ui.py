@@ -5136,6 +5136,69 @@ class MainWindow(QMainWindow):
         form.addWidget(self.mobile_status_label, 7, 0, 1, 4)
         root.addWidget(info)
 
+        remote = QGroupBox("외부망 · PUMA iPhone 앱")
+        rg = QGridLayout(remote)
+
+        remote_desc = QLabel(
+            "집 노트북은 Relay로 먼저 접속하므로 밖에서 5G/LTE로 사용할 수 있습니다. "
+            "Relay 없이 Tailscale HTTPS 주소를 iPhone 앱의 Direct 모드에 넣어도 됩니다."
+        )
+        remote_desc.setWordWrap(True)
+        remote_desc.setStyleSheet("color:#9eb4c9")
+        rg.addWidget(remote_desc, 0, 0, 1, 4)
+
+        self.mobile_relay_url = QLineEdit(self.mobile_remote.relay_url)
+        self.mobile_relay_url.setPlaceholderText("https://puma-relay.example.com")
+        rg.addWidget(QLabel("Relay HTTPS"), 1, 0)
+        rg.addWidget(self.mobile_relay_url, 1, 1, 1, 3)
+
+        self.mobile_device_id_label = QLabel(self.mobile_remote.device_id)
+        self.mobile_device_id_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mobile_device_id_label.setStyleSheet(
+            "font-size:18px;font-weight:900;color:#75c9ff;padding:6px"
+        )
+        rg.addWidget(QLabel("PUMA 기기 ID"), 2, 0)
+        rg.addWidget(self.mobile_device_id_label, 2, 1, 1, 2)
+
+        copy_device = QPushButton("ID 복사")
+        copy_device.clicked.connect(
+            lambda: QApplication.clipboard().setText(self.mobile_remote.device_id)
+        )
+        rg.addWidget(copy_device, 2, 3)
+
+        self.mobile_remote_auto_box = QCheckBox("PUMA 실행 시 외부망 Relay 자동 연결")
+        self.mobile_remote_auto_box.setChecked(
+            bool(self.ui_state.value("mobile/remoteAutoStart", False, type=bool))
+        )
+        self.mobile_remote_auto_box.toggled.connect(
+            lambda checked: self.ui_state.setValue("mobile/remoteAutoStart", bool(checked))
+        )
+        rg.addWidget(self.mobile_remote_auto_box, 3, 0, 1, 4)
+
+        rb = QHBoxLayout()
+        remote_start = QPushButton("▶ 외부망 연결")
+        remote_start.setObjectName("startBtn")
+        remote_stop = QPushButton("■ 외부망 중지")
+        remote_stop.setObjectName("stopBtn")
+        remote_start.clicked.connect(self._mobile_remote_start)
+        remote_stop.clicked.connect(self._mobile_remote_stop)
+        rb.addWidget(remote_start)
+        rb.addWidget(remote_stop)
+        rg.addLayout(rb, 4, 0, 1, 4)
+
+        self.mobile_remote_status_label = QLabel("외부망 Relay 중지")
+        self.mobile_remote_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+        rg.addWidget(self.mobile_remote_status_label, 5, 0, 1, 4)
+
+        direct_hint = QLabel(
+            "Direct/Tailscale 모드: PC 모바일 서버를 켠 뒤 Tailscale Serve의 HTTPS 주소와 "
+            "위 6자리 연결코드를 iPhone 앱에 최초 1회 저장하면 됩니다."
+        )
+        direct_hint.setWordWrap(True)
+        direct_hint.setStyleSheet("color:#7fb2d9")
+        rg.addWidget(direct_hint, 6, 0, 1, 4)
+        root.addWidget(remote)
+
         security = QGroupBox("모바일 실전 잠금")
         sec = QVBoxLayout(security)
         self.mobile_lock_state_label = QLabel(
