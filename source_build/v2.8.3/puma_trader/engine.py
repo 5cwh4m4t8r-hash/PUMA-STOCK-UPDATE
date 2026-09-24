@@ -10,6 +10,8 @@ from .gaboja import evaluate_gaboja
 
 INITIAL_SEED_CAPITAL = 500_000
 PHASE1_TARGET_CAPITAL = 3_000_000
+# Backward-compatible public constant; sizing is no longer fixed to this amount.
+AUTO_ORDER_BUDGET = INITIAL_SEED_CAPITAL
 
 
 def _num(v):
