@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.37 In-App Update
+name: Publish PUMA v2.9.38 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.37 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2935_condition_immediate.py tests/test_v2937_marker_exactness.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.38 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2935_condition_immediate.py tests/test_v2937_marker_exactness.py tests/test_v2938_chart_signal_density.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
         shell: powershell
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.37_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.38_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.37"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.37_UPDATE.zip"
-            notes = "v2.9.37: breakout, pullback and Bowl-3 marker placement is tightened. Generic breakout markers now require the current bullish candle BODY to cross the relevant EMA112/224 and the concrete/previous-high structure itself; a gap opening already above those levels is not marked as a breakout. Breakout volume must also meet the configured breakout-volume threshold (default 3x versus the previous bar or prior 20-bar average). Pullback markers now require a bearish low-volume candle after the breakout, the former structure top must remain supported on close, and the marker is pinned to the support actually tested: concrete top, previous-high top, EMA112 or EMA224. The chart label now shows that exact support. Bowl-3 keeps the user's strict 224 bullish-body-breakout -> bearish pullback definition, but when one candle touches multiple valid supports it labels the support nearest the actual candle low rather than whichever support happened to be checked first. Historical Bowl-3 labels now include the actual support source as well. Watermelon, accumulation, condition-search, zoom and live-order rules remain unchanged."
+            version = "2.9.38"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.38_UPDATE.zip"
+            notes = "v2.9.38: accumulation display is reduced to only high-confidence evidence. Raw/single ordinary candidates are no longer drawn. Candidate rules are tightened for volume, upper-wick size and large-bearish shape; repeated candidates within a short cluster keep only the single strongest representative bar, while only an extreme >=95-confidence singleton can display by itself. Internal repeated accumulation evidence remains separate so swing/watermelon analysis does not lose context just because the chart is sparse. Watermelon pre-Bowl-3 gating is relaxed from the over-restrictive v2.9.36 thresholds: EMA224 proximity is widened to ±4%, long-below context becomes at least 60 of the last 100 eligible bars, and either a recent 112-bar record-volume event OR recent large-money/accumulation evidence can satisfy the volume pre-signal. Display spacing is reduced to 20 bars so valid pre-Bowl-3 locations can actually appear. Concrete rectangles are now completely hidden whenever the current stock price is above EMA224; other structure analysis can continue internally. Breakout, pullback, Bowl-3, condition-search, zoom and live-order rules remain unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.37_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.38_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.37 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.38 in-app update"
           git pull --rebase origin main
           git push origin main
