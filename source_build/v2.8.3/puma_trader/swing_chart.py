@@ -415,6 +415,8 @@ class SwingChart(QWidget):
         p.setPen(QPen(QColor('#59616a'), 1))
         p.drawLine(QPointF(vol_rect.left(), vol_rect.top()), QPointF(vol_rect.right(), vol_rect.top()))
 
+        raw_acc_full = self.series.get('raw_acc_flags', [False]*len(candles))
+        raw_acc = raw_acc_full[start:end] if len(raw_acc_full) >= end else [False]*n
         acc_full = self.series.get('acc_flags', [False]*len(candles))
         acc = acc_full[start:end] if len(acc_full) >= end else [False]*n
         path_break = self.series.get('path_breakout', [])
@@ -430,10 +432,21 @@ class SwingChart(QWidget):
             up=c['close']>=c['open']
             candle_col=QColor('#ef4747') if up else QColor('#2d77ff')
 
-            if not overlay_suppressed and i < len(acc) and acc[i]:
-                p.fillRect(QRectF(xx-cw*0.9, price_rect.top(), cw*1.8, price_rect.height()), QColor(255,190,35,25))
-                if n <= 180:
-                    p.setPen(QColor('#ffc13d')); p.drawText(int(xx-26), int(price_rect.top()+18), '매집확정')
+            if not overlay_suppressed:
+                is_candidate = i < len(raw_acc) and raw_acc[i]
+                is_confirmed = i < len(acc) and acc[i]
+                if is_candidate and not is_confirmed:
+                    # Single suspicious volume/price bar: visible, but do not
+                    # paint a full-height band or call it confirmed.
+                    p.setPen(QPen(QColor('#e0a72f'), 1.6))
+                    marker_y = max(price_rect.top()+8, y(c['high'])-8)
+                    p.drawEllipse(QPointF(xx, marker_y), 3.2, 3.2)
+                    if n <= 120:
+                        p.drawText(int(xx-15), int(marker_y-6), '매집')
+                if is_confirmed:
+                    p.fillRect(QRectF(xx-cw*0.9, price_rect.top(), cw*1.8, price_rect.height()), QColor(255,190,35,25))
+                    if n <= 180:
+                        p.setPen(QColor('#ffc13d')); p.drawText(int(xx-26), int(price_rect.top()+18), '매집확정')
 
             p.setPen(QPen(candle_col,1.1))
             p.drawLine(QPointF(xx,y(c['low'])),QPointF(xx,y(c['high'])))
