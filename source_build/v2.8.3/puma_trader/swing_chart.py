@@ -447,6 +447,7 @@ class SwingChart(QWidget):
         path_rebreak = self.series.get('path_rebreakout', [])
         path_break_ma = self.series.get('path_breakout_ma', [])
         path_pull_ma = self.series.get('path_pullback_ma', [])
+        path_pull_source = self.series.get('path_pullback_source', [])
         cw = max(1.5, min(12.0, price_rect.width()/n*0.58))
         for i,c in enumerate(cs):
             xx=x(i)
@@ -500,8 +501,21 @@ class SwingChart(QWidget):
             if not overlay_suppressed and isinstance(path_rebreak, list) and gi < len(path_rebreak) and path_rebreak[gi]:
                 label = '✓재돌파'; label_color = QColor('#ffcf3d')
             elif not overlay_suppressed and isinstance(path_pull, list) and gi < len(path_pull) and path_pull[gi]:
+                source = (
+                    path_pull_source[gi]
+                    if isinstance(path_pull_source, list) and gi < len(path_pull_source)
+                    else ""
+                )
                 ma = path_pull_ma[gi] if isinstance(path_pull_ma, list) and gi < len(path_pull_ma) else 0
-                label = f'✓눌림{ma}' if ma else '✓눌림'; label_color = QColor('#62d98b')
+                if source == "공구리상단":
+                    label = '✓눌림상단'
+                elif source == "전고상단":
+                    label = '✓눌림전고'
+                elif ma:
+                    label = f'✓눌림{ma}'
+                else:
+                    label = '✓눌림'
+                label_color = QColor('#62d98b')
             elif not overlay_suppressed and isinstance(path_break, list) and gi < len(path_break) and path_break[gi]:
                 ma = path_break_ma[gi] if isinstance(path_break_ma, list) and gi < len(path_break_ma) else 0
                 label = f'✓돌파{ma}' if ma else '✓돌파'; label_color = QColor('#ff6a6a')
