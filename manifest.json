@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.28",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.28_UPDATE.zip",
-    "notes":  "v2.9.28: accumulation markers are tightened substantially. A marked accumulation candle must have at least 3x the prior 20-bar average volume (or a higher configured threshold), a clearly long upper wick, and a meaningful candle body. Large bearish dump candles and small cross/doji candles are explicitly excluded. Final chart accumulation still requires repeated strict candidates within the cluster window, reducing noisy over-marking. Bowl-3 and all price EMA rules from v2.9.27 remain unchanged.",
-    "sha256":  "38b77d588768298345e501380be35257bde2aa95b8287923705d1e1c2e4ed1a5"
+    "version":  "2.9.29",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.29_UPDATE.zip",
+    "notes":  "v2.9.29: real auto-trading now uses a single LIVE arm. The former second-stage text confirmation before starting automatic trading has been removed. The primary LIVE unlock is still required for real accounts, and manual real orders still require their separate LIVE ORDER confirmation. Account synchronization, daily order limits, duplicate-order blocking, and the trading strategy remain unchanged. Accumulation, Bowl-3, and EMA rules from v2.9.28 remain unchanged.",
+    "sha256":  "eaef309d101e27d2439b7142dc644e77491a58f7b49ccedfc60564e9e758ff74"
 }
