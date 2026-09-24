@@ -856,15 +856,13 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         cache_key = (end_idx, breakout_idx, tuple(crossed))
         if cache_key not in structure_cache:
             concrete = None
-            # Concrete is defined retrospectively from a STRONG EMA224 breakout.
-            # A 112-only cross never creates a concrete box.
+            # IMPORTANT: concrete must ALREADY EXIST before the EMA224 breakout.
+            # Build it from data available at end_idx (= breakout_idx - 1).
             if 224 in crossed:
                 raw_box = find_box_before(candles, end_idx, settings)
                 if raw_box:
-                    # Re-anchor the top FIRST; the old quantile top is only
-                    # provisional and must not reject a valid hill/green-close top.
-                    concrete = _anchor_concrete_before_224_breakout(
-                        candles, raw_box, breakout_idx, e112, settings
+                    concrete = _preview_concrete_before_bowl3(
+                        candles, raw_box, end_idx, e112, e224, settings
                     )
                     if concrete and not concrete_allowed_below_long_mas(concrete):
                         concrete = None
@@ -1117,9 +1115,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     event["accepted"]=support_hold
 
-    # Preserve the historical concrete boxes that actually participated in
-    # confirmed breakout paths, plus the newest still-forming concrete box.
-    # The chart can therefore show recent + past concrete zones together.
+    # Preserve confirmed historical concrete plus any NEW pre-break concrete
+    # already visible before the next Bowl-3/EMA224 breakout.
     historical_concrete = [
         x for x in events
         if x.get("structure_type") == "공구리"
@@ -1128,6 +1125,15 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         and str(x.get("upper_source") or "") in ("전고언덕", "양봉종가")
     ]
     display_boxes = _dedupe_display_boxes(historical_concrete)
+
+    # A new pre-Bowl concrete may be forming even after an older historical path.
+    # Show it BEFORE the next EMA224 breakout, never after.
+    raw_preview = find_box_before(candles, n - 1, settings)
+    preview_box = _preview_concrete_before_bowl3(
+        candles, raw_preview, n - 1, e112, e224, settings
+    )
+    if preview_box:
+        display_boxes = _dedupe_display_boxes(display_boxes + [preview_box])
 
     current_above_224 = bool(
         e224[-1] is not None
@@ -1139,7 +1145,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         display_boxes = []
         box_for_ui = None if event.get("structure_type") == "공구리" else event
     else:
-        box_for_ui = event
+        box_for_ui = preview_box or event
 
     return {"current":cur,"box":box_for_ui,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
             "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
