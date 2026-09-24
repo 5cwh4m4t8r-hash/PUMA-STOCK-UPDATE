@@ -2,5 +2,5 @@
     "version":  "2.9.43",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.43_UPDATE.zip",
     "notes":  "v2.9.43: concrete detection is audited against KSP (073010) as the reference shape and expanded across the full loaded daily history. PUMA now scans likely pre-Bowl preparation endpoints throughout history, detects below-EMA112/below-EMA224 concrete before the later breakout, and deduplicates repeated detections into distinct historical boxes. Historical concrete remains visible on its original dates even after the current price later rises above EMA224; only a current/new concrete is forbidden above EMA224. The current and historical paths use the same upper-line rule: previous-high hill first, otherwise bullish-candle close. A KSP reference regression case using its Aug-Sep 2026 base data is included, plus a multi-box historical regression test. Breakout, pullback, Bowl-3, accumulation, watermelon, condition-search, zoom and live-order rules remain unchanged.",
-    "sha256":  "abcb3b535c96887932fbf916ab150a407fe0988138d41d47fc99cbc94fcbf3e8"
+    "sha256":  "32431ade6e973b6261b11edce5f300f72e95965b48ebe862aba71e9d5ea6a9dc"
 }
