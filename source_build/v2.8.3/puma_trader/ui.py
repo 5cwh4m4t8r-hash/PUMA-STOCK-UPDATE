@@ -5289,7 +5289,13 @@ class MainWindow(QMainWindow):
         )
 
     def _apply_mobile_auto_settings(self, data: dict):
-        source = str(data.get("candidate_source") or self.settings.candidate_source or "WATCHLIST")
+        # 모바일의 "전체 후보"는 관심종목 목록과 무관하게
+        # 단타 검색기 합집합 -> PUMA 2차선별 -> 가보자 진입판정 경로로 고정한다.
+        scope = str(data.get("scope") or "ALL").upper()
+        if scope == "ALL":
+            source = "HERO4"
+        else:
+            source = str(data.get("candidate_source") or self.settings.candidate_source or "HERO4")
         if source not in ("WATCHLIST", "HERO4", "BOTH"):
             raise ValueError("자동매매 후보 소스가 올바르지 않습니다.")
         idx = self.source_combo.findData(source)
@@ -5448,9 +5454,10 @@ class MainWindow(QMainWindow):
                     "scope_label": (
                         f"선택종목 {self.name_cache.get(self.focus_only_code, self.focus_only_code)}"
                         if self.focus_only_code else
-                        {"WATCHLIST": "관심종목", "HERO4": "영웅문 조건검색", "BOTH": "관심+조건검색"}.get(
-                            str(self.settings.candidate_source), str(self.settings.candidate_source)
-                        )
+                        ("단타 검색기 전체 → PUMA 선별" if self.focus_auto_danta_pool else
+                         {"WATCHLIST": "관심종목", "HERO4": "영웅문 조건검색", "BOTH": "관심+조건검색"}.get(
+                             str(self.settings.candidate_source), str(self.settings.candidate_source)
+                         ))
                     ),
                     "focus_only_code": self.focus_only_code or "",
                     "settings": {
@@ -5578,15 +5585,24 @@ class MainWindow(QMainWindow):
                     if code != self.selected_code:
                         self.open_focus_stock(code, name or code)
                 else:
+                    # PC 통합 트레이딩의 "전체 후보 자동매매"와 동일한 경로.
+                    # 관심종목은 보지 않고 단타 검색기 합집합 전체를 후보로 사용한다.
                     self.focus_only_code = None
-                    if source == "WATCHLIST" and not self.watchlist:
-                        raise ValueError("관심종목이 없습니다.")
-                    if source == "HERO4" and (not self.condition_thread or not self.condition_thread.isRunning()):
-                        raise ValueError("영웅문 조건검색 실시간 연결을 먼저 시작하세요.")
-                    if source == "BOTH":
-                        active_hero = any(x.get("active") for x in self.condition_candidates.values())
-                        if not self.watchlist and not active_hero:
-                            raise ValueError("관심종목 또는 활성 조건검색 종목이 없습니다.")
+                    self.focus_auto_danta_pool = True
+
+                    if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
+                        self.focus_auto_danta_pool = False
+                        raise ValueError("키움 연결 후 전체 후보 자동매매를 시작하세요.")
+
+                    # 조건식 목록/실시간 스트림이 아직 준비되지 않았으면 모바일 한 번 클릭으로
+                    # 목록 조회 -> 단타 검색기 스트림 시작까지 자동으로 이어간다.
+                    if not self.condition_thread or not self.condition_thread.isRunning():
+                        if self.condition_list:
+                            rows = self._puma_condition_rows()
+                            if not rows:
+                                self.focus_auto_danta_pool = False
+                                raise ValueError("영웅문4에 단타 검색기 7개를 저장한 뒤 다시 시작하세요.")
+                        self.start_condition_stream()
 
                 if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
                     try:
@@ -5602,8 +5618,15 @@ class MainWindow(QMainWindow):
                     self.log(name, "MOBILE AUTO", "-", "선택 종목 전용 자동매매 시작")
                     message = f"{name} 선택 종목 자동매매 시작"
                 else:
-                    self.log("SYSTEM", "MOBILE AUTO", "0", f"전체 후보 자동매매 시작 · {source}")
-                    message = f"전체 후보 자동매매 시작 · {source}"
+                    candidate_count = sum(
+                        1 for item in self.condition_candidates.values()
+                        if self._candidate_in_danta_feed(item)
+                    )
+                    self.log(
+                        "SYSTEM", "MOBILE AUTO", "0",
+                        f"단타 검색기 합집합 → PUMA 2차선별 → 가보자 자동매매 시작 · 현재 후보 {candidate_count}종목",
+                    )
+                    message = f"전체 후보 자동매매 시작 · 단타 검색기 전체 · 현재 후보 {candidate_count}종목"
 
                 self.mobile_bridge.complete_command(request_id, {"message": message})
                 self._publish_mobile_snapshot()
