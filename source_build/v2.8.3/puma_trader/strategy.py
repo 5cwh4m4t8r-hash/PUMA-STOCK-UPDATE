@@ -116,8 +116,13 @@ def evaluate_sell(
         if current_price <= stop_price:
             return True, f"가보자 차 저점 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
 
-        # 당일 단타 최종 안전청산. 추세추적 중에는 장중 고정 목표가로 잔량을 끊지 않는다.
-        day_exit = str(getattr(settings, "gabojago_force_exit_time", "15:20") or "15:20")
+        trend_tracking = bool(getattr(settings, "gabojago_trend_tracking_enabled", True))
+        # 새 추세추적 모드는 레거시 13:00 설정과 분리한다.
+        day_exit = (
+            str(getattr(settings, "gabojago_trend_force_exit_time", "15:20") or "15:20")
+            if trend_tracking
+            else str(getattr(settings, "gabojago_force_exit_time", "13:00") or "13:00")
+        )
         if now.strftime("%H:%M") >= day_exit:
             return True, f"가보자 당일 단타 {day_exit} 전량청산"
 
@@ -125,8 +130,6 @@ def evaluate_sell(
             getattr(settings, "gabojago_partial_profit_pct", settings.take_profit_pct)
             or settings.take_profit_pct
         )
-        trend_tracking = bool(getattr(settings, "gabojago_trend_tracking_enabled", True))
-
         # +4% 최초 도달의 일부익절은 엔진에서 처리한다.
         if not partial_taken:
             if pnl >= partial_target:
