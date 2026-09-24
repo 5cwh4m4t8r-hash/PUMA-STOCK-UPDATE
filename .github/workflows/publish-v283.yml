@@ -1,11 +1,8 @@
 name: Publish PUMA STOCK PRO v2.8.4
 
+# Legacy v2.8.4 publisher is manual-only. Keeping a push trigger here can
+# overwrite the current in-app manifest with an obsolete version.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'source_build/v2.8.3/**'
-      - '.github/workflows/publish-v283.yml'
   workflow_dispatch:
 
 permissions:
