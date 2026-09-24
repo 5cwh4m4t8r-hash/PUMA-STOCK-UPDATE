@@ -133,11 +133,9 @@ INDEX_HTML = r"""<!doctype html>
           <option value="SELECTED">현재 선택종목만</option>
         </select>
       </label>
-      <label>후보 소스
-        <select id="autoSource">
-          <option value="WATCHLIST">관심종목</option>
-          <option value="HERO4">영웅문 조건검색</option>
-          <option value="BOTH">관심종목 + 조건검색</option>
+      <label>전체 후보 경로
+        <select id="autoSource" disabled>
+          <option value="HERO4">단타 검색기 전체 → PUMA 2차선별</option>
         </select>
       </label>
       <div class="grid2">
@@ -337,7 +335,7 @@ function render(s){
   setInputValue('autoTrailStart',au.settings?.trailing_start_pct);
   setInputValue('autoTrailGap',au.settings?.trailing_gap_pct);
   if(document.activeElement?.id!=='autoTrailing') document.getElementById('autoTrailing').checked=!!au.settings?.trailing_enabled;
-  if(document.activeElement?.id!=='autoSource' && au.settings?.candidate_source) document.getElementById('autoSource').value=au.settings.candidate_source;
+  if(document.getElementById('autoSource')) document.getElementById('autoSource').value='HERO4';
   renderCandidates(s.candidates||[]);
   renderPositions(s.positions||[]);
   renderLogs(s.logs||[]);
@@ -425,7 +423,7 @@ async function startAuto(){
     scope,
     code:state?.selected?.code||'',
     name:state?.selected?.name||'',
-    candidate_source:document.getElementById('autoSource').value,
+    candidate_source:(scope==='ALL'?'HERO4':document.getElementById('autoSource').value),
     order_budget:Number(document.getElementById('autoBudget').value||0),
     max_positions:Number(document.getElementById('autoMaxPositions').value||0),
     max_daily_orders:Number(document.getElementById('autoDailyOrders').value||0),
