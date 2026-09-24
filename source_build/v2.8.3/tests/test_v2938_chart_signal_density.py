@@ -8,11 +8,10 @@ def test_raw_accumulation_candidates_are_not_drawn():
     assert "매집확정" in src
 
 
-def test_concrete_boxes_are_hidden_when_current_price_is_above_ema224():
+def test_historical_concrete_boxes_remain_visible_after_current_price_moves_above_ema224():
     src = Path("puma_trader/swing_chart.py").read_text(encoding="utf-8")
-    assert "current_above_224 = bool(" in src
-    assert "float(candles[-1]['close']) > float(ema224_full[len(candles)-1])" in src
-    assert "not (current_above_224 and b.get('structure_type') == '공구리')" in src
+    assert "Historical concrete remains visible on its original dates" in src
+    assert "current_above_224 and b.get('structure_type') == '공구리'" not in src
 
 
 def test_accumulation_display_and_internal_evidence_are_separate():
