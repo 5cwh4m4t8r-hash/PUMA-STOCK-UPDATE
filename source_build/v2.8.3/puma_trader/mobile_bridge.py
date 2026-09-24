@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import socket
+import subprocess
 import threading
 import time
 import uuid
@@ -630,8 +631,42 @@ class MobileBridge(QObject):
         finally:
             sock.close()
 
+    def tailscale_ip(self) -> str:
+        """Return this PC's Tailscale IPv4 (100.64.0.0/10) when available."""
+        commands = [
+            ["tailscale", "ip", "-4"],
+            [r"C:\\Program Files\\Tailscale\\tailscale.exe", "ip", "-4"],
+        ]
+        for cmd in commands:
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=2.5,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if proc.returncode != 0:
+                    continue
+                for line in str(proc.stdout or "").splitlines():
+                    ip = line.strip()
+                    parts = ip.split(".")
+                    if len(parts) != 4:
+                        continue
+                    nums = [int(x) for x in parts]
+                    # Tailscale CGNAT range: 100.64.0.0/10
+                    if nums[0] == 100 and 64 <= nums[1] <= 127:
+                        return ip
+            except Exception:
+                pass
+        return ""
+
     def url(self) -> str:
         return f"http://{self.local_ip()}:{self.port}"
+
+    def external_url(self) -> str:
+        ip = self.tailscale_ip()
+        return f"http://{ip}:{self.port}" if ip else ""
 
     def publish(self, state: dict):
         safe = json.loads(json.dumps(state, ensure_ascii=False, default=str))
@@ -686,7 +721,12 @@ class MobileBridge(QObject):
 
     def start(self, port: int | None = None):
         if self.running:
-            return {"url": self.url(), "token": self.token, "port": self.port}
+            return {
+                "url": self.url(),
+                "external_url": self.external_url(),
+                "token": self.token,
+                "port": self.port,
+            }
         if port is not None:
             self.port = max(1024, min(65535, int(port)))
         self._save_config()
@@ -798,7 +838,12 @@ class MobileBridge(QObject):
 
         self._thread = threading.Thread(target=self._server.serve_forever, name="PUMA-Mobile-HTTP", daemon=True)
         self._thread.start()
-        return {"url": self.url(), "token": self.token, "port": self.port}
+        return {
+            "url": self.url(),
+            "external_url": self.external_url(),
+            "token": self.token,
+            "port": self.port,
+        }
 
     def stop(self):
         server = self._server
