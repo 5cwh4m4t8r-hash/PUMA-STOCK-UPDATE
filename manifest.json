@@ -2,5 +2,5 @@
     "version":  "2.9.48",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.48_UPDATE.zip",
     "notes":  "v2.9.48: mobile automatic-trading start/stop controls are rebuilt for immediate, one-tap operation. The start button is disabled while auto-trading is already running, the stop button is disabled while stopped, and both are locked while a command is pending so repeated taps cannot enqueue duplicate start/stop requests. The mobile card now shows \u0027starting/stopping\u0027 state immediately instead of waiting for the next one-second snapshot, polls command completion faster, and reports success/error inline instead of showing repeated confirmation/success popups. The PC command handler is idempotent for already-running/already-stopped requests. Most importantly, TradeEngine buy/full-sell/partial-sell submit paths now re-check engine.enabled immediately before broker submission, so pressing Stop prevents an already in-flight scan from creating a new automatic order after the stop request. Trading strategy and signal rules are unchanged.",
-    "sha256":  "9a7a71dbb00ab025c80aa9311d87a92d24bab38f54dbf64fdd31a54d220cb71f"
+    "sha256":  "a6caf2a68a82c6c97f5292a736b0a81085516fc7fafa2cc919d049cf877612ad"
 }
