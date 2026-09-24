@@ -163,79 +163,134 @@ def normalize_candles(rows: List[dict]) -> List[dict]:
 
 
 def accumulation_flags(candles: List[dict], settings: SwingSettings):
-    """Detect strict raw accumulation candidates.
+    """Detect volume/price-behavior accumulation candidates.
 
-    A candidate must be a high-volume long-upper-wick candle. Large bearish
-    dump candles and small cross/doji candles are explicitly excluded.
-    Final chart/scoring still requires repeated candidates through
-    confirm_accumulation_flags(), so a lone hit is not confirmed accumulation.
+    The user's rule is volume-first, not candle-shape-only:
+      - a long upper wick with clearly elevated volume can be accumulation,
+      - a large bearish dump can also be accumulation when volume explodes,
+      - volume does not need to be 3x the 20-bar average; a visually standout
+        volume spike versus recent history is enough,
+      - unusually large volume with only a muted price response is suspicious
+        accumulation/absorption,
+      - tiny ambiguous cross/doji candles remain excluded.
+
+    Final chart/scoring still uses confirm_accumulation_flags(), so repeated
+    evidence is required before the chart says 'confirmed accumulation'.
     """
-    vols = [c['volume'] for c in candles]
+    vols = [float(c['volume']) for c in candles]
     vma = rolling_mean(vols, settings.volume_period)
     raw = []
     meta = []
 
     for i, c in enumerate(candles):
-        rng = max(c['high'] - c['low'], 1e-9)
-        body = abs(c['close'] - c['open'])
-        upper = max(0.0, c['high'] - max(c['open'], c['close']))
-        lower = max(0.0, min(c['open'], c['close']) - c['low'])
+        rng = max(float(c['high']) - float(c['low']), 1e-9)
+        body = abs(float(c['close']) - float(c['open']))
+        upper = max(0.0, float(c['high']) - max(float(c['open']), float(c['close'])))
+        lower = max(0.0, min(float(c['open']), float(c['close'])) - float(c['low']))
         body_ratio = body / rng
         upper_ratio = upper / rng
-        close_pos = (c['close'] - c['low']) / rng
+        close_pos = (float(c['close']) - float(c['low'])) / rng
 
         ratio = 0.0
         if i > 0 and vma[i - 1]:
-            ratio = c['volume'] / vma[i - 1]
+            ratio = float(c['volume']) / float(vma[i - 1])
 
-        # 매집봉은 "거래량이 강하게 터지면서 긴 윗꼬리가 달린 봉"만 사용한다.
-        # 사용자가 명시한 제외조건:
-        # - 거래량이 적은 봉
-        # - 장대음봉(급락 자체를 매집으로 오인 금지)
-        # - 몸통이 거의 없는 애매한 십자가/도지
-        #
-        # 기존 스윙 기준의 300% 거래량을 최소선으로 고정하고, 사용자가
-        # 더 높은 배수를 설정한 경우에는 그 값을 따른다.
-        volume_req = max(3.0, float(settings.volume_ratio))
-        high_volume = ratio >= volume_req
+        # "눈에 띄는 거래량"은 고정 3배가 아니라 최근 분포까지 함께 본다.
+        recent = sorted(
+            float(candles[j]['volume'])
+            for j in range(max(0, i - 60), i)
+            if float(candles[j]['volume']) > 0
+        )
+        recent_p85 = 0.0
+        recent_p95 = 0.0
+        if recent:
+            p85_idx = min(len(recent) - 1, int((len(recent) - 1) * 0.85))
+            p95_idx = min(len(recent) - 1, int((len(recent) - 1) * 0.95))
+            recent_p85 = recent[p85_idx]
+            recent_p95 = recent[p95_idx]
 
-        # 작은 십자가 제거. 전체 고저폭 대비 몸통이 최소 10%는 있어야 한다.
+        current_vol = float(c['volume'])
+        visually_high = bool(
+            ratio >= 1.80
+            or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
+            or (recent_p95 > 0 and current_vol >= recent_p95)
+        )
+
+        # 작은 십자가/도지는 앞서 정한 대로 제외.
         meaningful_body = body_ratio >= 0.10
 
-        # 장대음봉은 거래량이 커도 매집표시에서 제외한다.
+        # 긴 윗꼬리 + 수상한 거래량.
+        wick_body_req = max(float(settings.upper_wick_vs_body), 1.35)
+        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.40)
+        long_upper = (
+            upper_ratio >= upper_ratio_req
+            and upper >= max(body * wick_body_req, lower * 1.15)
+        )
+
+        # 장대음봉 급락도 거래량이 확실히 터졌다면 매집 후보.
         big_bear = (
-            c['close'] < c['open']
+            float(c['close']) < float(c['open'])
             and body_ratio >= float(settings.bearish_body_ratio)
             and close_pos <= 0.42
         )
+        bear_volume = bool(
+            big_bear
+            and (
+                ratio >= 1.80
+                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.45)
+            )
+        )
 
-        # 긴 윗꼬리는 전체 봉의 거의 절반 이상을 차지하고,
-        # 몸통/아랫꼬리보다 명확하게 길어야 한다.
-        wick_body_req = max(float(settings.upper_wick_vs_body), 1.50)
-        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.45)
-        long_upper = (
-            upper_ratio >= upper_ratio_req
-            and upper >= body * wick_body_req
-            and upper >= lower * 1.25
+        # 가격 반응 대비 거래량이 과도한 흡수형 매집.
+        # 전일 종가 대비 +3% 이내 상승/보합인데 거래량만 최근 상위권이면 후보.
+        prev_close = float(candles[i - 1]['close']) if i > 0 else float(c['open'])
+        close_change_pct = (
+            (float(c['close']) / prev_close - 1.0) * 100.0
+            if prev_close > 0 else 0.0
+        )
+        muted_price_response = bool(
+            meaningful_body
+            and -3.5 <= close_change_pct <= 3.0
+            and (
+                ratio >= 1.70
+                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
+            )
         )
 
         candidate = bool(
-            high_volume
-            and meaningful_body
-            and long_upper
-            and not big_bear
+            meaningful_body
+            and (
+                (visually_high and long_upper)
+                or bear_volume
+                or muted_price_response
+            )
         )
+
+        if candidate:
+            if bear_volume:
+                pattern = '고거래량 장대음봉'
+            elif long_upper:
+                pattern = '고거래량 긴 윗꼬리'
+            else:
+                pattern = '가격반응대비 이상거래량'
+        else:
+            pattern = '-'
+
         raw.append(candidate)
         meta.append({
             'volume_ratio': ratio,
-            'volume_required': volume_req,
+            'volume_recent_p85': recent_p85,
+            'volume_recent_p95': recent_p95,
+            'volume_visually_high': visually_high,
             'upper_wick_ratio': upper_ratio,
             'body_ratio': body_ratio,
-            'pattern': '고거래량 긴 윗꼬리' if candidate else '-',
+            'close_change_pct': close_change_pct,
+            'pattern': pattern,
             'raw_candidate': candidate,
             'confirmed': False,
             'cluster_size': 0,
-            'excluded_big_bear': bool(big_bear),
+            'big_bear': bool(big_bear),
+            'muted_price_response': bool(muted_price_response),
             'excluded_small_cross': bool(not meaningful_body),
         })
     return raw, meta
@@ -612,7 +667,7 @@ def demo_candles(n: int = 520) -> List[dict]:
         hi = max(op, cl) + base_rng * rnd.uniform(0.2, 0.8)
         lo = min(op, cl) - base_rng * rnd.uniform(0.2, 0.8)
         vol = int(120000 + rnd.random() * 180000)
-        # 매집봉: 거래량 증가 + 긴 윗꼬리 or 장대음봉
+        # 매집봉 예시: 거래량 증가 + 긴 윗꼬리 / 장대음봉 급락
         if i in (365, 389, 421):
             vol *= 7
             hi = max(op, cl) + op * 0.10
