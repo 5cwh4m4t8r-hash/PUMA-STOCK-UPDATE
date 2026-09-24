@@ -1021,10 +1021,25 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
                 break
 
     if not events:
-        # No strong EMA224 breakout -> no concrete box is drawn yet.
-        # Concrete is a pre-break structure confirmed retrospectively by the breakout.
+        raw_preview = find_box_before(candles, n - 1, settings)
+        preview_box = _preview_concrete_before_bowl3(
+            candles, raw_preview, n - 1, e112, e224, settings
+        )
         cur=dict(default)
-        return {"current":cur,"box":None,"boxes":[],"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+        if preview_box:
+            source = str(preview_box.get("upper_source") or "")
+            cur.update({
+                "stage":"공구리 준비 · 밥3 직전 대기",
+                "stage_key":"WAIT",
+                "active":False,
+                "reason":f"224 돌파 전 공구리 준비 · 상단 {source} {preview_box['high']:,.0f} · 112 아래",
+                "box_high":float(preview_box["high"]),
+                "box_low":float(preview_box["low"]),
+                "structure_type":"공구리",
+                "quality_score":int(min(100, float(preview_box.get("score", 0)))),
+            })
+        return {"current":cur,"box":preview_box,"boxes":([preview_box] if preview_box else []),
+                "path_breakout":breakout_flags,"path_pullback":pullback_flags,
                 "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
                 "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
