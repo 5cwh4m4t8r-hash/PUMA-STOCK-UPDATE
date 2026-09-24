@@ -167,25 +167,22 @@ def _find_bowl3_pullback(
         if concrete_mid > 0:
             targets.append(("공구리중간", 0, concrete_mid))
 
-        valid_targets = []
+        # Restore the earlier Bowl-3 placement rule: use the first valid
+        # pullback support in the original priority order rather than moving the
+        # marker to whichever target happens to be numerically closest to the low.
         for source, line_no, target in targets:
             touched = low <= target * (1 + touch_tol)
             held = close >= target * (1 - hold_tol)
             if touched and held:
-                distance = abs(low - target) / max(target, 1e-9)
-                valid_targets.append((distance, source, line_no, target))
-
-        if valid_targets:
-            _, source, line_no, target = min(valid_targets, key=lambda x: x[0])
-            return {
-                "index": j,
-                "source": source,
-                "line": line_no,
-                "value": target,
-                "reference_open": ref_open,
-                "concrete_mid": concrete_mid,
-                "box": box,
-            }
+                return {
+                    "index": j,
+                    "source": source,
+                    "line": line_no,
+                    "value": target,
+                    "reference_open": ref_open,
+                    "concrete_mid": concrete_mid,
+                    "box": box,
+                }
     return None
 
 
@@ -239,8 +236,8 @@ def _historical_bowl3_markers(
             markers.append({
                 "index": found_idx,
                 "kind": "historical_core",
-                "label": f"밥3 {found_source}" if found_source else "밥3",
-                "stage": f"과거 유사 · {found_source} 눌림",
+                "label": "밥3",
+                "stage": "과거 밥3",
                 "breakout_index": i,
                 "retest_line": found_line,
                 "retest_source": found_source,
