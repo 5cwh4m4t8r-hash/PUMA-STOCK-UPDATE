@@ -2,5 +2,5 @@
     "version":  "2.9.33",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.33_UPDATE.zip",
     "notes":  "v2.9.33: PUMA watermelon is redefined around observable bottom-area concentrated-capital footprints rather than only later long-MA reclaim confirmation. The model now scores abnormal relative volume, high-volume absorption patterns (large bearish bars, long upper wicks, or unusually large volume with muted price response), direct interaction with EMA112/224, and interaction/reclaim of the visible Ichimoku cloud. A bottom-area footprint touching these structural levels can mark the intervention zone before the rebound fully matures; later long-MA reclaim, settling and reversal still strengthen confirmation. The analysis panel now exposes a separate large-money footprint score and reason. This is a chart-based proxy for concentrated capital activity, not identification of any specific market participant. Arrow, Bowl-3, accumulation, zoom and live-order rules remain unchanged.",
-    "sha256":  "c78ab0fc7e172ef0a588424fcb6402b307dffa2d5c3d65947552ad9cb19b67b4"
+    "sha256":  "0adb020e8d5e1aefdb1062ef78d4f10e7fc1e92ffb8e901ba1c1a5ce9e056ad4"
 }
