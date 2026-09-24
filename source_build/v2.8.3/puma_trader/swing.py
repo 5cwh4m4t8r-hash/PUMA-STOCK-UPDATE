@@ -216,7 +216,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         visually_high = bool(
             ratio >= relative_ref
             or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.30)
-            or (recent_p95 > 0 and current_vol >= recent_p95)
+            or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
         )
 
         # 작은 십자가/도지는 앞서 정한 대로 제외.
@@ -241,7 +241,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             and (
                 ratio >= relative_ref
                 or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
-                or (recent_p95 > 0 and current_vol >= recent_p95)
+                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
             )
         )
 
@@ -258,7 +258,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             and (
                 ratio >= max(1.50, relative_ref * 0.90)
                 or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.25)
-                or (recent_p95 > 0 and current_vol >= recent_p95)
+                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
             )
         )
 
