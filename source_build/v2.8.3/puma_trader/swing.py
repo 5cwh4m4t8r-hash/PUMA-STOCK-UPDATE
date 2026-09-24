@@ -415,6 +415,7 @@ def confirm_accumulation_flags(raw_flags: List[bool], meta: List[dict], cluster_
         for idx in group:
             if idx < len(meta):
                 meta[idx]['cluster_size'] = cluster_size
+                meta[idx]['cluster_confirmed'] = True
                 meta[idx]['cluster_representative'] = (idx == best)
                 if idx == best:
                     meta[idx]['confirmed'] = True
@@ -562,6 +563,10 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     blue = shifted_bbands_upper(closes, settings.blue_period, settings.blue_dev, settings.blue_shift)
     raw_acc_flags, acc_meta = accumulation_flags(candles, settings)
     acc_flags = confirm_accumulation_flags(raw_acc_flags, acc_meta, settings.accumulation_cluster_window)
+    acc_evidence_flags = [
+        bool(acc_meta[i].get('cluster_confirmed')) if i < len(acc_meta) else False
+        for i in range(len(candles))
+    ]
 
     last = len(candles) - 1
     reverse = False
@@ -571,6 +576,10 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
 
     look_start = max(0, len(candles) - settings.accumulation_lookback)
     acc_idx = [i for i in range(look_start, len(candles)) if acc_flags[i]]
+    acc_evidence_idx = [
+        i for i in range(look_start, len(candles))
+        if i < len(acc_evidence_flags) and acc_evidence_flags[i]
+    ]
     raw_acc_idx = [
         i for i in range(look_start, len(candles))
         if i < len(acc_meta) and bool(acc_meta[i].get('raw_candidate'))
@@ -593,7 +602,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     if reverse:
         score += 20
         stage = '매집봉 대기'
-    if len(acc_idx) >= required_acc:
+    if len(acc_evidence_idx) >= required_acc:
         score += 20
         stage = '공구리(박스권) 확인'
     if box:
@@ -730,7 +739,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     }
     series.update(ichimoku_cloud(candles))
     series.update(arrow_series)
-    series.update(build_puma_watermelon(candles, arrow_series, acc_flags=acc_flags))
+    series.update(build_puma_watermelon(candles, arrow_series, acc_flags=acc_evidence_flags))
     wm_stage = series.get('watermelon_stage', [0])[-1] if series.get('watermelon_stage') else 0
     wm_score = series.get('watermelon_score', [0])[-1] if series.get('watermelon_score') else 0
     wm_reason = series.get('watermelon_reason', ['-'])[-1] if series.get('watermelon_reason') else '-'
