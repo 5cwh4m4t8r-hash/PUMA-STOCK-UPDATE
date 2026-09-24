@@ -157,8 +157,9 @@ INDEX_HTML = r"""<!doctype html>
         <label>고점대비 하락 %<input id="autoTrailGap" type="number" step="0.1"></label>
       </div>
       <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
-      <button class="ghost full stop-auto" onclick="stopAuto()">■ 자동매매 중지</button>
-      <div class="muted small">모바일에서 실전 잠금을 최초 1회 해제하면 이후에는 추가 확인 없이 사용할 수 있습니다.</div>
+      <button id="autoStopBtn" class="ghost full stop-auto" onclick="stopAuto()" disabled>■ 자동매매 중지</button>
+      <div id="autoCommandMsg" class="muted small auto-command-msg">상태 동기화 중</div>
+      <div class="muted small">실전 잠금을 최초 1회 해제한 뒤에는 시작/중지를 한 번 눌러 바로 제어합니다.</div>
     </div>
     <div class="card order-card">
       <div class="card-title">수동 주문</div>
@@ -220,7 +221,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .brand{font-size:18px;font-weight:900;letter-spacing:.4px}.muted{color:var(--muted);font-size:12px}.small{font-size:11px}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:11px}.badge.on{background:#0a6b45;color:#8fffc2}.badge.off{background:#542331;color:#ff9cac}
 main{max-width:760px;margin:0 auto;padding:12px}.page{display:none}.page.active{display:block}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px;box-shadow:0 5px 18px rgba(0,0,0,.18)}.card-title{font-weight:900;margin-bottom:9px}.k{font-size:11px;color:var(--muted)}.v{font-size:17px;font-weight:900}.price{font-size:21px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}.analysis{white-space:pre-wrap;margin:0;color:#f4d46b;font:700 12px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:13px;color:#68f29c}
 .page-head,.stock-head,.chart-toolbar,.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:7px}.stock-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;background:#0b1b2c;border:1px solid #203b58;border-radius:10px}.stock-row:active{transform:scale(.995);background:#142f4e}.stock-title{font-weight:900}.stock-meta{font-size:11px;color:var(--muted);margin-top:3px}.class-pill{align-self:center;padding:5px 7px;border-radius:7px;background:#15395d;color:#6dc6ff;font-size:11px;font-weight:900}.inactive{opacity:.55}.log-row{display:grid;grid-template-columns:52px 70px 1fr;gap:7px;padding:7px 0;border-bottom:1px solid rgba(78,111,145,.25);font-size:11px}.log-kind{font-weight:900;color:#72bfff}.warning{background:#4a3011;color:#ffd77c;border:1px solid #7a5520;border-radius:9px;padding:9px;margin-bottom:10px;font-size:12px;font-weight:800}
-button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}
+button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.auto-command-msg{min-height:18px;margin:8px 2px 2px}.auto-command-msg.ok{color:#61ff8f}.auto-command-msg.busy{color:#ffd65a}.auto-command-msg.err{color:#ff7885}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}
 .chart-card{padding:10px}.mini{padding:5px 9px;margin-right:5px;font-size:10px;background:#102a46;border:1px solid #315a84}.active-mini{background:#1c65a6;color:#fff}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(7,17,29,.97);border-top:1px solid var(--line);backdrop-filter:blur(16px)}nav button{background:none;border-radius:0;color:#829db7;font-size:11px;padding:8px 2px}nav button.active{color:#65baff;border-top:2px solid #4da9ff}
 .overlay{position:fixed;inset:0;z-index:100;background:rgba(3,9,16,.94);display:flex;align-items:center;justify-content:center;padding:24px}.overlay.hidden{display:none}.pair-card{width:min(400px,100%);padding:25px;background:#10233a;border:1px solid #315273;border-radius:20px;text-align:center}.pair-card .logo{font-size:54px}.pair-card h1{font-size:21px}.pair-card input{text-align:center;font-size:28px;letter-spacing:9px;font-weight:900;margin:14px 0}.pair-card button{margin-bottom:8px}
@@ -230,6 +231,7 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(saf
 APP_JS = r"""
 let token=localStorage.getItem('puma_token')||'';
 let state=null, pollTimer=null, commandTimers={};
+let autoCommandBusy=false, autoCommandWanted=null;
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function money(v){let n=Number(String(v??0).replace(/[^\d.-]/g,''));return Number.isFinite(n)?Math.round(n).toLocaleString('ko-KR'):'-'}
@@ -306,11 +308,27 @@ function render(s){
 
   const au=s.auto||{};
   const autoStatus=document.getElementById('autoStatus');
-  autoStatus.textContent=au.enabled?'실행 중':'중지';
-  autoStatus.className='v '+(au.enabled?'auto-running':'auto-stopped');
-  document.getElementById('autoScope').textContent=au.enabled?(au.scope_label||'-'):'-';
+  const actuallyEnabled=!!au.enabled;
+  const shownEnabled=autoCommandBusy && autoCommandWanted!==null ? !!autoCommandWanted : actuallyEnabled;
+  autoStatus.textContent=autoCommandBusy
+    ? (autoCommandWanted?'시작 처리 중…':'중지 처리 중…')
+    : (actuallyEnabled?'실행 중':'중지');
+  autoStatus.className='v '+(shownEnabled?'auto-running':'auto-stopped');
+  document.getElementById('autoScope').textContent=actuallyEnabled?(au.scope_label||'-'):'-';
   document.getElementById('autoLock').style.display=unlocked?'none':'block';
-  document.getElementById('autoStartBtn').disabled=!unlocked;
+  const startBtn=document.getElementById('autoStartBtn');
+  const stopBtn=document.getElementById('autoStopBtn');
+  startBtn.disabled=!unlocked || actuallyEnabled || autoCommandBusy;
+  stopBtn.disabled=!actuallyEnabled || autoCommandBusy;
+  startBtn.textContent=autoCommandBusy&&autoCommandWanted?'시작 처리 중…':'▶ 자동매매 시작';
+  stopBtn.textContent=autoCommandBusy&&autoCommandWanted===false?'중지 처리 중…':'■ 자동매매 중지';
+  if(!autoCommandBusy){
+    const msg=document.getElementById('autoCommandMsg');
+    if(msg && !msg.classList.contains('err')){
+      msg.textContent=actuallyEnabled?'PC 자동매매 실행 중':'PC 자동매매 중지';
+      msg.className='muted small auto-command-msg '+(actuallyEnabled?'ok':'');
+    }
+  }
   setInputValue('autoBudget',au.settings?.order_budget);
   setInputValue('autoMaxPositions',au.settings?.max_positions);
   setInputValue('autoDailyOrders',au.settings?.max_daily_orders);
@@ -397,9 +415,11 @@ async function lockLive(){
   }catch(e){alert('잠금 설정 실패: '+e.message)}
 }
 async function startAuto(){
-  if(!state?.mobile_live_unlocked){alert('설정에서 실전 잠금을 최초 1회 해제하세요.');return;}
+  if(autoCommandBusy)return;
+  if(state?.auto?.enabled){setAutoMessage('이미 자동매매 실행 중입니다.','ok');return;}
+  if(!state?.mobile_live_unlocked){setAutoMessage('설정에서 실전 잠금을 최초 1회 해제하세요.','err');return;}
   const scope=document.getElementById('autoScopeSelect').value;
-  if(scope==='SELECTED'&&!state?.selected?.code){alert('먼저 종목을 선택하세요.');return}
+  if(scope==='SELECTED'&&!state?.selected?.code){setAutoMessage('먼저 종목을 선택하세요.','err');return}
   const payload={
     type:'auto_start',
     scope,
@@ -415,31 +435,74 @@ async function startAuto(){
     trailing_start_pct:Number(document.getElementById('autoTrailStart').value||0),
     trailing_gap_pct:Number(document.getElementById('autoTrailGap').value||0)
   };
-  const what=scope==='SELECTED'?(payload.name||payload.code)+' 한 종목':'전체 후보';
-  if(!confirm(what+' 자동매매를 시작할까요?'))return;
+  setAutoPending(true);
   try{
     const r=await api('/api/command',{method:'POST',body:JSON.stringify(payload)});
-    pollAutoResult(r.request_id,'시작');
-  }catch(e){alert('자동매매 시작 실패: '+e.message)}
+    pollAutoResult(r.request_id,true);
+  }catch(e){
+    finishAutoPending(false,'자동매매 시작 실패: '+e.message,true);
+  }
 }
 async function stopAuto(){
-  if(!state?.auto?.enabled){refreshNow();return}
-  if(!confirm('자동매매를 중지할까요?'))return;
+  if(autoCommandBusy)return;
+  if(!state?.auto?.enabled){setAutoMessage('이미 자동매매 중지 상태입니다.');return;}
+  setAutoPending(false);
   try{
     const r=await api('/api/command',{method:'POST',body:JSON.stringify({type:'auto_stop'})});
-    pollAutoResult(r.request_id,'중지');
-  }catch(e){alert('자동매매 중지 실패: '+e.message)}
+    pollAutoResult(r.request_id,false);
+  }catch(e){
+    finishAutoPending(true,'자동매매 중지 실패: '+e.message,true);
+  }
 }
-function pollAutoResult(id,action){
-  let count=0;
-  const t=setInterval(async()=>{
+function setAutoPending(wanted){
+  autoCommandBusy=true;
+  autoCommandWanted=!!wanted;
+  setAutoMessage(wanted?'PC에 자동매매 시작 요청 중…':'PC에 자동매매 중지 요청 중…','busy');
+  if(state)render(state);
+}
+function finishAutoPending(actual,message,isError=false){
+  autoCommandBusy=false;
+  autoCommandWanted=null;
+  if(state?.auto)state.auto.enabled=!!actual;
+  setAutoMessage(message,isError?'err':(actual?'ok':''));
+  if(state)render(state);
+  refreshNow();
+}
+function setAutoMessage(message,kind=''){
+  const el=document.getElementById('autoCommandMsg');
+  if(!el)return;
+  el.textContent=message||'';
+  el.className='muted small auto-command-msg '+kind;
+}
+function pollAutoResult(id,wanted){
+  let count=0, stopped=false;
+  const finish=(actual,message,error=false)=>{
+    if(stopped)return;
+    stopped=true;
+    clearInterval(t);
+    finishAutoPending(actual,message,error);
+  };
+  const check=async()=>{
     try{
       const r=await api('/api/command/'+id);
-      if(r.status==='done'){clearInterval(t);alert('자동매매 '+action+': '+(r.result?.message||'완료'));refreshNow();}
-      if(r.status==='error'){clearInterval(t);alert('자동매매 '+action+' 실패: '+(r.error||'오류'));}
-    }catch(e){clearInterval(t)}
-    if(++count>30){clearInterval(t);alert('처리 결과 확인 시간이 초과되었습니다. PC 로그를 확인하세요.');}
-  },300);
+      if(r.status==='done'){
+        finish(!!wanted,r.result?.message||('자동매매 '+(wanted?'시작':'중지')+' 완료'));
+        return;
+      }
+      if(r.status==='error'){
+        finish(!wanted,'자동매매 '+(wanted?'시작':'중지')+' 실패: '+(r.error||'오류'),true);
+        return;
+      }
+    }catch(e){
+      finish(!wanted,'처리 결과 확인 실패: '+e.message,true);
+      return;
+    }
+    if(++count>40){
+      finish(!wanted,'처리 결과 확인 시간이 초과되었습니다. PC 상태를 다시 확인하세요.',true);
+    }
+  };
+  const t=setInterval(check,150);
+  check();
 }
 async function submitOrder(){
   if(!state?.mobile_live_unlocked){alert('설정에서 실전 잠금을 최초 1회 해제하세요.');return;}
