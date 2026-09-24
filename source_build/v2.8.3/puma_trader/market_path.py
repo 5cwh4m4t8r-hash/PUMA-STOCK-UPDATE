@@ -1007,9 +1007,15 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
                 break
 
     if not events:
+        historical_previews = _scan_historical_concrete_previews(
+            candles, e112, e224, settings
+        )
         raw_preview = find_box_before(candles, n - 1, settings)
         preview_box = _preview_concrete_before_bowl3(
             candles, raw_preview, n - 1, e112, e224, settings
+        )
+        display_boxes = _dedupe_display_boxes(
+            historical_previews + ([preview_box] if preview_box else [])
         )
         cur=dict(default)
         if preview_box:
@@ -1024,7 +1030,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
                 "structure_type":"공구리",
                 "quality_score":int(min(100, float(preview_box.get("score", 0)))),
             })
-        return {"current":cur,"box":preview_box,"boxes":([preview_box] if preview_box else []),
+        return {"current":cur,"box":preview_box,"boxes":display_boxes,
                 "path_breakout":breakout_flags,"path_pullback":pullback_flags,
                 "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
                 "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
