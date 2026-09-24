@@ -221,21 +221,21 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         # Old saved configs may still contain 3.0. Treat this as a reference
         # sensitivity, never as a hard 300% gate.
         relative_ref = min(2.20, max(1.35, float(settings.volume_ratio)))
+        prev_ratio = current_vol / prev_vol if prev_vol > 0 else 0.0
         visually_high = bool(
-            ratio >= relative_ref
-            or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.30)
-            or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
+            (ratio >= 1.80 and prev_ratio >= 1.20)
+            or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.50 and prev_ratio >= 1.20)
         )
 
         # 작은 십자가/도지는 앞서 정한 대로 제외.
         meaningful_body = body_ratio >= 0.10
 
         # 긴 윗꼬리 + 수상한 거래량.
-        wick_body_req = max(float(settings.upper_wick_vs_body), 1.35)
-        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.40)
+        wick_body_req = max(float(settings.upper_wick_vs_body), 1.50)
+        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.50)
         long_upper = (
             upper_ratio >= upper_ratio_req
-            and upper >= max(body * wick_body_req, lower * 1.15)
+            and upper >= max(body * wick_body_req, lower * 1.25)
         )
 
         is_bearish = float(c['close']) < float(c['open'])
@@ -244,15 +244,14 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         # 장대음봉이 아닌 일반 음봉은 윗꼬리/흡수형 조건이 맞아도 매집에서 제외한다.
         big_bear = (
             is_bearish
-            and body_ratio >= float(settings.bearish_body_ratio)
-            and close_pos <= 0.42
+            and body_ratio >= max(float(settings.bearish_body_ratio), 0.62)
+            and close_pos <= 0.30
         )
         bear_volume = bool(
             big_bear
             and (
-                ratio >= relative_ref
-                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.35)
-                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
+                (ratio >= 2.00 and prev_ratio >= 1.30)
+                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.80 and prev_ratio >= 1.30)
             )
         )
 
@@ -280,13 +279,13 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         overwhelming_volume = bool(
             volume_up_vs_prev
             and (
-                ratio >= 2.50
+                ratio >= 3.00
                 or (
                     recent_p95 > 0
                     and current_vol >= recent_p95
-                    and ratio >= 2.00
+                    and ratio >= 2.30
                     and prev_vol > 0
-                    and current_vol >= prev_vol * 1.50
+                    and current_vol >= prev_vol * 1.70
                 )
             )
         )
@@ -299,9 +298,31 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             )
         )
 
+        confidence_score = 0
+        if ratio >= 3.0:
+            confidence_score += 45
+        elif ratio >= 2.2:
+            confidence_score += 35
+        elif ratio >= 1.8:
+            confidence_score += 25
+        if prev_ratio >= 2.0:
+            confidence_score += 25
+        elif prev_ratio >= 1.5:
+            confidence_score += 18
+        elif prev_ratio >= 1.25:
+            confidence_score += 10
+        if long_upper:
+            confidence_score += 30
+        if big_bear:
+            confidence_score += 30
+        if overwhelming_volume:
+            confidence_score += 30
+        confidence_score = min(100, confidence_score)
+
         candidate = bool(
             volume_up_vs_prev
             and meaningful_body
+            and confidence_score >= 70
             and (
                 bear_volume
                 or non_bear_candidate
@@ -322,6 +343,8 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         meta.append({
             'volume_ratio': ratio,
             'previous_volume': prev_vol,
+            'previous_volume_ratio': prev_ratio,
+            'confidence_score': confidence_score,
             'volume_up_vs_prev': volume_up_vs_prev,
             'volume_recent_p85': recent_p85,
             'volume_recent_p95': recent_p95,
@@ -349,12 +372,18 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
 
 
 def confirm_accumulation_flags(raw_flags: List[bool], meta: List[dict], cluster_window: int = 20):
-    """Confirm only repeated candidates; single hits stay as '후보'."""
+    """Display only high-confidence accumulation evidence.
+
+    - Single ordinary candidates are hidden.
+    - A repeated cluster keeps only ONE strongest representative bar.
+    - A single bar may survive only when it is extreme (confidence >= 95).
+    """
     raw_idx = [i for i, flag in enumerate(raw_flags) if flag]
     groups = []
     group = []
+    effective_window = min(int(cluster_window), 15)
     for idx in raw_idx:
-        if not group or idx - group[-1] <= cluster_window:
+        if not group or idx - group[-1] <= effective_window:
             group.append(idx)
         else:
             groups.append(group)
@@ -364,14 +393,31 @@ def confirm_accumulation_flags(raw_flags: List[bool], meta: List[dict], cluster_
 
     confirmed = [False] * len(raw_flags)
     for group in groups:
-        size = len(group)
-        if size < 2:
+        if not group:
             continue
+        if len(group) == 1:
+            idx = group[0]
+            confidence = int(meta[idx].get('confidence_score', 0)) if idx < len(meta) else 0
+            if confidence < 95:
+                continue
+            best = idx
+        else:
+            best = max(
+                group,
+                key=lambda idx: (
+                    int(meta[idx].get('confidence_score', 0)) if idx < len(meta) else 0,
+                    float(meta[idx].get('volume_ratio', 0)) if idx < len(meta) else 0.0,
+                ),
+            )
+
+        confirmed[best] = True
+        cluster_size = len(group)
         for idx in group:
-            confirmed[idx] = True
             if idx < len(meta):
-                meta[idx]['confirmed'] = True
-                meta[idx]['cluster_size'] = size
+                meta[idx]['cluster_size'] = cluster_size
+                meta[idx]['cluster_representative'] = (idx == best)
+                if idx == best:
+                    meta[idx]['confirmed'] = True
     return confirmed
 
 
@@ -586,7 +632,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
 
     reasons = [
         ('장기 역배열 확인' if reverse else '장기 역배열 미확인'),
-        (f'매집확정 {len(acc_idx)}봉' if len(acc_idx) >= required_acc else f'매집확정 없음 / 후보 {len(raw_acc_idx)}봉'),
+        (f'매집확정 {len(acc_idx)}곳' if acc_idx else '매집확정 없음'),
         (
             '공구리 확인'
             if box and box.get('structure_type') == '공구리'
@@ -608,7 +654,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     details = {
         '간단 이유': ' · '.join(reasons[:4]),
         '장기 EMA 역배열': '확인' if reverse else '미확인',
-        '매집봉/구간': (f'확정 {len(acc_idx)}봉 · 후보 {len(raw_acc_idx)}봉' if acc_idx else f'확정 없음 · 후보 {len(raw_acc_idx)}봉'),
+        '매집봉/구간': (f'확실한 매집 {len(acc_idx)}곳' if acc_idx else '확실한 매집 없음'),
         '공구리(박스권)': (
             (
                 f"확인 · 실제 수평구간 {box.get('period',0)}봉 · "
