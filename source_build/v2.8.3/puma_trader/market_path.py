@@ -599,6 +599,98 @@ def _preview_concrete_before_bowl3(
     return out
 
 
+def _scan_historical_concrete_previews(
+    candles: list[dict],
+    e112,
+    e224,
+    settings: Any=None,
+) -> list[dict]:
+    """Collect distinct pre-Bowl concrete boxes across the full loaded history.
+
+    We prefilter cheaply, then run the adaptive box finder only at likely
+    Bowl-3 preparation endpoints. This keeps historical coverage without
+    turning every daily bar into an expensive full box scan.
+    """
+    n = len(candles)
+    if n < 80:
+        return []
+
+    # Prefix count for closes below EMA224.
+    below_prefix = [0] * (n + 1)
+    for i in range(n):
+        below = bool(
+            i < len(e224)
+            and e224[i] is not None
+            and float(candles[i]["close"]) < float(e224[i])
+        )
+        below_prefix[i + 1] = below_prefix[i] + (1 if below else 0)
+
+    # Recent volume-impulse flags used only as a prefilter.
+    impulse = [False] * n
+    for i in range(20, n):
+        _, vs_prev, vs_avg = _volume_strength(candles, i)
+        impulse[i] = bool(vs_prev >= 1.5 or vs_avg >= 1.8)
+
+    impulse_prefix = [0] * (n + 1)
+    for i, flag in enumerate(impulse):
+        impulse_prefix[i + 1] = impulse_prefix[i] + (1 if flag else 0)
+
+    found = []
+    last_scan = -999
+    last_candidate = -1
+
+    for i in range(60, n):
+        if i >= len(e112) or i >= len(e224) or e112[i] is None or e224[i] is None:
+            continue
+        close = float(candles[i]["close"])
+        ema224 = float(e224[i])
+        ema112 = float(e112[i])
+
+        # Historical concrete is only a BELOW-224, BELOW-112 preparation box.
+        if close >= ema224:
+            continue
+
+        left = max(0, i - 99)
+        valid_count = i - left + 1
+        below_count = below_prefix[i + 1] - below_prefix[left]
+        if valid_count < 60 or below_count < 60:
+            continue
+
+        near_224 = abs(close / ema224 - 1.0) <= 0.06 if ema224 > 0 else False
+        imp_left = max(0, i - 19)
+        recent_impulse = (impulse_prefix[i + 1] - impulse_prefix[imp_left]) > 0
+        near_112 = close >= ema112 * 0.97
+
+        if not (near_224 or (near_112 and recent_impulse)):
+            continue
+
+        last_candidate = i
+        # One scan every 4 bars inside a continuous preparation run is enough;
+        # dedupe later merges the same box while preserving separate old boxes.
+        if i - last_scan < 4:
+            continue
+
+        raw = find_box_before(candles, i, settings)
+        preview = _preview_concrete_before_bowl3(
+            candles, raw, i, e112, e224, settings
+        )
+        if preview:
+            found.append(preview)
+            last_scan = i
+
+    # Always scan the latest qualifying historical endpoint once, even when it
+    # fell inside the 4-bar throttle.
+    if last_candidate >= 0 and last_candidate != last_scan:
+        raw = find_box_before(candles, last_candidate, settings)
+        preview = _preview_concrete_before_bowl3(
+            candles, raw, last_candidate, e112, e224, settings
+        )
+        if preview:
+            found.append(preview)
+
+    return _dedupe_display_boxes(found)
+
+
 def _structure_before(candles: list[dict], end_idx: int, settings: Any=None) -> dict | None:
     return find_box_before(candles, end_idx, settings) or _fallback_hill(candles, end_idx, settings)
 
@@ -1013,32 +1105,35 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     # Preserve confirmed historical concrete plus any NEW pre-break concrete
     # already visible before the next Bowl-3/EMA224 breakout.
-    historical_concrete = [
+    confirmed_concrete = [
         x for x in events
         if x.get("structure_type") == "공구리"
         and int(x.get("breakout_ma_period", 0)) == 224
         and concrete_allowed_below_long_mas(x)
         and str(x.get("upper_source") or "") in ("전고언덕", "양봉종가")
     ]
-    display_boxes = _dedupe_display_boxes(historical_concrete)
 
-    # A new pre-Bowl concrete may be forming even after an older historical path.
-    # Show it BEFORE the next EMA224 breakout, never after.
+    # Full-history concrete scan: show past valid bases as well as the current one.
+    historical_previews = _scan_historical_concrete_previews(
+        candles, e112, e224, settings
+    )
+    display_boxes = _dedupe_display_boxes(
+        confirmed_concrete + historical_previews
+    )
+
+    # Current preview is selected separately for the analysis panel.
     raw_preview = find_box_before(candles, n - 1, settings)
     preview_box = _preview_concrete_before_bowl3(
         candles, raw_preview, n - 1, e112, e224, settings
     )
-    if preview_box:
-        display_boxes = _dedupe_display_boxes(display_boxes + [preview_box])
 
     current_above_224 = bool(
         e224[-1] is not None
         and float(candles[-1]["close"]) > float(e224[-1])
     )
     if current_above_224:
-        # Above EMA224 there is no current "공구리" state. Keep the historical
-        # event internally for path continuity, but expose no concrete box.
-        display_boxes = []
+        # No CURRENT concrete above EMA224, but historical valid concrete boxes
+        # remain visible on their original dates.
         box_for_ui = None if event.get("structure_type") == "공구리" else event
     else:
         box_for_ui = preview_box or event
