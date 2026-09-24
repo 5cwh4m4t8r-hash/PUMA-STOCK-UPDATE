@@ -540,7 +540,17 @@ def _preview_concrete_before_bowl3(
             volume_impulse = True
             break
 
-    if not (near_224 or (near_or_above_112 and volume_impulse)):
+    strong_base = bool(
+        float(box.get("score", 0)) >= 90.0
+        and int(box.get("period", 0)) >= 12
+        and int(box.get("top_touches", 0)) >= 3
+        and int(box.get("bottom_touches", 0)) >= 3
+        and int(box.get("alternations", 0)) >= 3
+    )
+
+    # Concrete can exist well BEFORE the 3/Bowl-3 point. If the sideways base
+    # itself is strong enough, do not wait for price to get close to EMA224.
+    if not (strong_base or near_224 or (near_or_above_112 and volume_impulse)):
         return None
 
     selected_level = 0.0
@@ -607,9 +617,9 @@ def _scan_historical_concrete_previews(
 ) -> list[dict]:
     """Collect distinct pre-Bowl concrete boxes across the full loaded history.
 
-    We prefilter cheaply, then run the adaptive box finder only at likely
-    Bowl-3 preparation endpoints. This keeps historical coverage without
-    turning every daily bar into an expensive full box scan.
+    We scan periodically while price has a long below-EMA224 history, then let
+    the preview validator decide whether the base is structurally strong and
+    below EMA112. This allows concrete to appear well before Bowl-3.
     """
     n = len(candles)
     if n < 80:
@@ -656,18 +666,11 @@ def _scan_historical_concrete_previews(
         if valid_count < 60 or below_count < 60:
             continue
 
-        near_224 = abs(close / ema224 - 1.0) <= 0.06 if ema224 > 0 else False
-        imp_left = max(0, i - 19)
-        recent_impulse = (impulse_prefix[i + 1] - impulse_prefix[imp_left]) > 0
-        near_112 = close >= ema112 * 0.97
-
-        if not (near_224 or (near_112 and recent_impulse)):
-            continue
-
+        # A concrete base may form long before MA proximity. Periodically scan
+        # the long-below-224 history; _preview_concrete_before_bowl3 performs
+        # the expensive structural-quality/EMA112 validation.
         last_candidate = i
-        # One scan every 4 bars inside a continuous preparation run is enough;
-        # dedupe later merges the same box while preserving separate old boxes.
-        if i - last_scan < 4:
+        if i - last_scan < 6:
             continue
 
         raw = find_box_before(candles, i, settings)
