@@ -175,7 +175,7 @@ final class PumaClient: ObservableObject {
             "scope": scope,
             "code": selected?.code ?? "",
             "name": selected?.name ?? "",
-            "candidate_source": settings?.candidateSource ?? "HERO4",
+            "candidate_source": scope == "ALL" ? "HERO4" : (settings?.candidateSource ?? "HERO4"),
             "order_budget": settings?.orderBudget ?? 500_000,
             "max_positions": settings?.maxPositions ?? 3,
             "max_daily_orders": settings?.maxDailyOrders ?? 20,
