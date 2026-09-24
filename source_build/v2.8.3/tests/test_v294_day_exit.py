@@ -20,36 +20,36 @@ def _gaboja_position(partial=False):
     )
 
 
-def test_gaboja_force_exit_at_1300_before_partial():
+def test_gaboja_force_exit_at_1520_before_partial():
     p = _gaboja_position(partial=False)
     sell, reason = evaluate_sell(
         p, 10450, StrategySettings(),
-        now=datetime(2026, 9, 24, 13, 0),
-        bar_key="202609241300",
+        now=datetime(2026, 9, 24, 15, 20),
+        bar_key="202609241520",
+        previous_bar_close=10400,
+    )
+    assert sell is True
+    assert "15:20 전량청산" in reason
+
+
+def test_gaboja_force_exit_at_1520_after_partial():
+    p = _gaboja_position(partial=True)
+    sell, reason = evaluate_sell(
+        p, 10400, StrategySettings(),
+        now=datetime(2026, 9, 24, 15, 25),
+        bar_key="202609241525",
         previous_bar_close=10400,
     )
     assert sell is True
     assert "13:00 전량청산" in reason
 
 
-def test_gaboja_force_exit_at_1300_after_partial():
+def test_gaboja_not_forced_before_1520():
     p = _gaboja_position(partial=True)
     sell, reason = evaluate_sell(
         p, 10400, StrategySettings(),
-        now=datetime(2026, 9, 24, 13, 5),
-        bar_key="202609241305",
-        previous_bar_close=10400,
-    )
-    assert sell is True
-    assert "13:00 전량청산" in reason
-
-
-def test_gaboja_not_forced_before_1300():
-    p = _gaboja_position(partial=True)
-    sell, reason = evaluate_sell(
-        p, 10400, StrategySettings(),
-        now=datetime(2026, 9, 24, 12, 59),
-        bar_key="202609241255",
+        now=datetime(2026, 9, 24, 15, 19),
+        bar_key="202609241515",
         previous_bar_close=10400,
     )
     assert sell is False
