@@ -96,35 +96,51 @@ def _box_wave(start_date, center, low, high, count, volume=1000):
     return rows
 
 
-def test_full_history_scan_keeps_multiple_distinct_concrete_boxes():
+def test_full_history_scan_keeps_one_box_per_strong_224_reference_and_cuts_before_reference():
     candles = []
-    candles += _box_wave("a", 90, 80, 100, 90, 1000)
-    # Above-224 separation; should split historical structures.
-    candles += [b(f"gap-{i}", 120, 124, 118, 122, 1300) for i in range(25)]
-    candles += _box_wave("b", 72, 64, 82, 95, 900)
+
+    # First long concrete base.
+    candles += _box_wave("a", 90, 80, 100, 80, 1000)
+    first_ref = len(candles)
+    candles.append(b("ref-a", 95, 116, 94, 112, 5000))
+
+    # Separation, then second long concrete base.
+    candles += [b(f"sep-{i}", 118, 122, 116, 120, 1300) for i in range(12)]
+    second_base_start = len(candles)
+    candles += _box_wave("b", 72, 64, 82, 80, 900)
+    second_ref = len(candles)
+    candles.append(b("ref-b", 78, 96, 77, 94, 5000))
 
     n = len(candles)
-    e112 = []
-    e224 = []
-    for i in range(n):
-        if i < 100:
-            e112.append(110.0)
-            e224.append(102.0)
-        elif i < 115:
-            e112.append(115.0)
-            e224.append(110.0)
-        else:
-            e112.append(92.0)
-            e224.append(86.0)
+    e112 = [110.0] * n
+    e224 = [105.0] * n
+
+    # Separation/second-base long-MA geometry.
+    for i in range(second_base_start, n):
+        e112[i] = 92.0
+        e224[i] = 85.0
 
     boxes = _scan_historical_concrete_previews(
         candles, e112, e224, SwingSettings()
     )
 
-    assert len(boxes) >= 2
+    refs = {first_ref, second_ref}
+    assert len(boxes) == 2
+    assert {int(x["reference_idx"]) for x in boxes} == refs
+    assert all(int(x["end"]) == int(x["reference_idx"]) - 1 for x in boxes)
     assert all(x["structure_type"] == "공구리" for x in boxes)
     assert all(x["high"] < min(e112[x["start"]:x["end"] + 1]) for x in boxes)
-    assert boxes[0]["end"] < boxes[-1]["start"]
+
+
+def test_sideways_base_without_strong_224_reference_does_not_create_historical_box():
+    candles = _box_wave("a", 90, 80, 100, 100, 1000)
+    e112 = [110.0] * len(candles)
+    e224 = [105.0] * len(candles)
+
+    boxes = _scan_historical_concrete_previews(
+        candles, e112, e224, SwingSettings()
+    )
+    assert boxes == []
 
 
 def test_historical_scan_is_used_in_both_event_and_no_event_paths():
@@ -133,4 +149,5 @@ def test_historical_scan_is_used_in_both_event_and_no_event_paths():
     src = Path("puma_trader/market_path.py").read_text(encoding="utf-8")
     assert src.count("_scan_historical_concrete_previews(") >= 3
     assert "historical_previews + ([preview_box] if preview_box else [])" in src
-    assert "confirmed_concrete + historical_previews" in src
+    assert "Historical display uses ONE canonical box per strong EMA224 reference bar." in src
+    assert "preview[\"end\"] = i - 1" in src
