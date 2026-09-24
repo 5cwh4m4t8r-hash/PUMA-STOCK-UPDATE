@@ -168,6 +168,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
     The user's rule is volume-first, not candle-shape-only:
       - a long upper wick with clearly elevated volume can be accumulation,
       - a large bearish dump can also be accumulation when volume explodes,
+      - today's volume MUST be strictly greater than the previous bar's volume,
       - volume does not need to be 3x the 20-bar average; a visually standout
         volume spike versus recent history is enough,
       - unusually large volume with only a muted price response is suspicious
@@ -210,6 +211,12 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             recent_p95 = recent[p95_idx]
 
         current_vol = float(c['volume'])
+        prev_vol = float(candles[i - 1]['volume']) if i > 0 else current_vol
+        volume_up_vs_prev = bool(i > 0 and current_vol > prev_vol)
+
+        # Hard user rule: if today's volume is not greater than yesterday's,
+        # the bar is NOT accumulation. In the chart that is a blue/equal volume bar.
+        # Relative-volume/shape tests are evaluated only after this gate.
         # Old saved configs may still contain 3.0. Treat this as a reference
         # sensitivity, never as a hard 300% gate.
         relative_ref = min(2.20, max(1.35, float(settings.volume_ratio)))
@@ -263,7 +270,8 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         )
 
         candidate = bool(
-            meaningful_body
+            volume_up_vs_prev
+            and meaningful_body
             and (
                 (visually_high and long_upper)
                 or bear_volume
@@ -284,6 +292,8 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         raw.append(candidate)
         meta.append({
             'volume_ratio': ratio,
+            'previous_volume': prev_vol,
+            'volume_up_vs_prev': volume_up_vs_prev,
             'volume_recent_p85': recent_p85,
             'volume_recent_p95': recent_p95,
             'volume_visually_high': visually_high,
@@ -298,6 +308,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             'big_bear': bool(big_bear),
             'muted_price_response': bool(muted_price_response),
             'excluded_small_cross': bool(not meaningful_body),
+            'excluded_volume_not_up': bool(not volume_up_vs_prev),
         })
     return raw, meta
 
