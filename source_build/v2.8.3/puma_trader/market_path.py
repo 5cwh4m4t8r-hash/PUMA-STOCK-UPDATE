@@ -609,87 +609,97 @@ def _preview_concrete_before_bowl3(
     return out
 
 
+def _is_strong_224_reference_bar(
+    candles: list[dict],
+    i: int,
+    e224,
+    settings: Any=None,
+) -> bool:
+    """Strong bullish EMA224 breakout candle used as the concrete reference bar."""
+    if i <= 0 or i >= len(candles) or i >= len(e224):
+        return False
+    if e224[i] is None or e224[i - 1] is None:
+        return False
+
+    c = candles[i]
+    prev = candles[i - 1]
+    op = float(c["open"])
+    close = float(c["close"])
+    high = float(c["high"])
+    low = float(c["low"])
+    if close <= op:
+        return False
+
+    ma_buf = float(_s(settings, "long_ma_break_buffer_pct", 0.15)) / 100.0
+    cur224 = float(e224[i])
+    prev224 = float(e224[i - 1])
+
+    # Reference bar must BODY-cross EMA224; a gap already above it is excluded.
+    body_cross = bool(
+        float(prev["close"]) <= prev224 * (1.0 + ma_buf)
+        and op <= cur224 * (1.0 + ma_buf)
+        and close > cur224 * (1.0 + ma_buf)
+    )
+    if not body_cross:
+        return False
+
+    rng = max(high - low, 1e-9)
+    body_ratio = (close - op) / rng
+    close_pos = (close - low) / rng
+    if body_ratio < 0.15 or close_pos < 0.55:
+        return False
+
+    _, vs_prev, vs_avg = _volume_strength(candles, i)
+    volume_req = float(_s(settings, "breakout_volume_ratio", 3.0))
+    return bool(vs_prev >= volume_req or vs_avg >= volume_req)
+
+
 def _scan_historical_concrete_previews(
     candles: list[dict],
     e112,
     e224,
     settings: Any=None,
 ) -> list[dict]:
-    """Collect distinct pre-Bowl concrete boxes across the full loaded history.
+    """Collect one concrete box per strong historical EMA224 reference bar.
 
-    We scan periodically while price has a long below-EMA224 history, then let
-    the preview validator decide whether the base is structurally strong and
-    below EMA112. This allows concrete to appear well before Bowl-3.
+    This intentionally avoids periodic full-history box snapshots. Historical
+    concrete is shown only when a later strong EMA224 breakout confirms that
+    the immediately preceding base mattered. The rectangle always stops at
+    reference_bar - 1.
     """
     n = len(candles)
     if n < 80:
         return []
 
-    # Prefix count for closes below EMA224.
-    below_prefix = [0] * (n + 1)
-    for i in range(n):
-        below = bool(
-            i < len(e224)
-            and e224[i] is not None
-            and float(candles[i]["close"]) < float(e224[i])
-        )
-        below_prefix[i + 1] = below_prefix[i] + (1 if below else 0)
-
-    # Recent volume-impulse flags used only as a prefilter.
-    impulse = [False] * n
-    for i in range(20, n):
-        _, vs_prev, vs_avg = _volume_strength(candles, i)
-        impulse[i] = bool(vs_prev >= 1.5 or vs_avg >= 1.8)
-
-    impulse_prefix = [0] * (n + 1)
-    for i, flag in enumerate(impulse):
-        impulse_prefix[i + 1] = impulse_prefix[i] + (1 if flag else 0)
-
     found = []
-    last_scan = -999
-    last_candidate = -1
+    last_ref = -999
 
     for i in range(60, n):
-        if i >= len(e112) or i >= len(e224) or e112[i] is None or e224[i] is None:
-            continue
-        close = float(candles[i]["close"])
-        ema224 = float(e224[i])
-        ema112 = float(e112[i])
-
-        # Historical concrete is only a BELOW-224, BELOW-112 preparation box.
-        if close >= ema224:
+        if not _is_strong_224_reference_bar(candles, i, e224, settings):
             continue
 
-        left = max(0, i - 99)
-        valid_count = i - left + 1
-        below_count = below_prefix[i + 1] - below_prefix[left]
-        if valid_count < 60 or below_count < 60:
+        # Avoid duplicate reference bars from the same launch sequence.
+        if i - last_ref <= 5:
             continue
 
-        # A concrete base may form long before MA proximity. Periodically scan
-        # the long-below-224 history; _preview_concrete_before_bowl3 performs
-        # the expensive structural-quality/EMA112 validation.
-        last_candidate = i
-        if i - last_scan < 6:
-            continue
-
-        raw = find_box_before(candles, i, settings)
+        raw = find_box_before(candles, i - 1, settings)
         preview = _preview_concrete_before_bowl3(
-            candles, raw, i, e112, e224, settings
+            candles, raw, i - 1, e112, e224, settings
         )
-        if preview:
-            found.append(preview)
-            last_scan = i
+        if not preview:
+            continue
 
-    # Always scan the latest qualifying historical endpoint once, even when it
-    # fell inside the 4-bar throttle.
-    if last_candidate >= 0 and last_candidate != last_scan:
-        raw = find_box_before(candles, last_candidate, settings)
-        preview = _preview_concrete_before_bowl3(
-            candles, raw, last_candidate, e112, e224, settings
-        )
-        if preview:
-            found.append(preview)
+        # Critical display rule: historical concrete ends immediately BEFORE
+        # the strong EMA224 reference candle. Never extend to the latest candle.
+        preview = dict(preview)
+        preview["end"] = i - 1
+        preview["period"] = int(preview["end"]) - int(preview["start"]) + 1
+        preview["breakout_idx"] = i
+        preview["reference_idx"] = i
+        preview["preview"] = False
+        preview["accepted"] = True
+        found.append(preview)
+        last_ref = i
 
     return _dedupe_display_boxes(found)
 
