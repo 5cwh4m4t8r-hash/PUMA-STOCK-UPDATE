@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.30 In-App Update
+name: Publish PUMA v2.9.31 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.30 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.31 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
         shell: powershell
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.30_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.31_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.30"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.30_UPDATE.zip"
-            notes = "v2.9.30: accumulation detection is now volume/price-behavior based instead of a fixed 3x-volume long-wick rule. A large bearish dump can be accumulation when volume is abnormal, a long upper wick can qualify with clearly elevated relative volume, and unusually large volume with only a muted price response is treated as suspicious accumulation/absorption. Relative volume uses the prior 20-bar average together with the recent 60-bar volume distribution, so visibly unusual volume can qualify below 3x. Tiny ambiguous cross/doji candles remain excluded. Individual suspicious bars are shown subtly as accumulation candidates; repeated candidates within the cluster window remain highlighted as confirmed accumulation. Bowl-3, EMA, and live-order rules remain unchanged."
+            version = "2.9.31"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.31_UPDATE.zip"
+            notes = "v2.9.31: arrow reliability is hardened for Hero/Kiwoom comparison. The integrated DAY chart no longer publishes provisional swing arrows from the short first-page history; candles still appear immediately, but arrows are calculated only after the full requested adjusted-price daily history is loaded. Background candidate classification may still use a short sample for speed, but that partial result is no longer cached as the visual arrow chart. Date-level diagnostics now expose EMA112/224/448, BB40/2.2 cross, EMA crosses, SAR condition, volume EMA40 and EMA224 disparity behind the four raw formulas. Watermelon EMA112/224/448 is also unified with the same Hero-style cumulative EAVG used by the visible chart and arrow formulas. This is especially important for corporate-action stocks such as Signetics after its 5:1 share consolidation. Trading strategy, Bowl-3, accumulation and live-order rules remain unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.30_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.31_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.30 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.31 in-app update"
           git pull --rebase origin main
           git push origin main
