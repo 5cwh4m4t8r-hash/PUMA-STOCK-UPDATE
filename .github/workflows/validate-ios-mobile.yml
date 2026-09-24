@@ -1,0 +1,25 @@
+name: Validate PUMA iOS Mobile
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ios/PUMAMobile/**"
+      - ".github/workflows/validate-ios-mobile.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: ios/PUMAMobile
+        run: xcodegen generate
+      - name: Build iOS Simulator
+        working-directory: ios/PUMAMobile
+        run: |
+          xcodebuild             -project PUMAMobile.xcodeproj             -scheme PUMAMobile             -sdk iphonesimulator             -configuration Debug             -destination 'generic/platform=iOS Simulator'             CODE_SIGNING_ALLOWED=NO             build
