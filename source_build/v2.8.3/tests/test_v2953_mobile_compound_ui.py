@@ -17,7 +17,7 @@ def test_mobile_start_does_not_send_legacy_sizing_values():
     block = src[src.index("async function startAuto()"):src.index("async function stopAuto()")]
     assert "order_budget:" not in block
     assert "max_positions:" not in block
-    assert "max_daily_orders:" in block
+    assert "max_daily_orders:" not in block
     assert "candidate_source:(scope==='ALL'?'HERO4'" in block
 
 
