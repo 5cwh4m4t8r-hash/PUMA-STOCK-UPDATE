@@ -49,16 +49,16 @@ def test_exact_breakout_and_structure_top_pullback_are_marked_on_real_bars():
     assert out["path_pullback_value"][271] > 0
 
 
-def test_bowl3_uses_support_closest_to_actual_low_when_multiple_hold():
+def test_bowl3_restores_original_pullback_priority_when_multiple_supports_hold():
     settings = BowlSettings()
     candles = [
         b(0, 98, 100, 97, 99),
         b(1, 99, 106, 98.5, 105),   # breakout reference, open=99
-        b(2, 104, 105, 94.8, 101),  # bearish; low is much closer to EMA112=95 than ref open=99
+        b(2, 104, 105, 94.8, 101),  # both reference-open and EMA112 can hold
     ]
     e112 = [95.0, 95.0, 95.0]
     pull = _find_bowl3_pullback(candles, e112, 1, settings, end_idx=len(candles))
     assert pull is not None
     assert pull["index"] == 2
-    assert pull["source"] == "112EMA"
-    assert pull["value"] == 95.0
+    assert pull["source"] == "기준봉시가"
+    assert pull["value"] == 99.0
