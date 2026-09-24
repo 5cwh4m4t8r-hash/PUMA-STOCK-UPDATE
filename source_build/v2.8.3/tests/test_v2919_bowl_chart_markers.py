@@ -13,7 +13,7 @@ def test_bowl_series_exposes_chart_marker_metadata():
         if marker["kind"] in {"historical_core", "core"}:
             assert label.startswith("밥3")
         else:
-            assert label in {"224 직전", "224 돌파", "돌파 유지"}
+            assert label in {"224 직전", "224 양봉돌파", "돌파 유지"}
 
 
 def test_historical_bowl3_marker_survives_newer_bars():
@@ -28,9 +28,14 @@ def test_historical_bowl3_marker_survives_newer_bars():
         low = close - 1.0
         if i == 304:
             low = 99.5
+        open_price = close - 0.5
+        if i == 300:
+            open_price = 99.0
+        elif i == 304:
+            open_price = 103.0
         candles.append({
             "date": f"2025{i // 28 + 1:02d}{i % 28 + 1:02d}",
-            "open": close - 0.5,
+            "open": open_price,
             "high": close + 1.0,
             "low": low,
             "close": close,
