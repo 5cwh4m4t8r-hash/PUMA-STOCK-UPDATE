@@ -2,5 +2,5 @@
     "version":  "2.9.47",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.47_UPDATE.zip",
     "notes":  "v2.9.47: fixes the two recent concrete-box failure modes visible on Tongyang (001520). Historical concrete searches are now cycle-isolated: after a strong EMA224 reference breakout, the next concrete search cannot reach backward through that prior launch/reference candle, preventing a new box from swallowing the previous launch area. The concrete upper-line previous-high hill also now uses the actual last top-touch bar inside the active base instead of treating the search end as the hill touch, eliminating stale/incorrect upper anchors. The historical box still ends immediately before its own strong reference candle. Dongyang-style repeated-launch regression tests were added. Mobile/Tailscale, trading strategy, order rules, Bowl-3, accumulation, watermelon, condition-search and zoom behavior are unchanged.",
-    "sha256":  "4632af776335a86c9c9df23651493b72123b2ec892cba9b1072c8e4d8330368c"
+    "sha256":  "d6691fbbb8de2d8e1a522ff46454167070e04f56cc7028f0fea644aa65e867bb"
 }
