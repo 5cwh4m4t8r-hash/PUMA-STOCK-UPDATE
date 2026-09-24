@@ -165,9 +165,10 @@ def normalize_candles(rows: List[dict]) -> List[dict]:
 def accumulation_flags(candles: List[dict], settings: SwingSettings):
     """Detect strict raw accumulation candidates.
 
-    This function preserves candidate detection for diagnostics/tests.
-    Final chart/scoring uses confirm_accumulation_flags(), so a lone candidate
-    is not labeled as confirmed accumulation.
+    A candidate must be a high-volume long-upper-wick candle. Large bearish
+    dump candles and small cross/doji candles are explicitly excluded.
+    Final chart/scoring still requires repeated candidates through
+    confirm_accumulation_flags(), so a lone hit is not confirmed accumulation.
     """
     vols = [c['volume'] for c in candles]
     vma = rolling_mean(vols, settings.volume_period)
@@ -187,29 +188,55 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
         if i > 0 and vma[i - 1]:
             ratio = c['volume'] / vma[i - 1]
 
-        high_volume = ratio >= settings.volume_ratio
-        wick_body_req = max(float(settings.upper_wick_vs_body), 1.35)
-        long_upper = (
-            upper_ratio >= settings.upper_wick_ratio
-            and upper >= body * wick_body_req
-            and upper >= lower * 1.15
-        )
+        # 매집봉은 "거래량이 강하게 터지면서 긴 윗꼬리가 달린 봉"만 사용한다.
+        # 사용자가 명시한 제외조건:
+        # - 거래량이 적은 봉
+        # - 장대음봉(급락 자체를 매집으로 오인 금지)
+        # - 몸통이 거의 없는 애매한 십자가/도지
+        #
+        # 기존 스윙 기준의 300% 거래량을 최소선으로 고정하고, 사용자가
+        # 더 높은 배수를 설정한 경우에는 그 값을 따른다.
+        volume_req = max(3.0, float(settings.volume_ratio))
+        high_volume = ratio >= volume_req
+
+        # 작은 십자가 제거. 전체 고저폭 대비 몸통이 최소 10%는 있어야 한다.
+        meaningful_body = body_ratio >= 0.10
+
+        # 장대음봉은 거래량이 커도 매집표시에서 제외한다.
         big_bear = (
             c['close'] < c['open']
-            and body_ratio >= settings.bearish_body_ratio
+            and body_ratio >= float(settings.bearish_body_ratio)
             and close_pos <= 0.42
         )
 
-        candidate = bool(high_volume and (long_upper or big_bear))
+        # 긴 윗꼬리는 전체 봉의 거의 절반 이상을 차지하고,
+        # 몸통/아랫꼬리보다 명확하게 길어야 한다.
+        wick_body_req = max(float(settings.upper_wick_vs_body), 1.50)
+        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.45)
+        long_upper = (
+            upper_ratio >= upper_ratio_req
+            and upper >= body * wick_body_req
+            and upper >= lower * 1.25
+        )
+
+        candidate = bool(
+            high_volume
+            and meaningful_body
+            and long_upper
+            and not big_bear
+        )
         raw.append(candidate)
         meta.append({
             'volume_ratio': ratio,
+            'volume_required': volume_req,
             'upper_wick_ratio': upper_ratio,
             'body_ratio': body_ratio,
-            'pattern': '긴 윗꼬리' if long_upper else ('장대음봉' if big_bear else '-'),
+            'pattern': '고거래량 긴 윗꼬리' if candidate else '-',
             'raw_candidate': candidate,
             'confirmed': False,
             'cluster_size': 0,
+            'excluded_big_bear': bool(big_bear),
+            'excluded_small_cross': bool(not meaningful_body),
         })
     return raw, meta
 
