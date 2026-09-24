@@ -167,19 +167,25 @@ def _find_bowl3_pullback(
         if concrete_mid > 0:
             targets.append(("공구리중간", 0, concrete_mid))
 
+        valid_targets = []
         for source, line_no, target in targets:
             touched = low <= target * (1 + touch_tol)
             held = close >= target * (1 - hold_tol)
             if touched and held:
-                return {
-                    "index": j,
-                    "source": source,
-                    "line": line_no,
-                    "value": target,
-                    "reference_open": ref_open,
-                    "concrete_mid": concrete_mid,
-                    "box": box,
-                }
+                distance = abs(low - target) / max(target, 1e-9)
+                valid_targets.append((distance, source, line_no, target))
+
+        if valid_targets:
+            _, source, line_no, target = min(valid_targets, key=lambda x: x[0])
+            return {
+                "index": j,
+                "source": source,
+                "line": line_no,
+                "value": target,
+                "reference_open": ref_open,
+                "concrete_mid": concrete_mid,
+                "box": box,
+            }
     return None
 
 
@@ -233,7 +239,7 @@ def _historical_bowl3_markers(
             markers.append({
                 "index": found_idx,
                 "kind": "historical_core",
-                "label": "밥3",
+                "label": f"밥3 {found_source}" if found_source else "밥3",
                 "stage": f"과거 유사 · {found_source} 눌림",
                 "breakout_index": i,
                 "retest_line": found_line,
