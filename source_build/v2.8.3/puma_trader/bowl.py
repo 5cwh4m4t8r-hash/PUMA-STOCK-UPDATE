@@ -449,8 +449,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         extended_above_224,
     )
 
-    # 사용자가 말한 밥3 정의를 엄격히 적용:
-    # 224 양봉 몸통돌파 → 음봉 눌림 → 기준봉시가/112EMA/공구리중간 지지까지 와야 밥3이다.
+    # 밥3: 224 양봉 몸통돌파 뒤 실제 음봉 눌림이 확인되는 자리.
+    # 세부 지지선은 내부 판정용이며 차트에는 단순히 "밥3"만 표시한다.
     if not bowl3_confirmed:
         score = min(score, 49)
 
@@ -459,9 +459,9 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     if extended_above_224:
         stage = f'224 돌파 후 이격과다 · +{distance:.1f}%'
     elif bowl3_confirmed:
-        stage = f'밥3 핵심 · {retest_source} 눌림 확인'
+        stage = '밥3 핵심 · 음봉 눌림 확인'
     elif retest and not support_alive:
-        stage = f'224 양봉돌파 후 {retest_source} 지지 이탈'
+        stage = '224 양봉돌파 후 눌림 지지 이탈'
     elif accepted:
         stage = '224 양봉 몸통돌파 유지 · 음봉 눌림 대기'
     elif breakout_idx >= 0:
@@ -503,13 +503,13 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
             f"{'확인' if base_ok else '미확인'} · 폭 {base_width:.1f}% · 방향성 {base_direction:.2f}"
         ),
         '224EMA 양봉 몸통돌파': (
-            f'확인 · 기준봉 시가 {reference_open:,.0f} · 돌파봉 거래량/20봉평균 {breakout_volume_ratio:.2f}배'
+            f'확인 · 돌파봉 거래량/20봉평균 {breakout_volume_ratio:.2f}배'
             if breakout_idx >= 0 else '대기'
         ),
         '224EMA 위 유지': f'확인 · {accepted_count}봉' if accepted else '대기',
         '눌림/안착': (
-            f'확인 · 음봉 → {retest_source} {retest_value:,.0f} · 현재유지 {"O" if support_alive else "X"}'
-            if retest else '대기 · 기준봉시가 / 112EMA / 공구리중간'
+            f'확인 · 음봉 눌림 · 현재유지 {"O" if support_alive else "X"}'
+            if retest else '대기 · 224 돌파 후 음봉 눌림'
         ),
         '밥3 확정': '확정' if bowl3_confirmed else '미확정',
         '224EMA 거리': (
@@ -569,8 +569,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         bowl3_markers.append({
             'index': retest_idx,
             'kind': 'core',
-            'label': f'밥3 {retest_source}',
-            'stage': f'음봉 → {retest_source} 눌림',
+            'label': '밥3',
+            'stage': '224 돌파 후 음봉 눌림',
         })
 
     bowl3_markers.sort(key=lambda m: int(m.get('index', -1)))
