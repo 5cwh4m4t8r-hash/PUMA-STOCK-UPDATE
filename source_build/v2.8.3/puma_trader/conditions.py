@@ -161,6 +161,7 @@ async def _fetch_complete_condition_snapshot(
     *,
     timeout: float = 6.0,
     max_pages: int = 20,
+    progress_cb=None,
 ) -> list[tuple[str, str]]:
     """Fetch every page of one current condition result."""
     merged: dict[str, str] = {}
@@ -189,6 +190,11 @@ async def _fetch_complete_condition_snapshot(
         for code, stock_name in parse_snapshot_codes(msg.get("data")):
             if code:
                 merged[code] = stock_name or merged.get(code, code)
+
+        # Manual preview should not stay blank until every continuation page is done.
+        # Emit the cumulative snapshot after each page.
+        if progress_cb is not None:
+            progress_cb([(code, merged[code]) for code in merged])
 
         cont_yn = str(msg.get("cont_yn") or msg.get("cont-yn") or "N").strip().upper()
         next_key = str(msg.get("next_key") or msg.get("next-key") or "").strip()
@@ -230,10 +236,13 @@ class ConditionStreamThread(QThread):
             self.status.emit("현재 종목 조회 중...")
 
             # 먼저 일반조회로 전체 페이지를 한 번에 가져온다.
-            rows = await _fetch_complete_condition_snapshot(ws, self.seq)
+            rows = await _fetch_complete_condition_snapshot(
+                ws,
+                self.seq,
+                progress_cb=lambda partial: self.snapshot.emit(partial),
+            )
             if self._stop_requested:
                 return
-            self.snapshot.emit(rows)
             self.status.emit(f"현재 {len(rows)}종목 · 실시간 감시 연결 중...")
 
             # 이후 편입/이탈만 실시간으로 감시한다.
@@ -403,7 +412,8 @@ class MultiConditionStreamThread(QThread):
     status = Signal(str)
     error = Signal(str)
     initial_union = Signal(object)              # list[{seq,name,rows}] emitted once
-    snapshot = Signal(str, str, object)       # realtime registration delta rows
+    initial_partial = Signal(str, str, object)  # seq,name,rows; initial pages shown immediately
+    snapshot = Signal(str, str, object)         # realtime registration delta rows
     entered = Signal(str, str, str, str)     # seq, condition_name, code, stock_name
     exited = Signal(str, str, str)            # seq, condition_name, code
 
@@ -426,7 +436,7 @@ class MultiConditionStreamThread(QThread):
                 self.error.emit(str(exc))
 
     async def _collect_initial_union(self, ws) -> list[dict]:
-        """Pipeline all initial condition queries, then emit one complete union payload."""
+        """Pipeline initial queries, stream received rows immediately, then return the final union."""
         loop = asyncio.get_running_loop()
         states: dict[str, dict] = {
             seq: {
@@ -461,7 +471,9 @@ class MultiConditionStreamThread(QThread):
             if self._stop_requested:
                 break
             await send_request(seq)
-            await asyncio.sleep(0.04)
+            # Avoid hammering Kiwoom with seven CNSRREQ packets almost at once.
+            # Results are now rendered progressively, so reliability beats a 40ms burst.
+            await asyncio.sleep(0.12)
 
         while not self._stop_requested and not all(st["done"] for st in states.values()):
             try:
@@ -507,9 +519,15 @@ class MultiConditionStreamThread(QThread):
                 )
                 continue
 
-            for code, stock_name in parse_snapshot_codes(msg.get("data")):
+            page_rows = parse_snapshot_codes(msg.get("data"))
+            for code, stock_name in page_rows:
                 if code:
                     st["merged"][code] = stock_name or st["merged"].get(code, code)
+
+            # Critical responsiveness fix: do not hold already-received stocks hostage
+            # to another slow condition formula. Show this condition's page now.
+            if page_rows:
+                self.initial_partial.emit(seq, st["name"], page_rows)
 
             cont_yn = str(msg.get("cont_yn") or msg.get("cont-yn") or "N").strip().upper()
             next_key = str(msg.get("next_key") or msg.get("next-key") or "").strip()
@@ -538,7 +556,7 @@ class MultiConditionStreamThread(QThread):
             self.status.emit(f"PUMA 조건검색 {len(self.conditions)}개 WebSocket 연결됨")
 
             # 1) 7개 일반조회를 한 WebSocket에서 파이프라인 처리한다.
-            #    UI에는 검색기별로 찔끔찔끔 보내지 않고 전부 수집한 뒤 한 번만 전달한다.
+            #    받은 종목은 즉시 UI에 보내고, 마지막에 전체 합집합을 한 번 정리한다.
             initial_payload = await self._collect_initial_union(ws)
             if self._stop_requested:
                 return
