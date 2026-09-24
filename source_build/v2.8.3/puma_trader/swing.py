@@ -258,6 +258,7 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
 
         long_wick_burst = bool(
             meaningful_body
+            and not is_bearish
             and long_upper
             and burst_volume
         )
