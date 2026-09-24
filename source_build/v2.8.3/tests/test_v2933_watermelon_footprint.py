@@ -78,7 +78,9 @@ def test_watermelon_exposes_large_money_footprint_arrays():
     n = len(candles)
     assert len(out["watermelon_footprint_score"]) == n
     assert len(out["watermelon_footprint_reason"]) == n
+    assert len(out["watermelon_pre_bowl3"]) == n
     assert all(0 <= int(x) <= 100 for x in out["watermelon_footprint_score"])
+    assert all(bool(out["watermelon_pre_bowl3"][i]) for i, x in enumerate(out["watermelon_display"]) if x)
 
 
 def test_declining_volume_cannot_be_large_money_footprint():
@@ -98,3 +100,11 @@ def test_declining_volume_cannot_be_large_money_footprint():
     assert fp["volume_up_vs_prev"] is False
     assert fp["abnormal"] is False
     assert fp["absorption"] is False
+
+
+def test_watermelon_display_is_sparse_pre_bowl3_only():
+    candles = _base(420)
+    out = build_puma_watermelon(candles)
+    hits = [i for i, x in enumerate(out["watermelon_display"]) if x]
+    assert all(out["watermelon_pre_bowl3"][i] for i in hits)
+    assert all((b - a) >= 35 for a, b in zip(hits, hits[1:]))
