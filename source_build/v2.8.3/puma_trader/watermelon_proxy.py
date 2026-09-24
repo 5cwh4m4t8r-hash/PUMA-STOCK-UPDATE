@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from .indicators import hero_eavg
+from .indicators import hero_eavg, ichimoku_cloud
 
 
 def _ema(values: List[float], period: int) -> List[Optional[float]]:
@@ -20,6 +20,70 @@ def _rolling_avg(values: List[float], period: int) -> List[Optional[float]]:
         if i >= period - 1:
             out[i] = total / period
     return out
+
+
+def _percentile(values: List[float], q: float) -> float:
+    xs = sorted(float(x) for x in values if float(x) > 0)
+    if not xs:
+        return 0.0
+    idx = min(len(xs) - 1, max(0, int(round((len(xs) - 1) * float(q)))))
+    return float(xs[idx])
+
+
+def _volume_footprint(candles: List[dict], vols: List[float], v20, i: int) -> dict:
+    """Observable large-money footprint proxy; never identifies the actual actor."""
+    avg = float(v20[i - 1]) if i > 0 and i - 1 < len(v20) and v20[i - 1] else 0.0
+    ratio = float(vols[i]) / avg if avg > 0 else 0.0
+    recent = vols[max(0, i - 60):i]
+    p85 = _percentile(recent, 0.85)
+    p95 = _percentile(recent, 0.95)
+    abnormal = bool(
+        ratio >= 1.80
+        or (p85 > 0 and vols[i] >= p85 and ratio >= 1.35)
+        or (p95 > 0 and vols[i] >= p95 and ratio >= 1.25)
+    )
+
+    c = candles[i]
+    op = float(c["open"])
+    close = float(c["close"])
+    high = float(c["high"])
+    low = float(c["low"])
+    prev_close = float(candles[i - 1]["close"]) if i > 0 else op
+    rng = max(high - low, 1e-9)
+    body = abs(close - op)
+    upper = max(0.0, high - max(op, close))
+    close_change = (close / prev_close - 1.0) * 100.0 if prev_close > 0 else 0.0
+    body_ratio = body / rng
+    upper_ratio = upper / rng
+
+    big_bear = bool(close < op and body_ratio >= 0.55 and (close - low) / rng <= 0.42)
+    long_upper = bool(upper_ratio >= 0.40 and upper >= max(body * 1.35, 1e-9))
+    muted = bool(abs(close_change) <= 3.0 and ratio >= 1.50)
+    absorption = bool(abnormal and (big_bear or long_upper or muted))
+
+    if not abnormal:
+        pattern = "-"
+    elif big_bear:
+        pattern = "대량 장대음봉"
+    elif long_upper:
+        pattern = "대량 긴윗꼬리"
+    elif muted:
+        pattern = "가격대비 대량흡수"
+    else:
+        pattern = "이상거래량"
+
+    return {
+        "abnormal": abnormal,
+        "absorption": absorption,
+        "ratio": ratio,
+        "p85": p85,
+        "p95": p95,
+        "big_bear": big_bear,
+        "long_upper": long_upper,
+        "muted": muted,
+        "pattern": pattern,
+        "close_change_pct": close_change,
+    }
 
 
 def _latest_reclaim_index(closes, ema_line, i: int, lookback: int = 4) -> int:
@@ -70,6 +134,8 @@ def build_puma_watermelon(
     reasons = [""] * n
     confirmed = [False] * n
     display = [0] * n
+    footprint_scores = [0] * n
+    footprint_reasons = [""] * n
     if n == 0:
         return {
             "watermelon_stage": stages,
@@ -77,6 +143,8 @@ def build_puma_watermelon(
             "watermelon_reason": reasons,
             "watermelon_confirmed": confirmed,
             "watermelon_display": display,
+            "watermelon_footprint_score": footprint_scores,
+            "watermelon_footprint_reason": footprint_reasons,
         }
 
     closes = [float(c["close"]) for c in candles]
@@ -91,6 +159,9 @@ def build_puma_watermelon(
     e224 = _ema(closes, 224)
     e448 = _ema(closes, 448)
     v20 = _rolling_avg(vols, 20)
+    cloud = ichimoku_cloud(candles)
+    cloud_a = list(cloud.get("cloud_a") or [])
+    cloud_b = list(cloud.get("cloud_b") or [])
 
     arrow_series = arrow_series or {}
     arrow_keys = ("signal_pink", "signal_blue", "signal_red", "signal_black")
@@ -169,6 +240,11 @@ def build_puma_watermelon(
             if e448[i] is not None:
                 reverse_order = reverse_order and float(e224[i]) <= float(e448[i]) * 1.015
 
+        # Large-money footprint proxy: abnormal volume/absorption plus interaction
+        # with structural levels that individual traders cannot directly command
+        # as a group. This is evidence of concentrated capital, not actor identity.
+        vf = _volume_footprint(candles, vols, v20, i)
+
         impulse = False
         for j in range(max(20, i - 15), i + 1):
             if v20[j] and vols[j] >= float(v20[j]) * 1.50:
@@ -177,6 +253,66 @@ def build_puma_watermelon(
 
         acc_recent = any(bool(x) for x in acc_flags[max(0, i - 20):i + 1])
         calm = bool(v20[i] and vols[i] <= float(v20[i]) * 1.25)
+
+        # Direct interaction with EMA112/224 and the visible Ichimoku cloud.
+        long_touch = False
+        long_reclaim = False
+        for line in (e112, e224):
+            if i < len(line) and line[i] is not None:
+                lv = float(line[i])
+                if lows[i] <= lv * 1.025 and highs[i] >= lv * 0.975:
+                    long_touch = True
+                if i > 0 and line[i - 1] is not None:
+                    long_reclaim = long_reclaim or bool(
+                        closes[i - 1] < float(line[i - 1]) * 0.995
+                        and closes[i] >= lv * 0.995
+                    )
+
+        ca = cloud_a[i] if i < len(cloud_a) else None
+        cb = cloud_b[i] if i < len(cloud_b) else None
+        cloud_touch = False
+        cloud_reclaim = False
+        if isinstance(ca, (int, float)) and isinstance(cb, (int, float)):
+            cloud_lo = min(float(ca), float(cb))
+            cloud_hi = max(float(ca), float(cb))
+            cloud_touch = bool(lows[i] <= cloud_hi * 1.02 and highs[i] >= cloud_lo * 0.98)
+            if i > 0:
+                pca = cloud_a[i - 1] if i - 1 < len(cloud_a) else None
+                pcb = cloud_b[i - 1] if i - 1 < len(cloud_b) else None
+                if isinstance(pca, (int, float)) and isinstance(pcb, (int, float)):
+                    prev_top = max(float(pca), float(pcb))
+                    cloud_reclaim = bool(
+                        closes[i - 1] <= prev_top * 1.005
+                        and closes[i] > cloud_hi * 1.005
+                    )
+
+        structural_touch = bool(long_touch or long_reclaim or cloud_touch or cloud_reclaim)
+        big_money_footprint = bool(
+            (vf["abnormal"] and structural_touch)
+            or (vf["absorption"] and (long_touch or cloud_touch))
+            or (acc_recent and structural_touch)
+        )
+
+        footprint_score = 0
+        footprint_tags = []
+        if vf["abnormal"]:
+            footprint_score += 30
+            footprint_tags.append(f"이상거래량 {vf['ratio']:.2f}배")
+        if vf["absorption"]:
+            footprint_score += 20
+            footprint_tags.append(str(vf["pattern"]))
+        if long_touch or long_reclaim:
+            footprint_score += 20
+            footprint_tags.append("112/224 개입")
+        if cloud_touch or cloud_reclaim:
+            footprint_score += 20
+            footprint_tags.append("구름대 개입")
+        if acc_recent:
+            footprint_score += 10
+            footprint_tags.append("매집반복")
+        footprint_score = min(100, footprint_score)
+        footprint_scores[i] = footprint_score
+        footprint_reasons[i] = " · ".join(footprint_tags) if footprint_tags else "-"
 
         arrow_recent = False
         lo = max(0, i - 5)
@@ -203,6 +339,8 @@ def build_puma_watermelon(
             score += 10; tags.append("장기이평 역배열/수렴")
         if impulse or acc_recent:
             score += 10; tags.append("선행 거래량/매집")
+        if big_money_footprint:
+            score += 20; tags.append(f"대형자금흔적 {footprint_score}")
         if calm:
             score += 5; tags.append("눌림 거래량 안정")
         if arrow_recent:
@@ -223,8 +361,20 @@ def build_puma_watermelon(
         # accumulation evidence. This favors missing a marginal marker over
         # painting false watermelon symbols across the chart.
         context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
-        evidence_confirmed = bool(impulse or acc_recent)
-        strict = bool(
+        evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
+
+        # Watermelon = bottom-area intervention footprint first, reversal confirmation second.
+        # A huge-volume absorption bar touching a long EMA/cloud may mark the intervention
+        # itself before the later rebound is fully mature. Otherwise require reclaim/settling.
+        intervention_now = bool(
+            bottom_context
+            and big_money_footprint
+            and structural_touch
+            and not_overextended
+            and context_confirmed
+            and footprint_score >= 50
+        )
+        reversal_confirmed = bool(
             bottom_context
             and near_long
             and reclaim_recent
@@ -234,7 +384,10 @@ def build_puma_watermelon(
             and not_overextended
             and context_confirmed
             and evidence_confirmed
-            and score >= 80
+        )
+        strict = bool(
+            (intervention_now or reversal_confirmed)
+            and score >= 75
         )
 
         if strict:
@@ -254,4 +407,6 @@ def build_puma_watermelon(
         "watermelon_reason": reasons,
         "watermelon_confirmed": confirmed,
         "watermelon_display": display,
+        "watermelon_footprint_score": footprint_scores,
+        "watermelon_footprint_reason": footprint_reasons,
     }
