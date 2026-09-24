@@ -324,6 +324,7 @@ struct AccountView: View {
     @EnvironmentObject var client: PumaClient
     @State private var showOrder = false
     @State private var busy = false
+    @State private var autoBusyAction: String? = nil
 
     var body: some View {
         ScrollView {
@@ -338,24 +339,58 @@ struct AccountView: View {
                             Task { await toggleLiveLock() }
                         }
                         .buttonStyle(.bordered)
+                        .disabled(busy)
                     }
                 }
 
                 PCard(title: "자동매매") {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(client.state?.auto?.enabled == true ? "실행 중" : "중지")
-                                .font(.title3).fontWeight(.bold)
-                                .foregroundStyle(client.state?.auto?.enabled == true ? .green : .orange)
-                            Text(client.state?.auto?.scopeLabel ?? "-")
-                                .font(.caption).foregroundStyle(.secondary)
+                    let running = client.state?.auto?.enabled == true
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(autoBusyAction == "START" ? "시작 처리 중…" :
+                                     autoBusyAction == "STOP" ? "중지 처리 중…" :
+                                     running ? "실행 중" : "중지")
+                                    .font(.title3).fontWeight(.bold)
+                                    .foregroundStyle(running || autoBusyAction == "START" ? .green : .orange)
+                                Text(running ? (client.state?.auto?.scopeLabel ?? "전체 후보") : "전체 후보")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if busy && autoBusyAction != nil {
+                                ProgressView()
+                            }
                         }
-                        Spacer()
-                        Button(client.state?.auto?.enabled == true ? "중지" : "전체 후보 시작") {
-                            Task { await toggleAuto() }
+
+                        HStack(spacing: 10) {
+                            Button {
+                                Task { await startAuto() }
+                            } label: {
+                                Label("자동매매 시작", systemImage: "play.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.green)
+                            .disabled(busy || running || client.state?.mobileLiveUnlocked != true)
+
+                            Button {
+                                Task { await stopAuto() }
+                            } label: {
+                                Label("자동매매 중지", systemImage: "stop.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                            .disabled(busy || !running)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(busy || client.state?.mobileLiveUnlocked != true)
+
+                        Text(client.state?.mobileLiveUnlocked == true
+                             ? "시작·중지는 한 번 눌러 바로 제어합니다."
+                             : (running
+                                ? "실전 잠금 상태여도 실행 중인 자동매매는 즉시 중지할 수 있습니다."
+                                : "자동매매 시작은 실전 잠금을 최초 1회 해제한 뒤 사용할 수 있습니다."))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -392,7 +427,7 @@ struct AccountView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(client.state?.mobileLiveUnlocked != true)
+                .disabled(client.state?.mobileLiveUnlocked != true || busy)
             }
             .padding()
         }
@@ -406,6 +441,7 @@ struct AccountView: View {
     }
 
     private func toggleLiveLock() async {
+        guard !busy else { return }
         busy = true
         defer { busy = false }
         do {
@@ -419,15 +455,35 @@ struct AccountView: View {
         }
     }
 
-    private func toggleAuto() async {
+    private func startAuto() async {
+        guard !busy, client.state?.auto?.enabled != true else { return }
+        guard client.state?.mobileLiveUnlocked == true else {
+            client.errorMessage = "자동매매 시작은 실전 잠금을 최초 1회 해제해야 합니다."
+            return
+        }
         busy = true
-        defer { busy = false }
+        autoBusyAction = "START"
+        defer {
+            autoBusyAction = nil
+            busy = false
+        }
         do {
-            if client.state?.auto?.enabled == true {
-                try await client.stopAuto()
-            } else {
-                try await client.startAuto(scope: "ALL")
-            }
+            try await client.startAuto(scope: "ALL")
+        } catch {
+            client.errorMessage = error.localizedDescription
+        }
+    }
+
+    private func stopAuto() async {
+        guard !busy, client.state?.auto?.enabled == true else { return }
+        busy = true
+        autoBusyAction = "STOP"
+        defer {
+            autoBusyAction = nil
+            busy = false
+        }
+        do {
+            try await client.stopAuto()
         } catch {
             client.errorMessage = error.localizedDescription
         }
