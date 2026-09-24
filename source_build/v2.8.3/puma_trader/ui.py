@@ -5259,6 +5259,37 @@ class MainWindow(QMainWindow):
         self.log("PUMA MOBILE", "PAIR", "-", "모바일 연결코드 재발급 · 실전 잠금 재설정")
         self._publish_mobile_snapshot()
 
+    def _mobile_remote_start(self):
+        try:
+            relay_url = self.mobile_relay_url.text().strip()
+            self.mobile_remote.start(relay_url)
+            self.mobile_relay_url.setText(self.mobile_remote.relay_url)
+            self.mobile_device_id_label.setText(self.mobile_remote.device_id)
+            self.mobile_remote_status_label.setText("외부망 Relay 연결 시작 중…")
+            self.mobile_remote_status_label.setStyleSheet("font-weight:900;color:#ffd65a")
+            self.log(
+                "PUMA MOBILE", "REMOTE", "-",
+                f"외부망 Relay 연결 시작 · {self.mobile_remote.device_id}",
+            )
+        except Exception as exc:
+            self.mobile_remote_status_label.setText(f"외부망 시작 실패: {exc}")
+            self.mobile_remote_status_label.setStyleSheet("font-weight:900;color:#ff6b78")
+            QMessageBox.critical(self, "외부망 연결 실패", str(exc))
+
+    def _mobile_remote_stop(self):
+        self.mobile_remote.stop()
+        self.mobile_remote_status_label.setText("외부망 Relay 중지")
+        self.mobile_remote_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+
+    def _on_mobile_remote_status(self, text: str, online: bool):
+        if getattr(self, "mobile_remote_status_label", None) is None:
+            return
+        self.mobile_remote_status_label.setText(str(text))
+        self.mobile_remote_status_label.setStyleSheet(
+            "font-weight:900;color:#61ff8f" if online
+            else "font-weight:900;color:#ffd65a"
+        )
+
     def _apply_mobile_auto_settings(self, data: dict):
         source = str(data.get("candidate_source") or self.settings.candidate_source or "WATCHLIST")
         if source not in ("WATCHLIST", "HERO4", "BOTH"):
