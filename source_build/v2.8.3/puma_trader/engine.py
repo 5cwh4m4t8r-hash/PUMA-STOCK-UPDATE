@@ -311,8 +311,8 @@ class TradeEngine:
             "managed_positions": len(self.positions),
         }
 
-    def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = ""):
-        if not self.enabled:
+    def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = "", require_enabled: bool = False):
+        if require_enabled and not self.enabled:
             return {"code": code, "name": name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 신규주문 차단"}
         qty = int(AUTO_ORDER_BUDGET // current)
         if qty < 1:
@@ -350,8 +350,8 @@ class TradeEngine:
         self._persist_runtime()
         return {"code": code, "name": name, "status": "BUY", "price": current, "signal": reason, "order": resp}
 
-    def _submit_sell(self, code: str, pos: Position, current: float, reason: str):
-        if not self.enabled:
+    def _submit_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
+        if require_enabled and not self.enabled:
             return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
         resp = self.broker.sell_market(code, pos.qty)
         self.daily_order_count += 1
@@ -376,12 +376,12 @@ class TradeEngine:
         self._persist_runtime()
         return {"code": code, "name": pos.name, "status": "SELL", "price": current, "signal": reason, "order": resp}
 
-    def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str):
-        if not self.enabled:
+    def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
+        if require_enabled and not self.enabled:
             return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
         sell_qty = max(1, int(pos.qty) // 2)
         if sell_qty >= int(pos.qty):
-            return self._submit_sell(code, pos, current, reason + " · 1주라 전량")
+            return self._submit_sell(code, pos, current, reason + " · 1주라 전량", require_enabled=require_enabled)
 
         remaining = int(pos.qty) - sell_qty
         resp = self.broker.sell_market(code, sell_qty)
@@ -469,12 +469,12 @@ class TradeEngine:
             # 가보자는 당일 단타. 13:00부터는 +4% 절반익절보다 전량청산이 우선이다.
             day_exit = str(getattr(self.settings, "gabojago_force_exit_time", "13:00") or "13:00")
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
-                return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산")
+                return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산", require_enabled=True)
 
             # 가보자: +4% 최초 도달 시 절반 익절.
             # 잔량은 절반매도 기준가 +2% 즉시 청산 / -2%는 다음 5분봉 회복 여부를 확인한다.
             if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
-                return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%")
+                return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%", require_enabled=True)
 
             state_before = (
                 str(getattr(pos, "remainder_down_trigger_bar", "") or ""),
@@ -506,7 +506,7 @@ class TradeEngine:
                 self._persist_runtime()
 
             if self.enabled and should_sell:
-                return self._submit_sell(code, pos, current, reason)
+                return self._submit_sell(code, pos, current, reason, require_enabled=True)
             return {"code": code, "name": pos.name, "status": "HOLD", "price": current, "signal": f"{reason} / {pnl:+.2f}%"}
 
         # 신규매수는 후보 공급원이 무엇이든 '가보자' 두 타점만 허용한다.
@@ -531,6 +531,7 @@ class TradeEngine:
                 code, name, current, sig.reason,
                 stop_price=stop_price,
                 entry_kind=sig.entry_kind,
+                require_enabled=True,
             )
 
         if self.daily_order_count >= self.settings.max_daily_orders:
