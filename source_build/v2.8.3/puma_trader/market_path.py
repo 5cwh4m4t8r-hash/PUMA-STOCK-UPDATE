@@ -853,7 +853,20 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     display_boxes = _dedupe_display_boxes(
         historical_concrete + ([latest_box] if latest_box else [])
     )
-    return {"current":cur,"box":event,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+
+    current_above_224 = bool(
+        e224[-1] is not None
+        and float(candles[-1]["close"]) > float(e224[-1])
+    )
+    if current_above_224:
+        # Above EMA224 there is no current "공구리" state. Keep the historical
+        # event internally for path continuity, but expose no concrete box.
+        display_boxes = []
+        box_for_ui = None if event.get("structure_type") == "공구리" else event
+    else:
+        box_for_ui = event
+
+    return {"current":cur,"box":box_for_ui,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
             "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
                 "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
