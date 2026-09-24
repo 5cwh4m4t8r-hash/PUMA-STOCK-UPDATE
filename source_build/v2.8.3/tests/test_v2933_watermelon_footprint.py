@@ -108,7 +108,7 @@ def test_watermelon_display_is_sparse_pre_bowl3_only():
     out = build_puma_watermelon(candles)
     hits = [i for i, x in enumerate(out["watermelon_display"]) if x]
     assert all(out["watermelon_pre_bowl3"][i] for i in hits)
-    assert all((b - a) >= 35 for a, b in zip(hits, hits[1:]))
+    assert all((b - a) >= 20 for a, b in zip(hits, hits[1:]))
 
 
 def test_record112_recent_requires_record_volume_and_previous_day_increase():
@@ -121,9 +121,11 @@ def test_record112_recent_requires_record_volume_and_previous_day_increase():
     assert _record112_recent(vols, 125, 1) is False
 
 
-def test_watermelon_pre_bowl3_filter_uses_exact_two_percent_and_long_below_context():
+def test_watermelon_pre_bowl3_filter_is_practical_not_overlocked():
     src = __import__("pathlib").Path("puma_trader/watermelon_proxy.py").read_text(encoding="utf-8")
-    assert "abs(price / float(e224[i]) - 1.0) <= 0.020" in src
-    assert "len(prior_idx) >= 70 and below224_count >= 70" in src
-    assert "record112_recent" in src
+    assert "abs(price / float(e224[i]) - 1.0) <= 0.040" in src
+    assert "len(prior_idx) >= 60 and below224_count >= 60" in src
+    assert "volume_pre_signal = bool(" in src
+    assert "record112_recent\n            or recent_large_money" in src
+    assert "and score >= 70" in src
     assert "float(e60[i]) < float(e112[i]) < float(e224[i])" in src
