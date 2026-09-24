@@ -394,20 +394,14 @@ class SwingChart(QWidget):
             # 전고점언덕은 공구리 목록과 별도로 유지한다.
             boxes = list(boxes) + [one_box]
 
-        ema224_full = self.series.get('ema224', [])
-        current_above_224 = bool(
-            candles
-            and isinstance(ema224_full, list)
-            and len(ema224_full) >= len(candles)
-            and isinstance(ema224_full[len(candles)-1], (int, float))
-            and float(candles[-1]['close']) > float(ema224_full[len(candles)-1])
-        )
+        # Historical concrete remains visible on its original dates even when
+        # the CURRENT price is now above EMA224. Validity is decided per box in
+        # market_path (box top below EMA112 / pre-Bowl context), not by today's price.
         visible_boxes = [] if overlay_suppressed else [
             b for b in boxes
             if isinstance(b, dict)
             and b.get('start', -1) < end
             and b.get('end', -1) >= start
-            and not (current_above_224 and b.get('structure_type') == '공구리')
         ]
         latest_concrete = None
         concrete_only = [b for b in boxes if isinstance(b, dict) and b.get('structure_type') == '공구리']
