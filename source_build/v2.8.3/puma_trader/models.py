@@ -45,8 +45,9 @@ class StrategySettings:
     # 추세추적: +4%에서 일부만 확보하고 나머지는 높아지는 차 저점을 따라간다.
     gabojago_trend_tracking_enabled: bool = True
     gabojago_partial_sell_ratio: float = 0.25
+    gabojago_trend_force_exit_time: str = "15:20"
     gabojago_remainder_band_pct: float = 2.0  # 추세추적 OFF일 때만 쓰는 레거시 값
-    gabojago_force_exit_time: str = "15:20"
+    gabojago_force_exit_time: str = "13:00"  # 레거시 모드 전용
 
     # 주문 / 리스크
     # 1차 시드 구간: 50만원에서 시작해 현재 시드를 다음 매매에 전액 재투입.
