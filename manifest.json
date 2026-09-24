@@ -2,5 +2,5 @@
     "version":  "2.9.35",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.35_UPDATE.zip",
     "notes":  "v2.9.35: condition-search startup is made immediately visible and more reliable. The seven PUMA day-search conditions no longer hold all received stocks until every initial query and retry finishes. Each condition page is streamed to the UI as soon as it arrives, while the final union is reconciled only after all initial searches complete. Manual single-condition preview also renders each continuation page progressively instead of staying blank until the full snapshot finishes. Initial CNSRREQ requests are paced at 120ms instead of a 40ms burst to reduce server-side congestion. Background stock-name and classification work is deferred so it cannot block first candidate display. If one searcher times out or errors, already received candidates and union counts remain visible and the status shows a partial error instead of replacing the whole screen with an error message. Trading strategy, arrows, watermelon, Bowl-3, accumulation, zoom and live-order rules remain unchanged.",
-    "sha256":  "15f091e3528b9ba16da90fc55694f0ed5b1b5db834a91da0d9fe8959093eb9c4"
+    "sha256":  "8c72e32f0be23ae7045da480200aaba8295e29cf08ceff9d6001a42ac888672b"
 }
