@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.34 In-App Update
+name: Publish PUMA v2.9.35 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.34 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.35 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2935_condition_immediate.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
         shell: powershell
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.34_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.35_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.34"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.34_UPDATE.zip"
-            notes = "v2.9.34: accumulation now has a hard previous-volume gate. A bar can NEVER be accumulation unless its current volume is strictly greater than the previous bar's volume. Therefore any blue/decreasing-volume bar is excluded even if its absolute volume is large, it has a long upper wick, it is a large bearish candle, or it otherwise looks unusual. Equal volume is also excluded. The same gate is applied to watermelon large-money volume footprints and recent impulse evidence, so declining-volume bars cannot be used as accumulation/large-money volume evidence. The accumulation settings UI now states this rule explicitly. Arrow, Bowl-3, zoom and live-order rules remain unchanged."
+            version = "2.9.35"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.35_UPDATE.zip"
+            notes = "v2.9.35: condition-search startup is made immediately visible and more reliable. The seven PUMA day-search conditions no longer hold all received stocks until every initial query and retry finishes. Each condition page is streamed to the UI as soon as it arrives, while the final union is reconciled only after all initial searches complete. Manual single-condition preview also renders each continuation page progressively instead of staying blank until the full snapshot finishes. Initial CNSRREQ requests are paced at 120ms instead of a 40ms burst to reduce server-side congestion. Background stock-name and classification work is deferred so it cannot block first candidate display. If one searcher times out or errors, already received candidates and union counts remain visible and the status shows a partial error instead of replacing the whole screen with an error message. Trading strategy, arrows, watermelon, Bowl-3, accumulation, zoom and live-order rules remain unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.34_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.35_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.34 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.35 in-app update"
           git pull --rebase origin main
           git push origin main
