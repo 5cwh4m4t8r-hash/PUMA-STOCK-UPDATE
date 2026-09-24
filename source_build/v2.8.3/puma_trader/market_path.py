@@ -588,22 +588,40 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     recent_levels=[]
     structure_cache: dict[int, dict | None] = {}
 
-    def concrete_allowed_below_224(box: dict | None) -> bool:
-        """Concrete exists only while the box is a below-EMA224 base."""
+    def concrete_allowed_below_long_mas(box: dict | None) -> bool:
+        """Concrete is a base BELOW EMA112 (and therefore below the long-MA zone).
+
+        The box resistance itself must stay below EMA112 across the formation
+        span. A box whose top reaches above EMA112 is not concrete.
+        """
         if not isinstance(box, dict) or box.get("structure_type") != "공구리":
             return True
+        box_start = int(box.get("start", -1))
         box_end = int(box.get("end", -1))
-        if box_end < 0 or box_end >= len(candles) or box_end >= len(e224) or e224[box_end] is None:
+        box_high = float(box.get("high", 0) or 0)
+        if box_start < 0 or box_end < box_start or box_high <= 0:
             return False
-        return float(candles[box_end]["close"]) <= float(e224[box_end])
+        if box_end >= len(candles) or box_end >= len(e112):
+            return False
+
+        valid_112 = [
+            float(e112[j])
+            for j in range(box_start, box_end + 1)
+            if 0 <= j < len(e112) and e112[j] is not None
+        ]
+        if not valid_112:
+            return False
+
+        # Strict user rule: the entire box top is below EMA112.
+        return box_high < min(valid_112)
 
     def structure_at(end_idx: int):
         if end_idx not in structure_cache:
             concrete = find_box_before(candles, end_idx, settings)
-            if concrete and concrete_allowed_below_224(concrete):
+            if concrete and concrete_allowed_below_long_mas(concrete):
                 structure_cache[end_idx] = concrete
             else:
-                # Above EMA224 there is no "공구리". A repeated high can still
+                # At/above EMA112 there is no "공구리". A repeated high can still
                 # be treated only as a previous-high hill/resistance structure.
                 structure_cache[end_idx] = _fallback_hill(candles, end_idx, settings)
         return structure_cache[end_idx]
@@ -755,7 +773,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     if not events:
         box=find_box_before(candles,n-1,settings)
-        if box and not concrete_allowed_below_224(box):
+        if box and not concrete_allowed_below_long_mas(box):
             box=None
         cur=dict(default)
         if box:
@@ -844,11 +862,11 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     # confirmed breakout paths, plus the newest still-forming concrete box.
     # The chart can therefore show recent + past concrete zones together.
     latest_box = find_box_before(candles, n - 1, settings)
-    if latest_box and not concrete_allowed_below_224(latest_box):
+    if latest_box and not concrete_allowed_below_long_mas(latest_box):
         latest_box = None
     historical_concrete = [
         x for x in events
-        if x.get("structure_type") == "공구리" and concrete_allowed_below_224(x)
+        if x.get("structure_type") == "공구리" and concrete_allowed_below_long_mas(x)
     ]
     display_boxes = _dedupe_display_boxes(
         historical_concrete + ([latest_box] if latest_box else [])
