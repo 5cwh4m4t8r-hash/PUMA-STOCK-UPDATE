@@ -56,7 +56,7 @@ def test_plain_box_break_without_112_224_cross_is_not_breakout():
 def test_bottom_112_break_and_structure_break_is_confirmed():
     clear_market_path_cache()
     rows=strict_bottom_box()
-    rows.append(b(270,90,117,89,115,1800))
+    rows.append(b(270,90,117,89,115,4000))
     out=analyze_market_path(rows,SwingSettings())
     assert sum(out["path_breakout"]) == 1
     idx=out["path_breakout"].index(True)
@@ -68,7 +68,7 @@ def test_bottom_112_break_and_structure_break_is_confirmed():
 def test_pullback_requires_bearish_ma_touch_and_dead_volume():
     clear_market_path_cache()
     rows=strict_bottom_box()
-    rows.append(b(270,90,117,89,115,1800))
+    rows.append(b(270,90,117,89,115,4000))
     rows.append(b(271,114,115,106,108,500))
     out=analyze_market_path(rows,SwingSettings())
     assert sum(out["path_breakout"]) == 1
@@ -81,7 +81,7 @@ def test_pullback_requires_bearish_ma_touch_and_dead_volume():
 def test_green_or_high_volume_retrace_is_not_pullback():
     clear_market_path_cache()
     rows=strict_bottom_box()
-    rows.append(b(270,90,117,89,115,1800))
+    rows.append(b(270,90,117,89,115,4000))
     rows.append(b(271,107,112,106,111,400))
     rows.append(b(272,114,115,106,108,1700))
     out=analyze_market_path(rows,SwingSettings())
@@ -91,7 +91,7 @@ def test_green_or_high_volume_retrace_is_not_pullback():
 def test_rebreak_only_after_valid_ma_pullback():
     clear_market_path_cache()
     rows=strict_bottom_box()
-    rows.append(b(270,90,117,89,115,1800))
+    rows.append(b(270,90,117,89,115,4000))
     rows.append(b(271,114,115,106,108,500))
     rows.append(b(272,109,121,108,120,4000))
     out=analyze_market_path(rows,SwingSettings())
@@ -104,7 +104,7 @@ def test_rebreak_only_after_valid_ma_pullback():
 def test_bowl3_context_can_confirm_long_ma_breakout():
     clear_market_path_cache()
     rows=bowl3_box()
-    rows.append(b(340,100,122,99,120,1800))
+    rows.append(b(340,100,122,99,120,4000))
     out=analyze_market_path(rows,SwingSettings())
     assert sum(out["path_breakout"]) == 1
     assert out["current"]["context_name"] in ("밥그릇3","바닥권")
