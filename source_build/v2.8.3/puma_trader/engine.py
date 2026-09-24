@@ -7,6 +7,7 @@ from .models import Position, SignalResult, StrategySettings
 from .storage import load_runtime, save_runtime
 from .strategy import evaluate_buy, evaluate_sell, in_scan_window
 from .gaboja import evaluate_gaboja
+from .swing import normalize_candles
 
 INITIAL_SEED_CAPITAL = 500_000
 PHASE1_TARGET_CAPITAL = 3_000_000
@@ -34,6 +35,66 @@ def _minute_bucket_key(row: dict, timeframe: int) -> str:
         return digits[:10] + f"{bucket:02d}"
     except Exception:
         return digits[:12]
+
+
+def _gaboja_trend_stop_from_rows(
+    rows,
+    *,
+    current_bar_key: str,
+    timeframe: int,
+    current_stop: float,
+    entry_price: float,
+) -> float:
+    """Return the newest confirmed higher '차' low without looking into the live bar.
+
+    A pullback is 1~3 completed bars containing at least one bearish candle.
+    It becomes confirmed only when the next completed bullish bar closes back
+    above the pullback bodies.  The stop can only move upward.
+    """
+    completed_raw = [
+        row for row in (rows or [])
+        if _minute_bucket_key(row, timeframe) != str(current_bar_key or "")
+    ]
+    candles = normalize_candles(completed_raw)
+    if len(candles) < 5:
+        return float(current_stop or 0)
+
+    best = float(current_stop or 0)
+    entry = float(entry_price or 0)
+    start = max(2, len(candles) - 14)
+
+    for rebound_i in range(start, len(candles)):
+        rebound = candles[rebound_i]
+        if float(rebound["close"]) <= float(rebound["open"]):
+            continue
+
+        for span in (1, 2, 3):
+            pb_start = rebound_i - span
+            if pb_start < 1:
+                continue
+            pullback = candles[pb_start:rebound_i]
+            prior = candles[max(0, pb_start - 4):pb_start]
+            if not prior or not pullback:
+                continue
+            if not any(float(x["close"]) < float(x["open"]) for x in pullback):
+                continue
+
+            prior_high = max(float(x["high"]) for x in prior)
+            pull_low = min(float(x["low"]) for x in pullback)
+            pull_body_high = max(max(float(x["open"]), float(x["close"])) for x in pullback)
+
+            # 상승 뒤 눌림이어야 하고, 다음 양봉이 눌림 몸통을 회복해야 확정.
+            if prior_high <= max(entry, best):
+                continue
+            if float(rebound["close"]) <= pull_body_high:
+                continue
+            if pull_low <= best or pull_low >= float(rebound["close"]):
+                continue
+
+            best = max(best, pull_low)
+            break
+
+    return best
 
 
 class TradeEngine:
@@ -443,10 +504,14 @@ class TradeEngine:
         self._record_realized_delta(realized)
         return {"code": code, "name": pos.name, "status": "SELL", "price": current, "signal": reason, "order": resp}
 
-    def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
+    def _submit_partial_sell(
+        self, code: str, pos: Position, current: float, reason: str, *,
+        require_enabled: bool = False, sell_ratio: float = 0.5,
+    ):
         if require_enabled and not self.enabled:
             return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
-        sell_qty = max(1, int(pos.qty) // 2)
+        ratio = min(1.0, max(0.01, float(sell_ratio or 0.5)))
+        sell_qty = max(1, int(int(pos.qty) * ratio))
         if sell_qty >= int(pos.qty):
             return self._submit_sell(code, pos, current, reason + " · 1주라 전량", require_enabled=require_enabled)
 
@@ -535,15 +600,45 @@ class TradeEngine:
             pos = self.positions[code]
             pnl = pos.pnl_pct(current)
 
-            # 가보자는 당일 단타. 13:00부터는 +4% 절반익절보다 전량청산이 우선이다.
-            day_exit = str(getattr(self.settings, "gabojago_force_exit_time", "13:00") or "13:00")
+            # 가보자 추세추적: 새로 확정된 높은 차 저점이 생기면 손절선을 위로만 올린다.
+            if bool(getattr(self.settings, "gabojago_trend_tracking_enabled", True)):
+                old_stop = float(getattr(pos, "stop_price", 0) or 0)
+                new_stop = _gaboja_trend_stop_from_rows(
+                    candles,
+                    current_bar_key=bar_key,
+                    timeframe=self.settings.timeframe_min,
+                    current_stop=old_stop,
+                    entry_price=float(pos.entry_price or 0),
+                )
+                if new_stop > old_stop:
+                    pos.stop_price = float(new_stop)
+                    meta = dict(self.managed_meta.get(code) or {})
+                    meta.update({
+                        "stop_price": float(new_stop),
+                        "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
+                        "partial_taken": bool(getattr(pos, "partial_taken", False)),
+                        "partial_price": float(getattr(pos, "partial_price", 0) or 0),
+                        "partial_time": str(getattr(pos, "partial_time", "") or ""),
+                    })
+                    self.managed_meta[code] = meta
+                    self._persist_runtime()
+
+            # 당일 단타 최종 안전청산. 추세가 살아 있으면 장중에는 계속 보유한다.
+            day_exit = str(getattr(self.settings, "gabojago_force_exit_time", "15:20") or "15:20")
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
                 return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산", require_enabled=True)
 
-            # 가보자: +4% 최초 도달 시 절반 익절.
-            # 잔량은 절반매도 기준가 +2% 즉시 청산 / -2%는 다음 5분봉 회복 여부를 확인한다.
-            if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= self.settings.take_profit_pct:
-                return self._submit_partial_sell(code, pos, current, f"가보자 +{self.settings.take_profit_pct:.1f}% 1차 절반익절 · {pnl:+.2f}%", require_enabled=True)
+            # 가보자 추세추적: +4% 최초 도달 시 25%만 확보하고 75%는 차 저점 추적.
+            partial_target = float(getattr(self.settings, "gabojago_partial_profit_pct", self.settings.take_profit_pct) or self.settings.take_profit_pct)
+            partial_ratio = float(getattr(self.settings, "gabojago_partial_sell_ratio", 0.25) or 0.25)
+            if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= partial_target:
+                pct = max(1, int(round(partial_ratio * 100)))
+                return self._submit_partial_sell(
+                    code, pos, current,
+                    f"가보자 +{partial_target:.1f}% 1차 {pct}% 익절 · 잔량 추세추적 · {pnl:+.2f}%",
+                    require_enabled=True,
+                    sell_ratio=partial_ratio,
+                )
 
             state_before = (
                 str(getattr(pos, "remainder_down_trigger_bar", "") or ""),
@@ -602,11 +697,9 @@ class TradeEngine:
             }
 
         if self.enabled and sig.passed and self.can_open(code) and current > 0:
-            # 차 눌림 진입은 당일 기준봉 시가,
-            # 전고 몸통돌파 진입은 직전 차 눌림 저점까지 손절선을 끌어올린다.
-            stop_price = float(sig.basis_open or 0)
-            if str(sig.entry_kind or "") == "BODY_REBREAK" and float(sig.pullback_low or 0) > stop_price:
-                stop_price = float(sig.pullback_low)
+            # 가보자 최초 손절선은 진입 방식과 무관하게 확인된 '차 저점'.
+            # 이후 추세가 이어지면 새 차 저점으로 손절선을 단계적으로 올린다.
+            stop_price = float(sig.pullback_low or sig.basis_open or 0)
             return self._submit_buy(
                 code, name, current, sig.reason,
                 stop_price=stop_price,
