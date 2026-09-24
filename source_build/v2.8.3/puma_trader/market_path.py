@@ -756,9 +756,19 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     event=events[-1]
     bi=int(event["breakout_idx"]); pi=int(event.get("pullback_idx",-1)); ri=int(event.get("rebreak_idx",-1))
     level=float(event["high"])
-    support_period=int(event.get("pullback_ma_period") or event.get("breakout_ma_period") or 0)
-    support_line=e224 if support_period==224 else e112
-    support_hold=bool(support_period and support_line[-1] is not None and float(candles[-1]["close"]) >= float(support_line[-1])*(1-hold_tol))
+    pull_source=str(event.get("pullback_source") or "")
+    support_period=int(event.get("pullback_ma_period") or 0)
+
+    if pull_source in ("공구리상단", "전고상단"):
+        support_hold=bool(float(candles[-1]["close"]) >= level*(1-hold_tol))
+    elif support_period in (112,224):
+        support_line=e224 if support_period==224 else e112
+        support_hold=bool(
+            support_line[-1] is not None
+            and float(candles[-1]["close"]) >= float(support_line[-1])*(1-hold_tol)
+        )
+    else:
+        support_hold=False
 
     cur=dict(default)
     cur.update({
