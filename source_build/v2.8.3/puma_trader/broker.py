@@ -241,6 +241,45 @@ class KiwoomRestBroker(BaseBroker):
     def get_stock_info(self, code: str) -> dict:
         return self._post("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})
 
+    def list_domestic_stocks(self, market_types=("0", "10", "8")) -> list[dict]:
+        """Load a searchable KRX stock universe via official ka10099.
+
+        0=KOSPI, 10=KOSDAQ, 8=ETF. Results are normalized and de-duplicated
+        by stock code so the UI can cache the list and search locally.
+        """
+        out: dict[str, dict] = {}
+        for market_type in market_types:
+            cont_yn = ""
+            next_key = ""
+            seen_keys = set()
+            for _ in range(20):
+                data, cont_yn, next_key = self._post_page(
+                    "/api/dostk/stkinfo", "ka10099",
+                    {"mrkt_tp": str(market_type)}, cont_yn, next_key
+                )
+                rows = data.get("list", [])
+                if isinstance(rows, list):
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        code = str(row.get("code") or row.get("stk_cd") or "").strip()
+                        name = str(row.get("name") or row.get("stk_nm") or "").strip()
+                        if not code or not name:
+                            continue
+                        out[code] = {
+                            "code": code,
+                            "name": name,
+                            "market_code": str(row.get("marketCode") or market_type),
+                            "market_name": str(row.get("marketName") or "").strip(),
+                        }
+                has_more = cont_yn == "Y" and bool(next_key) and next_key not in seen_keys
+                if next_key:
+                    seen_keys.add(next_key)
+                if not has_more:
+                    break
+                time.sleep(0.08)
+        return list(out.values())
+
     def get_daily_candles(self, code: str, max_pages: int = 6) -> list[dict]:
         rows = []
         for rows, _ in self.iter_chart_pages(code, "daily", max_pages):
