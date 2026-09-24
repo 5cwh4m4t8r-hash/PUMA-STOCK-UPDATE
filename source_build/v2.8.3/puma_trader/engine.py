@@ -8,7 +8,8 @@ from .storage import load_runtime, save_runtime
 from .strategy import evaluate_buy, evaluate_sell, in_scan_window
 from .gaboja import evaluate_gaboja
 
-AUTO_ORDER_BUDGET = 500_000
+INITIAL_SEED_CAPITAL = 500_000
+PHASE1_TARGET_CAPITAL = 3_000_000
 
 
 def _num(v):
@@ -37,7 +38,6 @@ class TradeEngine:
     def __init__(self, broker, settings: StrategySettings):
         self.broker = broker
         self.settings = settings
-        self.settings.order_budget = AUTO_ORDER_BUDGET
         # positions에는 PUMA가 관리하는 포지션만 들어간다. 계좌의 다른 보유종목은 자동매도 금지.
         self.positions: Dict[str, Position] = {}
         self.account_held_codes: set[str] = set()
@@ -49,6 +49,10 @@ class TradeEngine:
 
         self.daily_order_date = datetime.now().date()
         self.daily_order_count = 0
+        self.seed_capital = float(getattr(settings, "seed_initial_capital", INITIAL_SEED_CAPITAL) or INITIAL_SEED_CAPITAL)
+        self.daily_start_seed = float(self.seed_capital)
+        self.daily_realized_pnl = 0.0
+        self.daily_loss_locked = False
         self.managed_qty: Dict[str, int] = {}
         self.managed_meta: Dict[str, dict] = {}
         self._gaboja_daily_cache: Dict[str, dict] = {}
@@ -63,6 +67,10 @@ class TradeEngine:
             "managed_qty": self.managed_qty,
             "managed_meta": self.managed_meta,
             "pending_orders": self.pending_orders,
+            "seed_capital": self.seed_capital,
+            "daily_start_seed": self.daily_start_seed,
+            "daily_realized_pnl": self.daily_realized_pnl,
+            "daily_loss_locked": self.daily_loss_locked,
         })
 
     def set_broker(self, broker):
@@ -96,13 +104,27 @@ class TradeEngine:
                     x["created_at"] = datetime.now()
                 restored[str(code)] = x
             self.pending_orders = restored
+            same_day = runtime.get("daily_order_date") == today
+            self.seed_capital = max(
+                0.0,
+                float(runtime.get("seed_capital", getattr(self.settings, "seed_initial_capital", INITIAL_SEED_CAPITAL)) or INITIAL_SEED_CAPITAL),
+            )
+            self.daily_start_seed = (
+                max(0.0, float(runtime.get("daily_start_seed", self.seed_capital) or self.seed_capital))
+                if same_day else self.seed_capital
+            )
+            self.daily_realized_pnl = float(runtime.get("daily_realized_pnl", 0) or 0) if same_day else 0.0
+            self.daily_loss_locked = bool(runtime.get("daily_loss_locked", False)) if same_day else False
         else:
             self.daily_order_count = 0
             self.managed_qty = {}
             self.managed_meta = {}
+            self.seed_capital = float(getattr(self.settings, "seed_initial_capital", INITIAL_SEED_CAPITAL) or INITIAL_SEED_CAPITAL)
+            self.daily_start_seed = self.seed_capital
+            self.daily_realized_pnl = 0.0
+            self.daily_loss_locked = False
 
     def set_settings(self, settings):
-        settings.order_budget = AUTO_ORDER_BUDGET
         self.settings = settings
         if hasattr(self.broker, "order_exchange"):
             self.broker.order_exchange = settings.order_exchange
@@ -116,7 +138,35 @@ class TradeEngine:
         if today != self.daily_order_date:
             self.daily_order_date = today
             self.daily_order_count = 0
+            # 전일 손익이 반영된 현재 시드가 다음 거래일 시작 시드가 된다.
+            self.daily_start_seed = float(self.seed_capital)
+            self.daily_realized_pnl = 0.0
+            self.daily_loss_locked = False
             self._persist_runtime()
+
+    def current_trade_budget(self) -> int:
+        """1차 목표 300만원 전까지 현재 PUMA 시드를 다음 거래에 전액 재투입."""
+        if not bool(getattr(self.settings, "compound_seed_enabled", True)):
+            return max(0, int(getattr(self.settings, "order_budget", INITIAL_SEED_CAPITAL) or 0))
+        return max(0, int(self.seed_capital))
+
+    def phase1_complete(self) -> bool:
+        target = float(getattr(self.settings, "seed_phase1_target", PHASE1_TARGET_CAPITAL) or PHASE1_TARGET_CAPITAL)
+        return float(self.seed_capital) >= target
+
+    def daily_loss_pct(self) -> float:
+        if self.daily_start_seed <= 0:
+            return 0.0
+        return (float(self.seed_capital) / float(self.daily_start_seed) - 1.0) * 100.0
+
+    def _record_realized_delta(self, pnl_delta: float):
+        delta = float(pnl_delta or 0.0)
+        self.seed_capital = max(0.0, float(self.seed_capital) + delta)
+        self.daily_realized_pnl += delta
+        limit = float(getattr(self.settings, "daily_loss_limit_pct", -4.0) or -4.0)
+        if self.daily_loss_pct() <= limit:
+            self.daily_loss_locked = True
+        self._persist_runtime()
 
     def _gaboja_daily_rows(self, code: str) -> list[dict]:
         """Daily history is static intraday; cache it so 5-minute auto-trading stays fast.
@@ -141,10 +191,17 @@ class TradeEngine:
 
     def can_open(self, code):
         self._roll_daily_counter()
-        # 계좌에 사용자가 이미 보유한 종목도 중복매수하지 않는다.
+        if self.daily_loss_locked or self.phase1_complete():
+            return False
+        # 1차 복리 구간은 현재 시드 전액을 가장 좋은 단타 한 종목에만 사용한다.
+        # 한 포지션/매수주문이 끝나기 전에는 두 번째 종목 신규진입을 절대 허용하지 않는다.
+        if bool(getattr(self.settings, "compound_seed_enabled", True)):
+            if self.positions or any(x.get("side") == "BUY" for x in self.pending_orders.values()):
+                return False
+        # 계좌에 사용자가 이미 보유한 같은 종목도 중복매수하지 않는다.
         if code in self.account_held_codes or code in self.positions or code in self.pending_orders:
             return False
-        if len(self.positions) + sum(1 for x in self.pending_orders.values() if x.get("side") == "BUY") >= self.settings.max_positions:
+        if not bool(getattr(self.settings, "compound_seed_enabled", True)) and len(self.positions) + sum(1 for x in self.pending_orders.values() if x.get("side") == "BUY") >= self.settings.max_positions:
             return False
         if self.daily_order_count >= self.settings.max_daily_orders:
             return False
@@ -256,6 +313,7 @@ class TradeEngine:
             now_qty = int(self.account_qty.get(code, 0) or 0)
             if now_qty <= max(0, before - sold_qty):
                 self.pending_orders.pop(code, None)
+                self._record_realized_delta(float(pending.get("seed_pnl_delta", 0) or 0))
                 full_exit = bool(pending.get("full_exit", True))
                 remaining = max(0, int(pending.get("remaining_qty", 0) or 0))
                 if full_exit or remaining <= 0:
@@ -314,9 +372,13 @@ class TradeEngine:
     def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = "", require_enabled: bool = False):
         if require_enabled and not self.enabled:
             return {"code": code, "name": name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 신규주문 차단"}
-        qty = int(AUTO_ORDER_BUDGET // current)
+        budget = self.current_trade_budget()
+        qty = int(budget // current)
         if qty < 1:
-            return {"code": code, "name": name, "status": "WAIT", "price": current, "signal": "고정 50만원보다 현재가가 높아 자동매수 불가"}
+            return {
+                "code": code, "name": name, "status": "WAIT", "price": current,
+                "signal": f"현재 복리 시드 {budget:,.0f}원보다 주가가 높아 자동매수 불가",
+            }
         resp = self.broker.buy_market(code, qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
@@ -338,6 +400,7 @@ class TradeEngine:
                 "created_at": datetime.now(),
                 "stop_price": float(stop_price or 0),
                 "entry_kind": str(entry_kind or ""),
+                "seed_budget": float(budget),
             }
             self._persist_runtime()
             return {"code": code, "name": name, "status": "BUY_SENT", "price": current, "signal": reason, "order": resp}
@@ -367,13 +430,15 @@ class TradeEngine:
                 "stop_price": float(getattr(pos, "stop_price", 0) or 0),
                 "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
                 "partial_taken_after": bool(getattr(pos, "partial_taken", False)),
+                "seed_pnl_delta": (float(current) - float(pos.entry_price)) * int(pos.qty),
             }
             self._persist_runtime()
             return {"code": code, "name": pos.name, "status": "SELL_SENT", "price": current, "signal": reason, "order": resp}
 
+        realized = (float(current) - float(pos.entry_price)) * int(pos.qty)
         del self.positions[code]
         self.cooldowns[code] = datetime.now() + timedelta(minutes=self.settings.cooldown_min)
-        self._persist_runtime()
+        self._record_realized_delta(realized)
         return {"code": code, "name": pos.name, "status": "SELL", "price": current, "signal": reason, "order": resp}
 
     def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
@@ -403,6 +468,7 @@ class TradeEngine:
                 "partial_time_after": datetime.now().isoformat(timespec="seconds"),
                 "remainder_down_trigger_bar_after": "",
                 "remainder_down_wait_bar_after": "",
+                "seed_pnl_delta": (float(current) - float(pos.entry_price)) * int(sell_qty),
             }
             self._persist_runtime()
             return {
@@ -410,6 +476,7 @@ class TradeEngine:
                 "price": current, "signal": reason, "order": resp,
             }
 
+        self._record_realized_delta((float(current) - float(pos.entry_price)) * int(sell_qty))
         pos.qty = remaining
         pos.partial_taken = True
         pos.partial_price = float(current)
@@ -520,6 +587,17 @@ class TradeEngine:
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
         )
+
+        if self.daily_loss_locked:
+            return {
+                "code": code, "name": name, "status": "DAILY_STOP", "price": current,
+                "signal": f"하루 손실 한도 도달 · {self.daily_loss_pct():+.2f}% · 다음 거래일 현재 시드 {self.seed_capital:,.0f}원으로 재개",
+            }
+        if self.phase1_complete():
+            return {
+                "code": code, "name": name, "status": "TARGET", "price": current,
+                "signal": f"1차 목표 300만원 달성 · 현재 시드 {self.seed_capital:,.0f}원 · 신규매수 중지",
+            }
 
         if self.enabled and sig.passed and self.can_open(code) and current > 0:
             # 차 눌림 진입은 당일 기준봉 시가,
