@@ -312,6 +312,8 @@ class TradeEngine:
         }
 
     def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = ""):
+        if not self.enabled:
+            return {"code": code, "name": name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 신규주문 차단"}
         qty = int(AUTO_ORDER_BUDGET // current)
         if qty < 1:
             return {"code": code, "name": name, "status": "WAIT", "price": current, "signal": "고정 50만원보다 현재가가 높아 자동매수 불가"}
@@ -349,6 +351,8 @@ class TradeEngine:
         return {"code": code, "name": name, "status": "BUY", "price": current, "signal": reason, "order": resp}
 
     def _submit_sell(self, code: str, pos: Position, current: float, reason: str):
+        if not self.enabled:
+            return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
         resp = self.broker.sell_market(code, pos.qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
@@ -373,6 +377,8 @@ class TradeEngine:
         return {"code": code, "name": pos.name, "status": "SELL", "price": current, "signal": reason, "order": resp}
 
     def _submit_partial_sell(self, code: str, pos: Position, current: float, reason: str):
+        if not self.enabled:
+            return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
         sell_qty = max(1, int(pos.qty) // 2)
         if sell_qty >= int(pos.qty):
             return self._submit_sell(code, pos, current, reason + " · 1주라 전량")
