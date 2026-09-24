@@ -790,28 +790,33 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     ma=int(event.get("breakout_ma_period",0))
     structure_name="공구리 상단" if event.get("structure_type")=="공구리" else "전고점"
+    pull_label = str(event.get("pullback_source") or "")
+    if not pull_label and int(event.get("pullback_ma_period",0) or 0):
+        pull_label = f"{int(event.get('pullback_ma_period',0))}EMA"
+    if not pull_label:
+        pull_label = "지지선"
     if pi>=0 and not support_hold:
-        cur.update({"stage":f"{ma}EMA 눌림 지지 실패","stage_key":"FAIL","active":False,
-                    "reason":f"돌파 후 {support_period}EMA 눌림에서 종가 지지 실패","quality_score":20})
+        cur.update({"stage":f"{pull_label} 눌림 지지 실패","stage_key":"FAIL","active":False,
+                    "reason":f"돌파 후 {pull_label} 눌림에서 종가 지지 실패","quality_score":20})
     elif ri>=0 and n-1-ri<=2:
         cur.update({"stage":"확정 재돌파","stage_key":"REBREAKOUT","active":True,
-                    "reason":f"{event.get('context_name')} · {ma}EMA+{structure_name} 돌파 → {event.get('pullback_ma_period')}EMA 저거래량 음봉 눌림 → 재돌파",
+                    "reason":f"{event.get('context_name')} · {ma}EMA+{structure_name} 몸통돌파 → {pull_label} 저거래량 음봉 눌림 → 재돌파",
                     "quality_score":int(event.get("rebreak_quality",80))})
     elif pi>=0 and ri<0 and n-1-pi<=4:
         cur.update({"stage":"확정 눌림","stage_key":"PULLBACK","active":True,
-                    "reason":f"{event.get('context_name')} 돌파 후 음봉이 {event.get('pullback_ma_period')}EMA까지 눌림 · 거래량/돌파봉 {event.get('pullback_volume_ratio',1):.2f} · 20봉평균대비 {event.get('pullback_base_volume_ratio',1):.2f}",
+                    "reason":f"{event.get('context_name')} 몸통돌파 후 음봉이 {pull_label}까지 눌림 · 거래량/돌파봉 {event.get('pullback_volume_ratio',1):.2f} · 20봉평균대비 {event.get('pullback_base_volume_ratio',1):.2f}",
                     "quality_score":int(event.get("pullback_quality",75))})
     elif n-1-bi<=2 and pi<0:
         cur.update({"stage":"확정 돌파","stage_key":"BREAKOUT","active":True,
-                    "reason":f"{event.get('context_name')} · {ma}EMA 상향돌파와 동시에 {structure_name} {level:,.0f} 돌파",
+                    "reason":f"{event.get('context_name')} · {ma}EMA와 {structure_name} {level:,.0f} 양봉 몸통돌파 · 거래량 {event.get('breakout_volume_ratio',0):.2f}배",
                     "quality_score":int(event.get("breakout_quality",75))})
     elif pi<0:
-        cur.update({"stage":"돌파 후 112·224 눌림 대기","stage_key":"WAIT","active":False,
-                    "reason":f"{event.get('context_name')} · {ma}EMA+{structure_name} 돌파 확인 · 이후 음봉이 112/224EMA까지 내려오며 거래량이 죽는지 대기",
+        cur.update({"stage":"돌파 후 지지 눌림 대기","stage_key":"WAIT","active":False,
+                    "reason":f"{event.get('context_name')} · {ma}EMA+{structure_name} 몸통돌파 확인 · 이후 음봉이 공구리/전고 상단 또는 112/224EMA를 지키며 거래량이 죽는지 대기",
                     "quality_score":int(event.get("breakout_quality",65))})
     elif ri<0:
         cur.update({"stage":"확정 눌림 / 재상승 대기","stage_key":"PULLBACK","active":True,
-                    "reason":f"{event.get('pullback_ma_period')}EMA 저거래량 음봉 눌림 확인 · 재상승 대기",
+                    "reason":f"{pull_label} 저거래량 음봉 눌림 확인 · 재상승 대기",
                     "quality_score":int(event.get("pullback_quality",75))})
     else:
         cur.update({"stage":"과거 구조","stage_key":"WAIT","active":False,"reason":"현재 신규 타점과 거리 있음","quality_score":0})
