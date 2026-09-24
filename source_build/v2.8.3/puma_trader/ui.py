@@ -73,6 +73,7 @@ from .swing_chart import SwingChart
 from .updater import CURRENT_VERSION, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply, restart_app
 from .secure_credentials import load_credentials, save_credentials, clear_credentials, CredentialError
 from .mobile_bridge import MobileBridge
+from .remote_relay import RemoteRelayClient
 
 DARK = """
 QMainWindow, QWidget { background: #0b1626; color: #e8eef7; font-family: 'Malgun Gothic'; }
@@ -784,6 +785,8 @@ class MainWindow(QMainWindow):
         # Mobile companion bridge. HTTP thread never touches Qt widgets directly.
         self.mobile_bridge = MobileBridge(self)
         self.mobile_bridge.commandReceived.connect(self._on_mobile_command)
+        self.mobile_remote = RemoteRelayClient(self.mobile_bridge, self)
+        self.mobile_remote.statusChanged.connect(self._on_mobile_remote_status)
         self.mobile_publish_timer = QTimer(self)
         self.mobile_publish_timer.setInterval(750)
         self.mobile_publish_timer.timeout.connect(self._publish_mobile_snapshot)
@@ -860,6 +863,8 @@ class MainWindow(QMainWindow):
         self._publish_mobile_snapshot()
         if getattr(self, "mobile_auto_box", None) is not None and self.mobile_auto_box.isChecked():
             QTimer.singleShot(1200, self._mobile_start)
+        if getattr(self, "mobile_remote_auto_box", None) is not None and self.mobile_remote_auto_box.isChecked():
+            QTimer.singleShot(1600, self._mobile_remote_start)
 
     def _dashboard_tab(self):
         w = QWidget()
@@ -5058,9 +5063,9 @@ class MainWindow(QMainWindow):
         form.addWidget(title, 0, 0, 1, 4)
 
         desc = QLabel(
-            "같은 Wi-Fi에서 아이폰 Safari로 아래 주소에 접속한 뒤 연결코드 6자리를 입력하세요. "
-            "Safari 공유 → 홈 화면에 추가를 누르면 앱처럼 설치됩니다. "
-            "키움 App Key/Secret은 휴대폰으로 전송하지 않습니다."
+            "로컬에서는 기존 모바일 서버를 사용할 수 있고, 외부망에서는 PUMA iPhone 앱이 "
+            "Relay 또는 Tailscale을 통해 집 PC에 연결됩니다. 공유기 포트포워딩은 필요 없습니다. "
+            "키움 App Key/Secret은 휴대폰이나 Relay로 전송하지 않습니다."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color:#9eb4c9")
@@ -5168,7 +5173,7 @@ class MainWindow(QMainWindow):
             self.mobile_url_label.setText(str(info["url"]))
             self.mobile_demo_url_label.setText(f"{info['url']}/demo")
             self.mobile_token_label.setText(str(info["token"]))
-            self.mobile_status_label.setText("모바일 서버 실행 중 · 같은 Wi-Fi에서 접속 가능")
+            self.mobile_status_label.setText("모바일 LAN 서버 실행 중")
             self.mobile_status_label.setStyleSheet("font-weight:900;color:#61ff8f")
             self.log("PUMA MOBILE", "SERVER", "-", f"모바일 서버 시작 {info['url']}")
             self._publish_mobile_snapshot()
