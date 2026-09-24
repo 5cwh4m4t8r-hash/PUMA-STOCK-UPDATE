@@ -93,6 +93,22 @@ def _volume_footprint(candles: List[dict], vols: List[float], v20, i: int) -> di
     }
 
 
+def _record112_recent(vols: List[float], i: int, recent_window: int = 20) -> bool:
+    """True when one of the last 20 bars is a 112-bar record-volume bar.
+
+    The record bar must also have higher volume than its immediately previous
+    bar, matching the user's volume-color rule.
+    """
+    start = max(111, i - recent_window + 1)
+    for j in range(start, i + 1):
+        if j <= 0 or float(vols[j]) <= float(vols[j - 1]):
+            continue
+        base = vols[j - 111:j + 1]
+        if base and float(vols[j]) >= max(float(x) for x in base):
+            return True
+    return False
+
+
 def _latest_reclaim_index(closes, ema_line, i: int, lookback: int = 4) -> int:
     """Return the latest genuine reclaim bar, or -1.
 
@@ -380,28 +396,35 @@ def build_puma_watermelon(
         context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
         evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
 
-        # 밥3 직전 준비구간:
-        # - 바닥권
-        # - 60 < 112 < 224 장기 역배열/수렴
-        # - 종가가 EMA224 ±2.5% 안쪽이며 아직 224 위로 멀리 이격되지 않음
-        # - EMA112는 이미 회복/접촉해 올라오는 흐름
-        # - 최근 10봉 안에 대형자금/매집 흔적이 존재
+        # 밥3 분석기의 '3번 직전' 기준과 맞춘다:
+        # 1) EMA224 아래 장기 체류(최근 100봉 중 70봉 이상)
+        # 2) 현재가 EMA224 ±2%
+        # 3) 최근20봉 안 112봉 신고거래량
+        # 4) 60 < 112 < 224 역배열 또는 최근 112EMA 회복
+        # 5) 최근 대형자금/매집 흔적
         near_224_prebreak = False
         if e224[i] is not None and float(e224[i]) > 0:
-            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.025
+            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.020
 
         reverse_60_112_224 = False
         if e60[i] is not None and e112[i] is not None and e224[i] is not None:
             reverse_60_112_224 = bool(
-                float(e60[i]) <= float(e112[i]) * 1.015
-                and float(e112[i]) <= float(e224[i]) * 1.015
+                float(e60[i]) < float(e112[i]) < float(e224[i])
             )
 
-        reclaimed_112_recent = _latest_reclaim_index(closes, e112, i, 10) >= 0
-        near_or_above_112 = bool(
-            e112[i] is not None
-            and price >= float(e112[i]) * 0.985
+        reclaimed_112_recent = _latest_reclaim_index(closes, e112, i, 60) >= 0
+        record112_recent = _record112_recent(vols, i, 20)
+
+        prior_start = max(223, i - 99)
+        prior_idx = [
+            j for j in range(prior_start, i + 1)
+            if 0 <= j < len(e224) and e224[j] is not None
+        ]
+        below224_count = sum(
+            1 for j in prior_idx
+            if closes[j] < float(e224[j])
         )
+        long_below_224 = bool(len(prior_idx) >= 70 and below224_count >= 70)
 
         recent_large_money = bool(
             big_money_footprint
@@ -409,7 +432,7 @@ def build_puma_watermelon(
             or any(int(x) >= 50 for x in footprint_scores[max(0, i - 9):i])
         )
 
-        # 현재 봉이 이미 224를 강한 양봉 몸통으로 돌파한 뒤라면 '직전 수박'이 아니다.
+        # 현재 봉이 이미 224를 강한 양봉 몸통으로 돌파했다면 '직전 수박'이 아니다.
         bullish_224_body_break = False
         if i > 0 and e224[i] is not None:
             bullish_224_body_break = bool(
@@ -420,12 +443,11 @@ def build_puma_watermelon(
 
         pre_bowl3 = bool(
             bottom_context
-            and reverse_60_112_224
+            and long_below_224
             and near_224_prebreak
-            and near_or_above_112
-            and (reclaimed_112_recent or long_reclaim)
+            and record112_recent
+            and (reverse_60_112_224 or reclaimed_112_recent)
             and recent_large_money
-            and context_confirmed
             and not bullish_224_body_break
         )
 
