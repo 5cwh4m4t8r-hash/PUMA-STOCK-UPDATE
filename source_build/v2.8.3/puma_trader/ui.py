@@ -1304,7 +1304,7 @@ class MainWindow(QMainWindow):
         br.addWidget(sb)
         of.addRow(br)
         ov.addWidget(order)
-        order_note = QLabel("실전 주문은 LIVE 잠금 + 주문 직전 LIVE ORDER 확인을 그대로 사용합니다.")
+        order_note = QLabel("자동매매는 LIVE 1회 잠금 해제 후 추가 LIVE START 입력 없이 시작합니다. 수동 주문은 LIVE ORDER 확인을 유지합니다.")
         order_note.setWordWrap(True)
         order_note.setStyleSheet("color:#9eb4c9")
         ov.addWidget(order_note)
@@ -1497,7 +1497,7 @@ class MainWindow(QMainWindow):
         rf.addRow("PUMA 일일 주문 상한", self.max_daily_orders)
         rf.addRow("실계좌 동기화(초)", self.account_sync_sec)
         rf.addRow("주문 거래소", self.exchange_combo)
-        risk_note = QLabel("가보자 자동매수는 종목당 50만원으로 고정합니다. 실전 자동주문은 LIVE START 안전잠금과 실제 잔고 동기화를 그대로 사용합니다.")
+        risk_note = QLabel("가보자 자동매수는 종목당 50만원으로 고정합니다. 실전 자동주문은 LIVE 1회 잠금 해제와 실제 잔고 동기화를 사용합니다.")
         risk_note.setWordWrap(True)
         risk_note.setStyleSheet("color:#9eb4c9")
         rf.addRow(risk_note)
@@ -1713,7 +1713,7 @@ class MainWindow(QMainWindow):
         action.setObjectName("conditionBtn")
         action.clicked.connect(self.swing_reanalyze)
         right.addWidget(action)
-        note = QLabel("수박/화살표는 네 신호식을 받기 전까지 최종 트리거로 연결하지 않습니다.\n실전 자동주문은 기존 LIVE 이중잠금과 리스크 제한을 그대로 사용합니다.")
+        note = QLabel("수박/화살표는 네 신호식을 받기 전까지 최종 트리거로 연결하지 않습니다.\n실전 자동주문은 LIVE 1회 잠금과 리스크 제한을 사용합니다.")
         note.setWordWrap(True); note.setStyleSheet("color:#9eb4c9;padding:8px")
         right.addWidget(note)
         right.addStretch()
@@ -1882,7 +1882,7 @@ class MainWindow(QMainWindow):
         safety_note = QLabel(
             "· 프로그램 시작 시 실전 서버 자동 인증 가능\n"
             "· 실제 주문은 별도 실전주문 잠금 해제 필요\n"
-            "· 자동매매 시작 시 LIVE START 재확인\n"
+            "· 자동매매 시작 시 추가 LIVE START 입력 없음\n"
             "· 실제 잔고 동기화 / 일일 주문 상한 / 중복주문 차단 유지"
         )
         safety_note.setWordWrap(True)
@@ -2467,7 +2467,7 @@ class MainWindow(QMainWindow):
         if ok and text.strip().upper() == "LIVE":
             self.real_armed = True
             self.live_auto_confirmed_session = False
-            QMessageBox.warning(self, "실전 잠금 1단계 해제", "실전 연결이 허용됐습니다. LIVE START는 이번 프로그램 실행 중 최초 자동매매 시작 때 한 번만 확인합니다.")
+            QMessageBox.warning(self, "실전 잠금 해제", "실전 주문 잠금이 해제됐습니다. 자동매매는 추가 LIVE START 입력 없이 시작됩니다.")
         else:
             self.real_armed = False
             self.live_auto_confirmed_session = False
@@ -4700,19 +4700,15 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "주문 실패", str(exc))
 
     def _confirm_live_auto_once(self, title: str, message: str) -> bool:
+        """Real auto-trading requires only the primary LIVE arm.
+
+        The former second-stage LIVE START text prompt was intentionally removed.
+        Manual real orders still keep their separate LIVE ORDER confirmation.
+        """
         if not (isinstance(self.broker, KiwoomRestBroker) and self.broker.real):
             return True
         if not self.real_armed:
-            QMessageBox.warning(self, "실전 잠금", "실전매매 1차 잠금이 해제되지 않았습니다.")
-            return False
-        if self.live_auto_confirmed_session:
-            return True
-        phrase, ok = QInputDialog.getText(
-            self,
-            title,
-            message + "\n\n이 프로그램을 종료하기 전까지는 다시 묻지 않습니다.\n계속하려면 LIVE START 를 입력하세요.",
-        )
-        if not ok or phrase.strip().upper() != "LIVE START":
+            QMessageBox.warning(self, "실전 잠금", "실전매매 잠금이 해제되지 않았습니다. 키움 연결 탭에서 LIVE를 입력하세요.")
             return False
         self.live_auto_confirmed_session = True
         return True
