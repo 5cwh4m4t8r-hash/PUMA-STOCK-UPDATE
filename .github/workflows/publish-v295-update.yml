@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.26 In-App Update
+name: Publish PUMA v2.9.27 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.26 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.27 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
         shell: powershell
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.26_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.27_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.26"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.26_UPDATE.zip"
-            notes = "v2.9.26: aligns PUMA's long-EMA calculations so the chart, four arrow formulas, Bowl-3, swing reference and market-path logic all use the same Hero-style cumulative EAVG engine. The user's four Kiwoom arrow formulas and SAR parameters remain unchanged; raw formula arrays are kept separately from display signals for direct HTS comparison. All price moving averages remain exponential (EAVG/EMA): 5, 20, 60, 112, 224 and 448. Black-arrow 224-period disparity is also evaluated against EMA224, matching the user's chart rule. New context rule: when EMA112>EMA224>EMA448 and price is already more than +8% above EMA224, reversal/bottom overlays are not used or shown (arrows, concrete boxes, Bowl-3 tags, watermelon/path/accumulation overlays and non-EMA extra lines). This fixes internal causes of arrows appearing on different crossings from the visible long EMAs while preserving the literal source formulas for diagnostics."
+            version = "2.9.27"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.27_UPDATE.zip"
+            notes = "v2.9.27: Bowl-3 is now defined by the user's exact structure. EMA224 must be crossed by the BODY of a bullish daily candle; that breakout candle becomes the reference candle. A later bearish candle must pull back to and hold one of three targets: the reference-candle open, EMA112, or the midpoint of the pre-break concrete box. Bearish 224 breaks, gap-only opens above EMA224, bullish retest candles, and a generic EMA224 touch no longer qualify as Bowl-3. Historical Bowl-3 markers use the same definition. Price moving averages remain exponential EAVG/EMA throughout. Live-order safety confirmations are unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.26_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.27_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.26 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.27 in-app update"
           git pull --rebase origin main
           git push origin main
