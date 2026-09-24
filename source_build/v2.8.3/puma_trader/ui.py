@@ -1354,7 +1354,7 @@ class MainWindow(QMainWindow):
         auv.setContentsMargins(5, 5, 5, 5)
         auto = QGroupBox("가보자 자동매매")
         afm = QFormLayout(auto)
-        self.focus_budget = self._spin(500_000, 500_000, 500_000, 10_000)
+        self.focus_budget = self._spin(0, 3_000_000, int(getattr(self.engine, "seed_capital", 500_000)), 10_000)
         self.focus_budget.setEnabled(False)
         self.focus_tp = self._dspin(0.1, 100, self.settings.take_profit_pct, " %")
         self.focus_sl = self._dspin(-50, -0.1, self.settings.stop_loss_pct, " %")
@@ -1362,7 +1362,11 @@ class MainWindow(QMainWindow):
         self.focus_trail.setChecked(self.settings.trailing_enabled)
         self.focus_trail_start = self._dspin(0.1, 100, self.settings.trailing_start_pct, " %")
         self.focus_trail_gap = self._dspin(0.1, 30, self.settings.trailing_gap_pct, " %")
-        afm.addRow("종목당 투입금(고정)", self.focus_budget)
+        afm.addRow("현재 복리 시드(전액)", self.focus_budget)
+        self.focus_seed_status = QLabel("1차 목표 300만원 · 동시보유 1종목 · 하루 -4% 신규매수 중단")
+        self.focus_seed_status.setWordWrap(True)
+        self.focus_seed_status.setStyleSheet("color:#61ff8f;font-weight:900")
+        afm.addRow(self.focus_seed_status)
         afm.addRow("익절", self.focus_tp)
         afm.addRow("손절", self.focus_sl)
         afm.addRow(self.focus_trail)
@@ -1382,7 +1386,7 @@ class MainWindow(QMainWindow):
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. 단타 검색기 7개 결과 합집합을 감시 → PUMA 단타 2차 선별 → 가보자 차 눌림/전고 몸통돌파 조건을 통과한 종목만 50만원 매수합니다. 검색으로 수동 추가한 종목은 단타 검색기 후보가 아닌 한 자동매수 대상에 포함되지 않습니다.")
+        note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. 단타 검색기 7개 합집합을 PUMA 점수 높은 순으로 확인하고, 가보자 진입조건을 통과한 최우선 1종목에 현재 복리 시드를 전액 투입합니다. 포지션이 끝나기 전에는 다른 종목을 사지 않습니다. 수익/손실은 다음 매매 시드에 그대로 반영되며 하루 누적 -4% 도달 시 그날 신규매수는 중단합니다. 검색추가·스윙·중장기는 자동매수 대상이 아닙니다.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -1520,22 +1524,23 @@ class MainWindow(QMainWindow):
 
         risk = QWidget()
         rf = QFormLayout(risk)
-        self.order_budget = self._spin(500_000, 500_000, 500_000, 10_000)
+        self.order_budget = self._spin(0, 3_000_000, int(getattr(self.engine, "seed_capital", 500_000)), 10_000)
         self.order_budget.setEnabled(False)
-        self.max_positions = self._spin(1, 20, self.settings.max_positions)
+        self.max_positions = self._spin(1, 1, 1)
+        self.max_positions.setEnabled(False)
         self.cooldown = self._spin(0, 240, self.settings.cooldown_min)
         self.max_daily_orders = self._spin(1, 100, self.settings.max_daily_orders)
         self.account_sync_sec = self._spin(2, 60, self.settings.account_sync_sec)
         self.exchange_combo = NoWheelComboBox()
         self.exchange_combo.addItems(["KRX", "NXT", "SOR"])
         self.exchange_combo.setCurrentText(self.settings.order_exchange)
-        rf.addRow("종목당 투입금(고정)", self.order_budget)
+        rf.addRow("현재 복리 시드(전액)", self.order_budget)
         rf.addRow("최대 보유종목", self.max_positions)
         rf.addRow("재진입 대기(분)", self.cooldown)
         rf.addRow("PUMA 일일 주문 상한", self.max_daily_orders)
         rf.addRow("실계좌 동기화(초)", self.account_sync_sec)
         rf.addRow("주문 거래소", self.exchange_combo)
-        risk_note = QLabel("가보자 자동매수는 종목당 50만원으로 고정합니다. 실전 자동주문은 LIVE 1회 잠금 해제와 실제 잔고 동기화를 사용합니다.")
+        risk_note = QLabel("1차 구간은 50만원에서 시작해 현재 시드를 한 번에 1종목에 전액 사용합니다. 수익이면 다음 매매 시드가 커지고 손실이면 줄어든 시드로 다음 매매합니다. 300만원 도달 시 1차 목표 달성으로 신규매수를 중지합니다. 하루 손실 한도는 시작 시드 대비 -4%입니다.")
         risk_note.setWordWrap(True)
         risk_note.setStyleSheet("color:#9eb4c9")
         rf.addRow(risk_note)
@@ -2439,7 +2444,11 @@ class MainWindow(QMainWindow):
             hero_secondary_filter=self.hero_secondary_filter.isChecked(),
             hero_entry_only=False,
             order_budget=500_000,
-            max_positions=self.max_positions.value(),
+            compound_seed_enabled=True,
+            seed_initial_capital=500_000,
+            seed_phase1_target=3_000_000,
+            daily_loss_limit_pct=-4.0,
+            max_positions=1,
             cooldown_min=self.cooldown.value(),
             max_daily_orders=self.max_daily_orders.value(),
             account_sync_sec=self.account_sync_sec.value(),
@@ -4984,9 +4993,18 @@ class MainWindow(QMainWindow):
         if not self.selected_code:
             QMessageBox.information(self, "종목 선택", "조건검색 목록에서 종목을 먼저 선택하세요.")
             return
+        selected_item = self.condition_candidates.get(self.selected_code, {})
+        if not self._candidate_in_danta_feed(selected_item):
+            QMessageBox.information(
+                self, "단타 종목만 자동매매",
+                "실전 자동매매는 단타 검색기 후보 종목만 허용합니다. 검색추가·스윙·중장기 종목은 자동매매하지 않습니다.",
+            )
+            return
         # 통합화면의 리스크 값을 기존 엔진 설정에 반영한다.
-        self.order_budget.setValue(500_000)
-        self.focus_budget.setValue(500_000)
+        budget = max(0, min(3_000_000, int(self.engine.current_trade_budget())))
+        self.order_budget.setValue(budget)
+        self.focus_budget.setValue(budget)
+        self.max_positions.setValue(1)
         self.take_profit.setValue(self.focus_tp.value())
         self.stop_loss.setValue(self.focus_sl.value())
         self.trailing.setChecked(self.focus_trail.isChecked())
@@ -5027,21 +5045,32 @@ class MainWindow(QMainWindow):
             return list(merged.values())
 
         if self.focus_auto_danta_pool:
-            # 통합 트레이딩의 '전체 후보 자동매매'는 관심종목과 무관하다.
-            # 단타 검색기 7개 합집합 전체를 감시하되, 실제 신규매수는 아래 scan_one()
-            # 에서 PUMA 장중 2차 선별 + 가보자 진입조건을 모두 통과한 경우만 허용한다.
+            # 복리 구간은 1종목 몰빵이므로 보유/주문이 있으면 그 종목 관리만 최우선.
+            if self.engine.positions or self.engine.pending_orders:
+                for c, pos in self.engine.positions.items():
+                    merged[c] = {"code": c, "name": pos.name, "hero": False, "puma_score": 10_000}
+                for c in self.engine.pending_orders:
+                    merged.setdefault(c, {"code": c, "name": self.name_cache.get(c, c), "hero": False, "puma_score": 10_000})
+                return list(merged.values())
+
+            # 평상시에는 단타 검색기 7개 합집합 중 PUMA 단타점수가 높은 후보부터 확인한다.
             for code, item in self.condition_candidates.items():
                 if code in self.session_excluded_codes:
                     continue
                 if self._candidate_in_danta_feed(item):
-                    merged[code] = {"code": code, "name": item.get("name", code), "hero": True}
+                    scores = dict(item.get("scores") or {})
+                    merged[code] = {
+                        "code": code,
+                        "name": item.get("name", code),
+                        "hero": True,
+                        "puma_score": int(scores.get("danta", 0) or 0),
+                        "source_count": int(item.get("source_count", 0) or 0),
+                    }
 
-            # 이미 보유/주문 중인 종목은 선별 상태가 바뀌어도 청산/체결 확인을 계속한다.
-            for c, pos in self.engine.positions.items():
-                merged.setdefault(c, {"code": c, "name": pos.name, "hero": False})
-            for c in self.engine.pending_orders:
-                merged.setdefault(c, {"code": c, "name": self.name_cache.get(c, c), "hero": False})
-            return list(merged.values())
+            return sorted(
+                merged.values(),
+                key=lambda x: (-int(x.get("puma_score", 0)), -int(x.get("source_count", 0)), str(x.get("name", ""))),
+            )
 
         if source in ("WATCHLIST", "BOTH"):
             for item in self.watchlist:
@@ -5078,9 +5107,12 @@ class MainWindow(QMainWindow):
         self.focus_only_code = None
         self.focus_auto_danta_pool = True
 
-        # 통합화면 리스크 값을 엔진 설정에 반영.
-        self.order_budget.setValue(500_000)
-        self.focus_budget.setValue(500_000)
+        # 1차 목표: 현재 시드 전액을 최우선 단타 1종목에만 사용.
+        budget = max(0, min(3_000_000, int(self.engine.current_trade_budget())))
+        self.order_budget.setValue(budget)
+        self.focus_budget.setValue(budget)
+        self.max_positions.setValue(1)
+        self.scan_index = 0
         self.take_profit.setValue(self.focus_tp.value())
         self.stop_loss.setValue(self.focus_sl.value())
         self.trailing.setChecked(self.focus_trail.isChecked())
@@ -5107,8 +5139,8 @@ class MainWindow(QMainWindow):
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
             if not self._confirm_live_auto_once(
                 "단타 전체 후보 실전 자동매매",
-                f"단타 검색기 통합 합집합 → PUMA 2차 선별 → 가보자 진입조건 통과 종목에 실제 주문이 전송됩니다.\n"
-                f"종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회",
+                f"단타 검색기 통합 합집합 → PUMA 점수 우선 → 가보자 진입조건 통과 최우선 1종목에 실제 주문이 전송됩니다.\n"
+                f"현재 복리 시드 {self.engine.current_trade_budget():,}원 전액 / 동시보유 1종목 / 하루 손실 -4% 신규매수 중단",
             ):
                 self.focus_auto_danta_pool = False
                 return
@@ -5198,6 +5230,7 @@ class MainWindow(QMainWindow):
         if self._closing:
             return
         self.update_row(res)
+        self._refresh_seed_labels()
         if res.get("status") in (
             "BUY", "SELL", "BUY_SENT", "SELL_SENT",
             "PARTIAL_SELL", "PARTIAL_SELL_SENT",
@@ -5218,7 +5251,22 @@ class MainWindow(QMainWindow):
     def _on_auto_scan_finished(self):
         self.auto_scan_thread = None
 
+    def _refresh_seed_labels(self):
+        budget = max(0, min(3_000_000, int(self.engine.current_trade_budget())))
+        if hasattr(self, "focus_budget"):
+            self.focus_budget.setValue(budget)
+        if hasattr(self, "order_budget"):
+            self.order_budget.setValue(budget)
+        if hasattr(self, "focus_seed_status"):
+            lock = " · 오늘 신규매수 중단" if bool(getattr(self.engine, "daily_loss_locked", False)) else ""
+            target = " · 1차 목표 달성" if self.engine.phase1_complete() else ""
+            self.focus_seed_status.setText(
+                f"현재 시드 {self.engine.seed_capital:,.0f}원 · 오늘 {self.engine.daily_loss_pct():+.2f}% · "
+                f"동시보유 1종목 · 하루 -4% 한도{lock}{target}"
+            )
+
     def _refresh_position_rows(self):
+        self._refresh_seed_labels()
         for code, pos in self.engine.positions.items():
             r = self._ensure_market_row(code, pos.name, "보유")
             self.market_table.item(r, 2).setText(self._source_for_code(code))
