@@ -163,21 +163,17 @@ def normalize_candles(rows: List[dict]) -> List[dict]:
 
 
 def accumulation_flags(candles: List[dict], settings: SwingSettings):
-    """Detect volume/price-behavior accumulation candidates.
+    """Detect only unmistakable accumulation bars.
 
-    The user's rule is volume-first, not candle-shape-only:
-      - a long upper wick with clearly elevated volume can be accumulation,
-      - a large bearish dump can also be accumulation when volume explodes,
-      - today's volume MUST be strictly greater than the previous bar's volume,
-      - volume does not need to be 3x the 20-bar average; a visually standout
-        volume spike versus recent history is enough,
-      - bearish candles are allowed only when they are large bearish dump bars,
-      - non-bearish candles require either a clear long upper wick or truly
-        overwhelming volume,
-      - tiny ambiguous cross/doji candles remain excluded.
+    Allowed patterns only:
+      1) LONG upper wick + burst volume.
+      2) Large bearish dump + burst volume.
 
-    Final chart/scoring still uses confirm_accumulation_flags(), so repeated
-    evidence is required before the chart says 'confirmed accumulation'.
+    Hard gates:
+      - current volume must be greater than previous volume,
+      - ambiguous ordinary candles are rejected,
+      - short-upper-wick candles are rejected even if volume is merely large,
+      - ordinary bearish candles are rejected.
     """
     vols = [float(c['volume']) for c in candles]
     vma = rolling_mean(vols, settings.volume_period)
@@ -186,158 +182,117 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
 
     for i, c in enumerate(candles):
         rng = max(float(c['high']) - float(c['low']), 1e-9)
-        body = abs(float(c['close']) - float(c['open']))
-        upper = max(0.0, float(c['high']) - max(float(c['open']), float(c['close'])))
-        lower = max(0.0, min(float(c['open']), float(c['close'])) - float(c['low']))
+        op = float(c['open'])
+        close = float(c['close'])
+        body = abs(close - op)
+        upper = max(0.0, float(c['high']) - max(op, close))
+        lower = max(0.0, min(op, close) - float(c['low']))
         body_ratio = body / rng
         upper_ratio = upper / rng
-        close_pos = (float(c['close']) - float(c['low'])) / rng
+        close_pos = (close - float(c['low'])) / rng
+
+        current_vol = float(c['volume'])
+        prev_vol = float(candles[i - 1]['volume']) if i > 0 else current_vol
+        volume_up_vs_prev = bool(i > 0 and current_vol > prev_vol)
+        prev_ratio = current_vol / prev_vol if prev_vol > 0 else 0.0
 
         ratio = 0.0
         if i > 0 and vma[i - 1]:
-            ratio = float(c['volume']) / float(vma[i - 1])
+            ratio = current_vol / float(vma[i - 1])
 
-        # "눈에 띄는 거래량"은 고정 3배가 아니라 최근 분포까지 함께 본다.
         recent = sorted(
             float(candles[j]['volume'])
             for j in range(max(0, i - 60), i)
             if float(candles[j]['volume']) > 0
         )
-        recent_p85 = 0.0
         recent_p95 = 0.0
         if recent:
-            p85_idx = min(len(recent) - 1, int((len(recent) - 1) * 0.85))
             p95_idx = min(len(recent) - 1, int((len(recent) - 1) * 0.95))
-            recent_p85 = recent[p85_idx]
             recent_p95 = recent[p95_idx]
 
-        current_vol = float(c['volume'])
-        prev_vol = float(candles[i - 1]['volume']) if i > 0 else current_vol
-        volume_up_vs_prev = bool(i > 0 and current_vol > prev_vol)
-
-        # Hard user rule: if today's volume is not greater than yesterday's,
-        # the bar is NOT accumulation. In the chart that is a blue/equal volume bar.
-        # Relative-volume/shape tests are evaluated only after this gate.
-        # Old saved configs may still contain 3.0. Treat this as a reference
-        # sensitivity, never as a hard 300% gate.
-        relative_ref = min(2.20, max(1.35, float(settings.volume_ratio)))
-        prev_ratio = current_vol / prev_vol if prev_vol > 0 else 0.0
-        visually_high = bool(
-            (ratio >= 1.80 and prev_ratio >= 1.20)
-            or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.50 and prev_ratio >= 1.20)
-        )
-
-        # 작은 십자가/도지는 앞서 정한 대로 제외.
         meaningful_body = body_ratio >= 0.10
+        is_bearish = close < op
 
-        # 긴 윗꼬리 + 수상한 거래량.
-        wick_body_req = max(float(settings.upper_wick_vs_body), 1.50)
-        upper_ratio_req = max(float(settings.upper_wick_ratio), 0.50)
-        long_upper = (
-            upper_ratio >= upper_ratio_req
-            and upper >= max(body * wick_body_req, lower * 1.25)
+        # Clear long-upper-wick shape only. No borderline wicks.
+        long_upper = bool(
+            upper_ratio >= 0.52
+            and upper >= body * 1.80
+            and upper >= lower * 1.35
         )
 
-        is_bearish = float(c['close']) < float(c['open'])
-
-        # 음봉은 장대음봉만 예외적으로 허용한다.
-        # 장대음봉이 아닌 일반 음봉은 윗꼬리/흡수형 조건이 맞아도 매집에서 제외한다.
-        big_bear = (
-            is_bearish
-            and body_ratio >= max(float(settings.bearish_body_ratio), 0.62)
-            and close_pos <= 0.30
-        )
-        bear_volume = bool(
-            big_bear
-            and (
-                (ratio >= 2.00 and prev_ratio >= 1.30)
-                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.80 and prev_ratio >= 1.30)
-            )
-        )
-
-        # 가격 반응 대비 거래량이 과도한 흡수형 매집.
-        # 전일 종가 대비 +3% 이내 상승/보합인데 거래량만 최근 상위권이면 후보.
-        prev_close = float(candles[i - 1]['close']) if i > 0 else float(c['open'])
-        close_change_pct = (
-            (float(c['close']) / prev_close - 1.0) * 100.0
-            if prev_close > 0 else 0.0
-        )
-        muted_price_response = bool(
-            meaningful_body
-            and not is_bearish
-            and -3.5 <= close_change_pct <= 3.0
-            and (
-                ratio >= max(1.50, relative_ref * 0.90)
-                or (recent_p85 > 0 and current_vol >= recent_p85 and ratio >= 1.25)
-                or (recent_p95 > 0 and current_vol >= recent_p95 and ratio >= 1.25)
-            )
-        )
-
-        # 윗꼬리가 짧은 봉은 거래량이 '압도적'일 때만 허용.
-        # 20봉 평균 2.5배 이상, 또는 최근 60봉 최상위권이면서
-        # 평균 2배 + 전일 대비 1.5배 이상일 때를 압도적 거래량으로 본다.
-        overwhelming_volume = bool(
+        # "거래량 터짐": clearly large versus BOTH recent average and previous bar,
+        # or recent top-tier volume with nearly the same strength.
+        burst_volume = bool(
             volume_up_vs_prev
             and (
-                ratio >= 3.00
+                (ratio >= 2.00 and prev_ratio >= 1.50)
                 or (
                     recent_p95 > 0
                     and current_vol >= recent_p95
-                    and ratio >= 2.30
-                    and prev_vol > 0
-                    and current_vol >= prev_vol * 1.70
+                    and ratio >= 1.80
+                    and prev_ratio >= 1.40
                 )
             )
         )
 
-        non_bear_candidate = bool(
-            not is_bearish
+        # Bearish exception retained from the user's earlier explicit rule:
+        # only a true large bearish dump with even stronger burst volume.
+        big_bear = bool(
+            is_bearish
+            and body_ratio >= 0.62
+            and close_pos <= 0.30
+        )
+        big_bear_burst = bool(
+            big_bear
+            and volume_up_vs_prev
             and (
-                (long_upper and visually_high)
-                or overwhelming_volume
+                (ratio >= 2.50 and prev_ratio >= 1.50)
+                or (
+                    recent_p95 > 0
+                    and current_vol >= recent_p95
+                    and ratio >= 2.20
+                    and prev_ratio >= 1.50
+                )
             )
         )
 
-        confidence_score = 0
-        if ratio >= 3.0:
-            confidence_score += 45
-        elif ratio >= 2.2:
-            confidence_score += 35
-        elif ratio >= 1.8:
-            confidence_score += 25
-        if prev_ratio >= 2.0:
-            confidence_score += 25
-        elif prev_ratio >= 1.5:
-            confidence_score += 18
-        elif prev_ratio >= 1.25:
-            confidence_score += 10
-        if long_upper:
-            confidence_score += 30
-        if big_bear:
-            confidence_score += 30
-        if overwhelming_volume:
-            confidence_score += 30
-        confidence_score = min(100, confidence_score)
+        long_wick_burst = bool(
+            meaningful_body
+            and long_upper
+            and burst_volume
+        )
 
         candidate = bool(
             volume_up_vs_prev
-            and meaningful_body
-            and confidence_score >= 70
             and (
-                bear_volume
-                or non_bear_candidate
+                long_wick_burst
+                or big_bear_burst
             )
         )
 
-        if candidate:
-            if bear_volume:
-                pattern = '고거래량 장대음봉'
-            elif long_upper:
-                pattern = '고거래량 긴 윗꼬리'
-            else:
-                pattern = '압도적 거래량'
+        if big_bear_burst:
+            pattern = '폭발거래량 장대음봉'
+        elif long_wick_burst:
+            pattern = '폭발거래량 긴 윗꼬리'
         else:
             pattern = '-'
+
+        confidence_score = 0
+        if candidate:
+            confidence_score += 50
+            if ratio >= 3.0:
+                confidence_score += 25
+            elif ratio >= 2.5:
+                confidence_score += 20
+            else:
+                confidence_score += 15
+            if prev_ratio >= 2.0:
+                confidence_score += 15
+            elif prev_ratio >= 1.5:
+                confidence_score += 10
+            if long_upper or big_bear:
+                confidence_score += 20
+            confidence_score = min(100, confidence_score)
 
         raw.append(candidate)
         meta.append({
@@ -346,27 +301,21 @@ def accumulation_flags(candles: List[dict], settings: SwingSettings):
             'previous_volume_ratio': prev_ratio,
             'confidence_score': confidence_score,
             'volume_up_vs_prev': volume_up_vs_prev,
-            'volume_recent_p85': recent_p85,
             'volume_recent_p95': recent_p95,
-            'volume_visually_high': visually_high,
-            'volume_relative_reference': relative_ref,
             'upper_wick_ratio': upper_ratio,
             'body_ratio': body_ratio,
-            'close_change_pct': close_change_pct,
             'pattern': pattern,
             'raw_candidate': candidate,
             'confirmed': False,
             'cluster_size': 0,
             'is_bearish': bool(is_bearish),
             'big_bear': bool(big_bear),
-            'muted_price_response': bool(muted_price_response),
-            'overwhelming_volume': bool(overwhelming_volume),
-            'excluded_small_cross': bool(not meaningful_body),
+            'long_upper': bool(long_upper),
+            'burst_volume': bool(burst_volume),
+            'big_bear_burst': bool(big_bear_burst),
+            'long_wick_burst': bool(long_wick_burst),
             'excluded_volume_not_up': bool(not volume_up_vs_prev),
-            'excluded_non_big_bear': bool(is_bearish and not big_bear),
-            'excluded_short_wick_without_overwhelming_volume': bool(
-                (not is_bearish) and (not long_upper) and (not overwhelming_volume)
-            ),
+            'excluded_ambiguous_shape': bool(not long_upper and not big_bear),
         })
     return raw, meta
 
