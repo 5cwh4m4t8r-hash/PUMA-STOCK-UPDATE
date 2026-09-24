@@ -2,5 +2,5 @@
     "version":  "2.9.44",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.44_UPDATE.zip",
     "notes":  "v2.9.44: concrete display is reduced and its right edge is fixed correctly. Historical concrete is no longer collected from periodic snapshots through the whole base. Instead, one canonical concrete box is kept only for each strong bullish EMA224 reference breakout candle. The historical rectangle is frozen at reference_bar - 1, so it ends immediately before the strong breakout/reference candle and never stretches through pullback, rebreakout, or the latest candle. Duplicate event snapshots are no longer mixed back into the displayed box list. The only unconfirmed box is the single current pre-Bowl concrete preview. Historical valid boxes remain visible on their original dates even when the current price is later above EMA224. KSP remains the reference shape for the regression tests. Breakout, pullback, Bowl-3, accumulation, watermelon, condition-search, zoom and live-order rules remain unchanged.",
-    "sha256":  "2258f70541104b68b2418f4f6f620c2d0863a7476fc158cf6a6f242183048a3f"
+    "sha256":  "00aca2e41a3c0b4e1669a12ebe6509f2ced592382ae5133d14d1370faec929f8"
 }
