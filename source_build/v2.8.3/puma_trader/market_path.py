@@ -142,16 +142,28 @@ def _ema_series(values: list[float], period: int) -> list[float | None]:
 
 
 def _crossed_long_mas(candles: list[dict], i: int, e112, e224, settings: Any) -> list[int]:
+    """Return long EMAs crossed by the CURRENT bullish candle body.
+
+    A gap that opens already above the EMA is not a body breakout. The candle
+    must open at/below the EMA area and close above the buffered EMA.
+    """
     if i <= 0:
         return []
+    op = float(candles[i]["open"])
     close = float(candles[i]["close"])
     prev_close = float(candles[i - 1]["close"])
+    if close <= op:
+        return []
     buf = float(_s(settings, "long_ma_break_buffer_pct", 0.15)) / 100.0
     crossed = []
     for period, line in ((112, e112), (224, e224)):
         if i >= len(line) or line[i] is None or line[i - 1] is None:
             continue
-        if prev_close <= float(line[i - 1]) and close > float(line[i]) * (1.0 + buf):
+        current_line = float(line[i])
+        previous_line = float(line[i - 1])
+        body_cross = op <= current_line * (1.0 + buf) and close > current_line * (1.0 + buf)
+        prior_below = prev_close <= previous_line * (1.0 + buf)
+        if prior_below and body_cross:
             crossed.append(period)
     return crossed
 
@@ -486,7 +498,12 @@ def _confirm_breakout(candles: list[dict], i: int, structure: dict, settings: An
     prev = candles[i-1]
     buffer = float(_s(settings, "breakout_buffer_pct", 0.15))/100.0
     first_cross = float(prev["close"]) <= level*(1+buffer)
-    structure_break = float(c["close"]) > level*(1+buffer)
+    # Actual structure BODY breakout: opening already well above resistance
+    # is a gap, not the breakout marker the user asked to see.
+    structure_body_cross = (
+        float(c["open"]) <= level*(1+buffer)
+        and float(c["close"]) > level*(1+buffer)
+    )
 
     rng = max(float(c["high"])-float(c["low"]), 1e-9)
     body = float(c["close"])-float(c["open"])
@@ -495,6 +512,8 @@ def _confirm_breakout(candles: list[dict], i: int, structure: dict, settings: An
     candle_ok = body > 0 and body_ratio >= 0.15 and close_pos >= 0.55
 
     strength, vs_prev, vs_avg = _volume_strength(candles, i)
+    volume_req = float(_s(settings, "breakout_volume_ratio", 3.0))
+    volume_ok = bool(vs_prev >= volume_req or vs_avg >= volume_req)
     ma_period = 224 if 224 in crossed else 112
     ma_line = e224 if ma_period == 224 else e112
     ma_value = float(ma_line[i]) if ma_line[i] is not None else 0.0
@@ -509,8 +528,11 @@ def _confirm_breakout(candles: list[dict], i: int, structure: dict, settings: An
         "context_name":context_name,
         "bottom_drawdown_pct":float(bottom_info.get("drawdown_pct",0)),
         "bowl_below_count":int(bowl_info.get("below_count",0)),
+        "structure_body_cross":bool(structure_body_cross),
+        "volume_required":volume_req,
+        "volume_ok":volume_ok,
     }
-    return bool(first_cross and structure_break and candle_ok), info
+    return bool(first_cross and structure_body_cross and candle_ok and volume_ok), info
 
 
 def _quality_breakout(structure: dict, info: dict) -> int:
@@ -529,6 +551,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     rebreak_flags=[False]*n
     breakout_ma=[0]*n
     pullback_ma=[0]*n
+    pullback_source=[""]*n
+    pullback_value=[0.0]*n
 
     default={
         "active":False, "stage":"대기", "stage_key":"WAIT",
@@ -544,7 +568,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     }
     if n < 30:
         return {"current":default,"box":None,"boxes":[],"path_breakout":breakout_flags,"path_pullback":pullback_flags,
-                "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
+                "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
+                "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
     closes=[float(c["close"]) for c in candles]
     e112=_ema_series(closes,112)
@@ -629,22 +654,45 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
             chosen_period=0
             chosen_level=0.0
+            chosen_source=""
+            low=float(current["low"])
+            close=float(current["close"])
+            structure_level=float(event["high"])
+
+            # A valid pullback after a structure breakout must not materially
+            # lose the former resistance on a closing basis.
+            structure_held = close >= structure_level*(1-hold_tol)
+            if not structure_held:
+                continue
+
+            candidates=[]
+
+            # First candidate: exact former box/hill resistance. This is the
+            # cleanest "breakout -> pullback" location.
+            structure_touched = low <= structure_level*(1+touch_tol)
+            if structure_touched:
+                src = "공구리상단" if event.get("structure_type") == "공구리" else "전고상단"
+                candidates.append((abs(low-structure_level)/max(structure_level,1e-9), 0, structure_level, src))
+
+            # Also allow the actual crossed long EMA if the same candle tests it
+            # while the structure breakout remains alive.
             for period in periods:
                 line=e224 if period==224 else e112
                 if j>=len(line) or line[j] is None:
                     continue
                 ma=float(line[j])
-                low=float(current["low"])
-                close=float(current["close"])
                 touched=low <= ma*(1+touch_tol)
                 held=close >= ma*(1-hold_tol)
                 close_near=close <= ma*(1+max(touch_tol,0.035))
                 if touched and held and close_near:
-                    chosen_period=period
-                    chosen_level=ma
-                    break
-            if not chosen_period:
+                    candidates.append((abs(low-ma)/max(ma,1e-9), period, ma, f"{period}EMA"))
+
+            if not candidates:
                 continue
+
+            # If more than one support was touched, label the one the candle low
+            # actually approached most closely.
+            _,chosen_period,chosen_level,chosen_source=min(candidates,key=lambda x:x[0])
 
             base=_avg_prior_volume(candles,j,20)
             current_vol=float(current["volume"])
@@ -657,9 +705,13 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
             pull_idx=j
             pullback_flags[j]=True
             pullback_ma[j]=chosen_period
+            pullback_source[j]=chosen_source
+            pullback_value[j]=chosen_level
             event["pullback_idx"]=j
             event["pullback_ma_period"]=chosen_period
             event["pullback_ma_value"]=chosen_level
+            event["pullback_source"]=chosen_source
+            event["pullback_value"]=chosen_level
             event["pullback_volume_ratio"]=current_ratio
             event["pullback_base_volume_ratio"]=current_base
             event["pullback_quality"]=int(min(
@@ -698,7 +750,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
             })
         display_boxes = _dedupe_display_boxes([box] if box else [])
         return {"current":cur,"box":box,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
-                "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
+                "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
+                "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
     event=events[-1]
     bi=int(event["breakout_idx"]); pi=int(event.get("pullback_idx",-1)); ri=int(event.get("rebreak_idx",-1))
@@ -764,7 +817,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         + ([latest_box] if latest_box else [])
     )
     return {"current":cur,"box":event,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
-            "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma}
+            "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
+                "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
 def analyze_market_path(candles: list[dict], settings: Any=None) -> dict:
     if not candles:
