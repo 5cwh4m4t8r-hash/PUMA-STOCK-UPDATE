@@ -732,6 +732,7 @@ class MainWindow(QMainWindow):
         self.condition_snapshot_seen: set[str] = set()
         self.condition_initial_partial_seen: set[str] = set()
         self.condition_live_registered_count = 0
+        self.condition_last_error: str = ""
         self.scan_index = 0
         self.swing_settings = load_swing_settings()
         self.ui_state = QSettings("PUMA", "PUMA_STOCK_PRO")
@@ -3156,6 +3157,7 @@ class MainWindow(QMainWindow):
         self.condition_snapshot_seen.clear()
         self.condition_initial_partial_seen.clear()
         self.condition_live_registered_count = 0
+        self.condition_last_error = ""
         self.condition_start_btn.setEnabled(False)
 
         self.settings.hero_condition_names = [name for _, name in rows]
@@ -3384,10 +3386,14 @@ class MainWindow(QMainWindow):
         receiving = len(getattr(self, "condition_initial_partial_seen", set()))
         total = len(configured)
         live_registered = int(getattr(self, "condition_live_registered_count", 0) or 0)
-        self.condition_status.setText(
+        text = (
             f"단타 검색기 통합 · 즉시수신 {receiving}/{total} · 초기완료 {completed}/{total} · "
             f"실시간 {live_registered}/{total} · 합집합 {active_union}종목"
         )
+        last_error = str(getattr(self, "condition_last_error", "") or "").strip()
+        if last_error:
+            text += f" · 일부오류: {last_error[:70]}"
+        self.condition_status.setText(text)
 
     def on_condition_status(self, text: str):
         m = re.search(r"실시간 등록 완료\s*·\s*전체\s*(\d+)/(\d+)", str(text or ""))
@@ -3400,7 +3406,8 @@ class MainWindow(QMainWindow):
         self.log("HERO4", "COND", "-", text)
 
     def on_condition_error(self, text: str):
-        self.condition_status.setText("오류: " + text)
+        self.condition_last_error = str(text or "")
+        self._update_condition_union_status()
         self.log("HERO4", "ERROR", "-", text)
 
     def on_condition_snapshot(self, seq: str, condition_name: str, rows):
