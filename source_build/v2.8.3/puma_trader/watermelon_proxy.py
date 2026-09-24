@@ -34,13 +34,18 @@ def _volume_footprint(candles: List[dict], vols: List[float], v20, i: int) -> di
     """Observable large-money footprint proxy; never identifies the actual actor."""
     avg = float(v20[i - 1]) if i > 0 and i - 1 < len(v20) and v20[i - 1] else 0.0
     ratio = float(vols[i]) / avg if avg > 0 else 0.0
+    prev_vol = float(vols[i - 1]) if i > 0 else float(vols[i])
+    volume_up_vs_prev = bool(i > 0 and float(vols[i]) > prev_vol)
     recent = vols[max(0, i - 60):i]
     p85 = _percentile(recent, 0.85)
     p95 = _percentile(recent, 0.95)
     abnormal = bool(
-        ratio >= 1.80
-        or (p85 > 0 and vols[i] >= p85 and ratio >= 1.35)
-        or (p95 > 0 and vols[i] >= p95 and ratio >= 1.25)
+        volume_up_vs_prev
+        and (
+            ratio >= 1.80
+            or (p85 > 0 and vols[i] >= p85 and ratio >= 1.35)
+            or (p95 > 0 and vols[i] >= p95 and ratio >= 1.25)
+        )
     )
 
     c = candles[i]
@@ -76,6 +81,8 @@ def _volume_footprint(candles: List[dict], vols: List[float], v20, i: int) -> di
         "abnormal": abnormal,
         "absorption": absorption,
         "ratio": ratio,
+        "previous_volume": prev_vol,
+        "volume_up_vs_prev": volume_up_vs_prev,
         "p85": p85,
         "p95": p95,
         "big_bear": big_bear,
@@ -247,7 +254,12 @@ def build_puma_watermelon(
 
         impulse = False
         for j in range(max(20, i - 15), i + 1):
-            if v20[j] and vols[j] >= float(v20[j]) * 1.50:
+            if (
+                j > 0
+                and v20[j]
+                and vols[j] > vols[j - 1]
+                and vols[j] >= float(v20[j]) * 1.50
+            ):
                 impulse = True
                 break
 
