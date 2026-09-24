@@ -1,4 +1,5 @@
 from puma_trader.watermelon_proxy import (
+    _record112_recent,
     _rolling_avg,
     _volume_footprint,
     build_puma_watermelon,
@@ -108,3 +109,21 @@ def test_watermelon_display_is_sparse_pre_bowl3_only():
     hits = [i for i, x in enumerate(out["watermelon_display"]) if x]
     assert all(out["watermelon_pre_bowl3"][i] for i in hits)
     assert all((b - a) >= 35 for a, b in zip(hits, hits[1:]))
+
+
+def test_record112_recent_requires_record_volume_and_previous_day_increase():
+    vols = [1000.0] * 140
+    vols[125] = 5000.0
+    assert _record112_recent(vols, 139, 20) is True
+
+    vols[124] = 6000.0
+    vols[125] = 5000.0  # blue/decreasing volume bar cannot be the record-volume evidence
+    assert _record112_recent(vols, 139, 20) is False
+
+
+def test_watermelon_pre_bowl3_filter_uses_exact_two_percent_and_long_below_context():
+    src = __import__("pathlib").Path("puma_trader/watermelon_proxy.py").read_text(encoding="utf-8")
+    assert "abs(price / float(e224[i]) - 1.0) <= 0.020" in src
+    assert "len(prior_idx) >= 70 and below224_count >= 70" in src
+    assert "record112_recent" in src
+    assert "float(e60[i]) < float(e112[i]) < float(e224[i])" in src
