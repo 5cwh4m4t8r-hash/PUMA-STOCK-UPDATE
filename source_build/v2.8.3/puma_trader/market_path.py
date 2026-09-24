@@ -588,9 +588,24 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     recent_levels=[]
     structure_cache: dict[int, dict | None] = {}
 
+    def concrete_allowed_below_224(box: dict | None) -> bool:
+        """Concrete exists only while the box is a below-EMA224 base."""
+        if not isinstance(box, dict) or box.get("structure_type") != "공구리":
+            return True
+        box_end = int(box.get("end", -1))
+        if box_end < 0 or box_end >= len(candles) or box_end >= len(e224) or e224[box_end] is None:
+            return False
+        return float(candles[box_end]["close"]) <= float(e224[box_end])
+
     def structure_at(end_idx: int):
         if end_idx not in structure_cache:
-            structure_cache[end_idx] = _structure_before(candles, end_idx, settings)
+            concrete = find_box_before(candles, end_idx, settings)
+            if concrete and concrete_allowed_below_224(concrete):
+                structure_cache[end_idx] = concrete
+            else:
+                # Above EMA224 there is no "공구리". A repeated high can still
+                # be treated only as a previous-high hill/resistance structure.
+                structure_cache[end_idx] = _fallback_hill(candles, end_idx, settings)
         return structure_cache[end_idx]
 
     for i in range(1,n):
@@ -740,6 +755,8 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     if not events:
         box=find_box_before(candles,n-1,settings)
+        if box and not concrete_allowed_below_224(box):
+            box=None
         cur=dict(default)
         if box:
             cur.update({
@@ -827,9 +844,14 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     # confirmed breakout paths, plus the newest still-forming concrete box.
     # The chart can therefore show recent + past concrete zones together.
     latest_box = find_box_before(candles, n - 1, settings)
+    if latest_box and not concrete_allowed_below_224(latest_box):
+        latest_box = None
+    historical_concrete = [
+        x for x in events
+        if x.get("structure_type") == "공구리" and concrete_allowed_below_224(x)
+    ]
     display_boxes = _dedupe_display_boxes(
-        [x for x in events if x.get("structure_type") == "공구리"]
-        + ([latest_box] if latest_box else [])
+        historical_concrete + ([latest_box] if latest_box else [])
     )
     return {"current":cur,"box":event,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
             "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
