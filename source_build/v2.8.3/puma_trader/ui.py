@@ -863,8 +863,6 @@ class MainWindow(QMainWindow):
         self._publish_mobile_snapshot()
         if getattr(self, "mobile_auto_box", None) is not None and self.mobile_auto_box.isChecked():
             QTimer.singleShot(1200, self._mobile_start)
-        if getattr(self, "mobile_remote_auto_box", None) is not None and self.mobile_remote_auto_box.isChecked():
-            QTimer.singleShot(1600, self._mobile_remote_start)
 
     def _dashboard_tab(self):
         w = QWidget()
@@ -5063,9 +5061,9 @@ class MainWindow(QMainWindow):
         form.addWidget(title, 0, 0, 1, 4)
 
         desc = QLabel(
-            "로컬에서는 기존 모바일 서버를 사용할 수 있고, 외부망에서는 PUMA iPhone 앱이 "
-            "Relay 또는 Tailscale을 통해 집 PC에 연결됩니다. 공유기 포트포워딩은 필요 없습니다. "
-            "키움 App Key/Secret은 휴대폰이나 Relay로 전송하지 않습니다."
+            "같은 Wi-Fi에서는 로컬 주소를, 밖에서는 Tailscale 외부 주소를 Safari에 입력하세요. "
+            "아이폰이 5G/LTE여도 접속됩니다. 공유기 포트포워딩은 필요 없습니다. "
+            "키움 App Key/Secret은 휴대폰으로 전송하지 않습니다."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color:#9eb4c9")
@@ -5136,68 +5134,42 @@ class MainWindow(QMainWindow):
         form.addWidget(self.mobile_status_label, 7, 0, 1, 4)
         root.addWidget(info)
 
-        remote = QGroupBox("외부망 · PUMA iPhone 앱")
-        rg = QGridLayout(remote)
+        external = QGroupBox("외부 접속 · 5G/LTE")
+        eg = QGridLayout(external)
 
-        remote_desc = QLabel(
-            "집 노트북은 Relay로 먼저 접속하므로 밖에서 5G/LTE로 사용할 수 있습니다. "
-            "Relay 없이 Tailscale HTTPS 주소를 iPhone 앱의 Direct 모드에 넣어도 됩니다."
+        external_desc = QLabel(
+            "PC와 아이폰에 Tailscale을 설치하고 같은 계정으로 로그인하면 "
+            "같은 Wi-Fi가 아니어도 아래 100.x.x.x 주소로 Safari 접속할 수 있습니다."
         )
-        remote_desc.setWordWrap(True)
-        remote_desc.setStyleSheet("color:#9eb4c9")
-        rg.addWidget(remote_desc, 0, 0, 1, 4)
+        external_desc.setWordWrap(True)
+        external_desc.setStyleSheet("color:#9eb4c9")
+        eg.addWidget(external_desc, 0, 0, 1, 4)
 
-        self.mobile_relay_url = QLineEdit(self.mobile_remote.relay_url)
-        self.mobile_relay_url.setPlaceholderText("https://puma-relay.example.com")
-        rg.addWidget(QLabel("Relay HTTPS"), 1, 0)
-        rg.addWidget(self.mobile_relay_url, 1, 1, 1, 3)
-
-        self.mobile_device_id_label = QLabel(self.mobile_remote.device_id)
-        self.mobile_device_id_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.mobile_device_id_label.setStyleSheet(
-            "font-size:18px;font-weight:900;color:#75c9ff;padding:6px"
+        self.mobile_external_url_label = QLabel("Tailscale 미감지")
+        self.mobile_external_url_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mobile_external_url_label.setStyleSheet(
+            "font-size:18px;font-weight:900;color:#61ff8f;padding:8px"
         )
-        rg.addWidget(QLabel("PUMA 기기 ID"), 2, 0)
-        rg.addWidget(self.mobile_device_id_label, 2, 1, 1, 2)
+        eg.addWidget(QLabel("외부 접속 주소"), 1, 0)
+        eg.addWidget(self.mobile_external_url_label, 1, 1, 1, 2)
 
-        copy_device = QPushButton("ID 복사")
-        copy_device.clicked.connect(
-            lambda: QApplication.clipboard().setText(self.mobile_remote.device_id)
+        copy_external = QPushButton("외부주소 복사")
+        copy_external.clicked.connect(lambda: QApplication.clipboard().setText(
+            self.mobile_bridge.external_url() or self.mobile_external_url_label.text()
+        ))
+        eg.addWidget(copy_external, 1, 3)
+
+        refresh_external = QPushButton("Tailscale 주소 새로고침")
+        refresh_external.clicked.connect(self._mobile_refresh_external_url)
+        eg.addWidget(refresh_external, 2, 0, 1, 4)
+
+        self.mobile_external_status_label = QLabel(
+            "Tailscale을 켠 뒤 모바일 서버를 시작하면 외부 주소가 자동 표시됩니다."
         )
-        rg.addWidget(copy_device, 2, 3)
-
-        self.mobile_remote_auto_box = QCheckBox("PUMA 실행 시 외부망 Relay 자동 연결")
-        self.mobile_remote_auto_box.setChecked(
-            bool(self.ui_state.value("mobile/remoteAutoStart", False, type=bool))
-        )
-        self.mobile_remote_auto_box.toggled.connect(
-            lambda checked: self.ui_state.setValue("mobile/remoteAutoStart", bool(checked))
-        )
-        rg.addWidget(self.mobile_remote_auto_box, 3, 0, 1, 4)
-
-        rb = QHBoxLayout()
-        remote_start = QPushButton("▶ 외부망 연결")
-        remote_start.setObjectName("startBtn")
-        remote_stop = QPushButton("■ 외부망 중지")
-        remote_stop.setObjectName("stopBtn")
-        remote_start.clicked.connect(self._mobile_remote_start)
-        remote_stop.clicked.connect(self._mobile_remote_stop)
-        rb.addWidget(remote_start)
-        rb.addWidget(remote_stop)
-        rg.addLayout(rb, 4, 0, 1, 4)
-
-        self.mobile_remote_status_label = QLabel("외부망 Relay 중지")
-        self.mobile_remote_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
-        rg.addWidget(self.mobile_remote_status_label, 5, 0, 1, 4)
-
-        direct_hint = QLabel(
-            "Direct/Tailscale 모드: PC 모바일 서버를 켠 뒤 Tailscale Serve의 HTTPS 주소와 "
-            "위 6자리 연결코드를 iPhone 앱에 최초 1회 저장하면 됩니다."
-        )
-        direct_hint.setWordWrap(True)
-        direct_hint.setStyleSheet("color:#7fb2d9")
-        rg.addWidget(direct_hint, 6, 0, 1, 4)
-        root.addWidget(remote)
+        self.mobile_external_status_label.setWordWrap(True)
+        self.mobile_external_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+        eg.addWidget(self.mobile_external_status_label, 3, 0, 1, 4)
+        root.addWidget(external)
 
         security = QGroupBox("모바일 실전 잠금")
         sec = QVBoxLayout(security)
@@ -5238,6 +5210,16 @@ class MainWindow(QMainWindow):
             self.mobile_token_label.setText(str(info["token"]))
             self.mobile_status_label.setText("모바일 LAN 서버 실행 중")
             self.mobile_status_label.setStyleSheet("font-weight:900;color:#61ff8f")
+            external_url = str(info.get("external_url") or "")
+            self.mobile_external_url_label.setText(external_url or "Tailscale 미감지")
+            self.mobile_external_status_label.setText(
+                "외부 5G/LTE 접속 가능" if external_url
+                else "Tailscale을 PC에서 실행한 뒤 주소 새로고침을 누르세요."
+            )
+            self.mobile_external_status_label.setStyleSheet(
+                "font-weight:900;color:#61ff8f" if external_url
+                else "font-weight:800;color:#ffd65a"
+            )
             self.log("PUMA MOBILE", "SERVER", "-", f"모바일 서버 시작 {info['url']}")
             self._publish_mobile_snapshot()
         except Exception as exc:
@@ -5251,6 +5233,22 @@ class MainWindow(QMainWindow):
         self.mobile_demo_url_label.setText("서버 중지")
         self.mobile_status_label.setText("서버 중지 · 휴대폰 연결 없음")
         self.mobile_status_label.setStyleSheet("font-weight:800;color:#8fb6d9")
+        if getattr(self, "mobile_external_url_label", None) is not None:
+            self.mobile_external_url_label.setText("Tailscale 미감지")
+        if getattr(self, "mobile_external_status_label", None) is not None:
+            self.mobile_external_status_label.setText("모바일 서버 중지")
+
+    def _mobile_refresh_external_url(self):
+        external_url = self.mobile_bridge.external_url() if self.mobile_bridge.running else ""
+        self.mobile_external_url_label.setText(external_url or "Tailscale 미감지")
+        self.mobile_external_status_label.setText(
+            "외부 5G/LTE 접속 가능" if external_url
+            else "PC에서 Tailscale이 실행 중인지 확인하세요."
+        )
+        self.mobile_external_status_label.setStyleSheet(
+            "font-weight:900;color:#61ff8f" if external_url
+            else "font-weight:800;color:#ffd65a"
+        )
 
     def _mobile_regenerate_token(self):
         token = self.mobile_bridge.regenerate_token()
