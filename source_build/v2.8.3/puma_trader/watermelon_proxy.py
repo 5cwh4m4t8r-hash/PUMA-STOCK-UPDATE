@@ -2,19 +2,12 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from .indicators import hero_eavg
+
 
 def _ema(values: List[float], period: int) -> List[Optional[float]]:
-    out: List[Optional[float]] = [None] * len(values)
-    if period <= 0 or len(values) < period:
-        return out
-    seed = sum(values[:period]) / period
-    out[period - 1] = seed
-    k = 2.0 / (period + 1.0)
-    prev = seed
-    for i in range(period, len(values)):
-        prev = float(values[i]) * k + prev * (1.0 - k)
-        out[i] = prev
-    return out
+    """Use the same Hero/Kiwoom EAVG engine as every visible PUMA price EMA."""
+    return hero_eavg(values, period)
 
 
 def _rolling_avg(values: List[float], period: int) -> List[Optional[float]]:
