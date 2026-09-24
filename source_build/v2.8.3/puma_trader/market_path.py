@@ -555,10 +555,8 @@ def _anchor_concrete_before_224_breakout(
             # The breakout body must actually cross this close-level.
             if breakout_open > close * 1.01 or breakout_close <= close * 1.0015:
                 continue
-            rng = max(float(c["high"]) - float(c["low"]), 1e-9)
-            body_ratio = (close - op) / rng
-            if body_ratio < 0.20:
-                continue
+            # User rule: a bullish candle CLOSE itself can define the
+            # concrete resistance line. Do not add an arbitrary body-size gate.
             bullish_candidates.append((close, j))
 
         if bullish_candidates:
