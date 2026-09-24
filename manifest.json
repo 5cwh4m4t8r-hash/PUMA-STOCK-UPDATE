@@ -2,5 +2,5 @@
     "version":  "2.9.34",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.34_UPDATE.zip",
     "notes":  "v2.9.34: accumulation now has a hard previous-volume gate. A bar can NEVER be accumulation unless its current volume is strictly greater than the previous bar\u0027s volume. Therefore any blue/decreasing-volume bar is excluded even if its absolute volume is large, it has a long upper wick, it is a large bearish candle, or it otherwise looks unusual. Equal volume is also excluded. The same gate is applied to watermelon large-money volume footprints and recent impulse evidence, so declining-volume bars cannot be used as accumulation/large-money volume evidence. The accumulation settings UI now states this rule explicitly. Arrow, Bowl-3, zoom and live-order rules remain unchanged.",
-    "sha256":  "6924cd95d18c79aa895b6efaa44d0a183854409ea00722ff45b9269388eece2c"
+    "sha256":  "6f001bc3b937524c9c861fc0bdf0d1448ded0482a8a6ea763582bb4ebad09ab3"
 }
