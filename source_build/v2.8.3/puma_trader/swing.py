@@ -621,7 +621,7 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     series = {
         'candles': candles,
         'ema5': e5, 'ema20': e20, 'ema60': e60, 'ema112': e112, 'ema224': e224, 'ema448': e448,
-        'blue': blue, 'acc_flags': acc_flags, 'acc_meta': acc_meta,
+        'blue': blue, 'raw_acc_flags': raw_acc_flags, 'acc_flags': acc_flags, 'acc_meta': acc_meta,
         'box': box,
         'boxes': boxes,
         'pullback': core_path,
