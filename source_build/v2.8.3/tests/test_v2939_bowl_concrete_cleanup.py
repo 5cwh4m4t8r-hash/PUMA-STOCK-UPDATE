@@ -35,8 +35,9 @@ def test_current_concrete_is_not_exposed_above_ema224():
     assert not [x for x in out.get("boxes", []) if x.get("structure_type") == "공구리"]
 
 
-def test_concrete_filter_is_in_analysis_not_only_chart_paint():
+def test_concrete_filter_requires_box_top_below_ema112():
     src = Path("puma_trader/market_path.py").read_text(encoding="utf-8")
-    assert "def concrete_allowed_below_224" in src
-    assert 'float(candles[box_end]["close"]) <= float(e224[box_end])' in src
+    assert "def concrete_allowed_below_long_mas" in src
+    assert "box_high < min(valid_112)" in src
+    assert "e112[j] is not None" in src
     assert "box_for_ui = None if event.get(\"structure_type\") == \"공구리\" else event" in src
