@@ -110,4 +110,4 @@ def test_gaboja_defaults_enable_trend_tracking():
     settings = StrategySettings()
     assert settings.gabojago_trend_tracking_enabled is True
     assert settings.gabojago_partial_sell_ratio == 0.25
-    assert settings.gabojago_force_exit_time == "15:20"
+    assert settings.gabojago_trend_force_exit_time == "15:20"
