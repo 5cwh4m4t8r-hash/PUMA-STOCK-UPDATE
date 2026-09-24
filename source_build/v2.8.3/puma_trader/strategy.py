@@ -112,29 +112,34 @@ def evaluate_sell(
     now = now or datetime.now()
 
     if stop_price > 0:
-        # 가보자 손절은 진입형태에 따라 구조적으로 올라간다.
-        # 차 눌림: 기준봉 시가 / 전고 몸통돌파: 직전 차 눌림 저점.
+        # 가보자 손절은 '차 저점'을 기준으로 하고, 추세가 올라가면 손절선도 위로만 이동한다.
         if current_price <= stop_price:
-            entry_kind = str(getattr(position, "entry_kind", "") or "")
-            stop_label = "직전 차 저점" if entry_kind == "BODY_REBREAK" else "기준봉 시가"
-            return True, f"가보자 {stop_label} 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
+            return True, f"가보자 차 저점 이탈 손절 {current_price:,.0f} <= {stop_price:,.0f}"
 
-        # 가보자는 당일 단타: 13:00에 남은 수량을 조건과 무관하게 전량청산.
-        day_exit = str(getattr(settings, "gabojago_force_exit_time", "13:00") or "13:00")
+        # 당일 단타 최종 안전청산. 추세추적 중에는 장중 고정 목표가로 잔량을 끊지 않는다.
+        day_exit = str(getattr(settings, "gabojago_force_exit_time", "15:20") or "15:20")
         if now.strftime("%H:%M") >= day_exit:
             return True, f"가보자 당일 단타 {day_exit} 전량청산"
 
-        # +4% 최초 도달은 엔진에서 절반익절 처리.
+        partial_target = float(
+            getattr(settings, "gabojago_partial_profit_pct", settings.take_profit_pct)
+            or settings.take_profit_pct
+        )
+        trend_tracking = bool(getattr(settings, "gabojago_trend_tracking_enabled", True))
+
+        # +4% 최초 도달의 일부익절은 엔진에서 처리한다.
         if not partial_taken:
-            if pnl >= settings.take_profit_pct:
-                return True, f"가보자 1차 절반익절 대기 {pnl:.2f}%"
+            if pnl >= partial_target:
+                ratio = float(getattr(settings, "gabojago_partial_sell_ratio", 0.25) or 0.25)
+                pct = max(1, int(round(ratio * 100)))
+                return False, f"가보자 +{partial_target:.1f}% {pct}% 익절 대기 · 추세추적"
+        elif trend_tracking:
+            return False, (
+                f"가보자 추세추적 보유 · 현재 손절선 {stop_price:,.0f} "
+                f"· 새 차 저점 확정 시 손절선 상향"
+            )
         else:
-            # 절반익절 이후 잔량 규칙:
-            # - 절반매도 기준가 +2% 도달: 즉시 잔량 전량매도.
-            # - 기준가 -2% 이탈: 즉시 팔지 않고 다음 5분봉 한 봉 전체를 관찰.
-            #   그 다음 봉 종가도 -2% 아래면 잔량 전량매도,
-            #   -2% 위로 회복하면 하락확인 상태를 해제하고 계속 보유.
-            # - 11:00 강제청산 규칙은 사용하지 않는다.
+            # 레거시 잔량 규칙. 추세추적을 끈 경우에만 사용한다.
             partial_price = float(getattr(position, "partial_price", 0) or 0)
             if partial_price <= 0:
                 partial_price = position.entry_price * (1.0 + settings.take_profit_pct / 100.0)
