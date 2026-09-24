@@ -677,6 +677,8 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
         'path_rebreakout': market_path.get('path_rebreakout', []),
         'path_breakout_ma': market_path.get('path_breakout_ma', []),
         'path_pullback_ma': market_path.get('path_pullback_ma', []),
+        'path_pullback_source': market_path.get('path_pullback_source', []),
+        'path_pullback_value': market_path.get('path_pullback_value', []),
         'swing_reference': reference,
         'overlay_suppressed_long_trend': overlay_suppressed,
     }
