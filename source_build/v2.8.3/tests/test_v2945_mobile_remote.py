@@ -31,12 +31,15 @@ def test_remote_relay_uses_existing_mobile_command_path():
     assert "중복 실행을 차단했습니다" in src
 
 
-def test_pc_ui_has_external_relay_controls():
-    src = Path("puma_trader/ui.py").read_text(encoding="utf-8")
-    assert "RemoteRelayClient" in src
-    assert "외부망 · PUMA iPhone 앱" in src
-    assert "self.mobile_remote.start(relay_url)" in src
-    assert "self.mobile_remote.stop()" in src
+def test_pc_ui_has_simple_tailscale_external_ip_controls():
+    ui = Path("puma_trader/ui.py").read_text(encoding="utf-8")
+    bridge = Path("puma_trader/mobile_bridge.py").read_text(encoding="utf-8")
+    assert "외부 접속 · 5G/LTE" in ui
+    assert "self.mobile_bridge.external_url()" in ui
+    assert "Tailscale 주소 새로고침" in ui
+    assert '["tailscale", "ip", "-4"]' in bridge
+    assert '_ReusableHTTPServer(("0.0.0.0", self.port), Handler)' in bridge
+    assert "100.64.0.0/10" in bridge
 
 
 def test_public_relay_server_compiles_and_has_auth_rate_limit():
