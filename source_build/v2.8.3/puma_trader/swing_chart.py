@@ -66,21 +66,23 @@ class SwingChart(QWidget):
             a = bisect_left(new_candles, range_dates[0], key=date_key)
             b = bisect_right(new_candles, range_dates[1], key=date_key) - 1
             self.analysis_range = (a, b) if a <= b < n else None
-        self.view_bars = min(max(25, self.view_bars), max(25, n)) if n else 130
+        self.view_bars = min(max(15, self.view_bars), max(15, n)) if n else 130
         self.update()
         self._emit_viewport()
 
     def _prepare_render_cache(self):
         series = self.series or {}
-        excluded = {
-            'candles','acc_flags','acc_meta','box','watermelon','watermelon_stage',
-            'watermelon_score','watermelon_reason','watermelon_confirmed','watermelon_display',
-            'path_breakout','path_pullback','path_rebreakout','path_breakout_ma','path_pullback_ma','cloud_a','cloud_b',
-            'signal_pink','signal_blue','signal_red','signal_black','signal_sar','signal_bb40_22'
-        }
+        # Only actual PRICE overlays may participate in price-axis scaling/drawing.
+        # Never auto-discover every list in series: diagnostic arrays such as
+        # volume EMA, booleans or disparity values can be orders of magnitude
+        # away from price and make candles look vertically flat.
+        price_line_order = (
+            'ema5', 'ema20', 'ema60', 'ema112', 'ema224', 'ema448',
+            'blue', 'kijun',
+        )
         self._line_keys = tuple(
-            k for k, value in series.items()
-            if k not in excluded and isinstance(value, list)
+            k for k in price_line_order
+            if isinstance(series.get(k), list)
         )
         candles = series.get('candles', [])
         self._day_keys = tuple(
@@ -123,7 +125,7 @@ class SwingChart(QWidget):
     def show_all(self):
         if self.series:
             n = len(self.series.get('candles', []))
-            self.view_bars = max(25, n)
+            self.view_bars = max(15, n)
             self.view_end = n
             self.update(); self._emit_viewport()
 
@@ -145,7 +147,7 @@ class SwingChart(QWidget):
         if total <= 0:
             return
         new_n = int(round(self.view_bars * factor))
-        self.view_bars = max(25, min(total, new_n))
+        self.view_bars = max(15, min(total, new_n))
         if self.view_end is None:
             self.view_end = total
         self.view_end = max(min(self.view_bars, total), min(total, self.view_end))
@@ -254,18 +256,36 @@ class SwingChart(QWidget):
         future_count = int(self.series.get('future_count', 0) or 0) if end >= total_candles else 0
         display_n = max(1, n + future_count)
 
-        lo = None
-        hi = None
-        def include_value(v):
+        # Vertical auto-scale is based on the VISIBLE candles first.
+        # This makes wheel zoom reveal actual price curvature instead of keeping
+        # a huge global range. Nearby price overlays are included; very distant
+        # long MAs/cloud values are clipped rather than flattening the candles.
+        candle_lo = min(float(c['low']) for c in cs)
+        candle_hi = max(float(c['high']) for c in cs)
+        candle_span = max(candle_hi - candle_lo, candle_hi * 0.002, 1.0)
+        candle_mid = (candle_hi + candle_lo) / 2.0
+
+        # The more the user zooms in, the tighter the vertical padding.
+        pad_ratio = 0.035 if n <= 30 else 0.045 if n <= 60 else 0.060
+        base_pad = max(candle_span * pad_ratio, candle_mid * 0.0025, 1.0)
+        lo = candle_lo - base_pad
+        hi = candle_hi + base_pad
+
+        # Include nearby overlays only. This keeps EMA112/224 etc visible when
+        # relevant, but a remote EMA448 or cloud cannot crush the price action.
+        proximity = max(candle_span * 1.25, candle_mid * 0.06, 2.0)
+        nearby_lo = candle_lo - proximity
+        nearby_hi = candle_hi + proximity
+
+        def include_near_price(v):
             nonlocal lo, hi
             if not isinstance(v, (int, float)):
                 return
-            lo = v if lo is None or v < lo else lo
-            hi = v if hi is None or v > hi else hi
+            value = float(v)
+            if nearby_lo <= value <= nearby_hi:
+                lo = min(lo, value)
+                hi = max(hi, value)
 
-        for c in cs:
-            include_value(c['high'])
-            include_value(c['low'])
         overlay_suppressed = bool(
             self.series.get('overlay_suppressed_long_trend')
             or self.series.get('long_trend_suppressed_now')
@@ -279,20 +299,23 @@ class SwingChart(QWidget):
         for key in line_keys:
             arr = self.series.get(key, [])
             for v in arr[start:end]:
-                include_value(v)
+                include_near_price(v)
+
         cloud_a = self.series.get('cloud_a', [])
         cloud_b = self.series.get('cloud_b', [])
         cloud_end = min(max(len(cloud_a), len(cloud_b)), end + future_count)
         if isinstance(cloud_a, list):
             for v in cloud_a[start:cloud_end]:
-                include_value(v)
+                include_near_price(v)
         if isinstance(cloud_b, list):
             for v in cloud_b[start:cloud_end]:
-                include_value(v)
-        if lo is None or hi is None:
-            lo, hi = 0.0, 1.0
-        pad = max((hi-lo)*0.08, hi*0.01, 1.0)
-        lo -= pad; hi += pad
+                include_near_price(v)
+
+        # Final small padding after nearby overlays are included.
+        final_span = max(hi - lo, 1.0)
+        final_pad = max(final_span * (0.025 if n <= 60 else 0.04), 1.0)
+        lo -= final_pad
+        hi += final_pad
 
         def x(i): return price_rect.left() + (i + 0.5) * price_rect.width() / display_n
         def y(v): return price_rect.bottom() - (v-lo)/(hi-lo) * price_rect.height()
