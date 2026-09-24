@@ -394,11 +394,20 @@ class SwingChart(QWidget):
             # 전고점언덕은 공구리 목록과 별도로 유지한다.
             boxes = list(boxes) + [one_box]
 
+        ema224_full = self.series.get('ema224', [])
+        current_above_224 = bool(
+            candles
+            and isinstance(ema224_full, list)
+            and len(ema224_full) >= len(candles)
+            and isinstance(ema224_full[len(candles)-1], (int, float))
+            and float(candles[-1]['close']) > float(ema224_full[len(candles)-1])
+        )
         visible_boxes = [] if overlay_suppressed else [
             b for b in boxes
             if isinstance(b, dict)
             and b.get('start', -1) < end
             and b.get('end', -1) >= start
+            and not (current_above_224 and b.get('structure_type') == '공구리')
         ]
         latest_concrete = None
         concrete_only = [b for b in boxes if isinstance(b, dict) and b.get('structure_type') == '공구리']
@@ -438,8 +447,7 @@ class SwingChart(QWidget):
         p.setPen(QPen(QColor('#59616a'), 1))
         p.drawLine(QPointF(vol_rect.left(), vol_rect.top()), QPointF(vol_rect.right(), vol_rect.top()))
 
-        raw_acc_full = self.series.get('raw_acc_flags', [False]*len(candles))
-        raw_acc = raw_acc_full[start:end] if len(raw_acc_full) >= end else [False]*n
+        # Raw accumulation candidates are intentionally not drawn.
         acc_full = self.series.get('acc_flags', [False]*len(candles))
         acc = acc_full[start:end] if len(acc_full) >= end else [False]*n
         path_break = self.series.get('path_breakout', [])
@@ -457,16 +465,7 @@ class SwingChart(QWidget):
             candle_col=QColor('#ef4747') if up else QColor('#2d77ff')
 
             if not overlay_suppressed:
-                is_candidate = i < len(raw_acc) and raw_acc[i]
                 is_confirmed = i < len(acc) and acc[i]
-                if is_candidate and not is_confirmed:
-                    # Single suspicious volume/price bar: visible, but do not
-                    # paint a full-height band or call it confirmed.
-                    p.setPen(QPen(QColor('#e0a72f'), 1.6))
-                    marker_y = max(price_rect.top()+8, y(c['high'])-8)
-                    p.drawEllipse(QPointF(xx, marker_y), 3.2, 3.2)
-                    if n <= 120:
-                        p.drawText(int(xx-15), int(marker_y-6), '매집')
                 if is_confirmed:
                     p.fillRect(QRectF(xx-cw*0.9, price_rect.top(), cw*1.8, price_rect.height()), QColor(255,190,35,25))
                     if n <= 180:
