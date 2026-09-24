@@ -545,10 +545,11 @@ class _ReusableHTTPServer(ThreadingHTTPServer):
 
 
 class MobileBridge(QObject):
-    """Small LAN-only companion bridge for PUMA STOCK PRO.
+    """Companion bridge for PUMA STOCK PRO over LAN or a private Tailscale IP.
 
-    The HTTP thread never touches Qt widgets.  The main UI publishes an immutable
-    state snapshot, and commands are marshalled back to the Qt thread via Signal.
+    The HTTP server binds all PC interfaces. The HTTP thread never touches Qt
+    widgets; the main UI publishes immutable state and commands are marshalled
+    back to the Qt thread via Signal.
     """
 
     commandReceived = Signal(str, object)
