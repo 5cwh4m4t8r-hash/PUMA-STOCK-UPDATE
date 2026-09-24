@@ -2,5 +2,5 @@
     "version":  "2.9.46",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.46_UPDATE.zip",
     "notes":  "v2.9.46: mobile external access is simplified to the existing Safari/IP workflow with Tailscale. PUMA MobileBridge already binds 0.0.0.0, and now detects the PC Tailscale IPv4 in the 100.64.0.0/10 range and exposes an external URL such as http://100.x.x.x:8765. The Mobile tab shows the normal LAN URL separately from the external 5G/LTE Tailscale URL, includes copy/refresh controls, and removes the need to use the native iPhone app or Apple code signing. With Tailscale active on both PC and iPhone, Safari can reach the home PUMA server over cellular or another Wi-Fi without router port forwarding. Trading strategy, orders, condition-search, charts, concrete, Bowl-3, accumulation, watermelon and updater behavior remain unchanged.",
-    "sha256":  "bceb59f4a9d831f56bdb602a53c1c8abf2dbcfc7b2013f9941988a6f9aab4dc9"
+    "sha256":  "6397975fd9865dec55df9942a9baf7e2dd42da5b70d022cb7abd7bb5778f173f"
 }
