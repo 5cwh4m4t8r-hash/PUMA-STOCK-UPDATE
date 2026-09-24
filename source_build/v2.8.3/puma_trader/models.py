@@ -46,7 +46,13 @@ class StrategySettings:
     gabojago_force_exit_time: str = "13:00"
 
     # 주문 / 리스크
-    order_budget: int = 500_000  # 가보자 자동매수 고정금액
+    # 1차 시드 구간: 50만원에서 시작해 현재 시드를 다음 매매에 전액 재투입.
+    # 300만원 도달 전까지 수익/손실을 그대로 복리 반영한다.
+    order_budget: int = 500_000  # 레거시/수동 표시값
+    compound_seed_enabled: bool = True
+    seed_initial_capital: int = 500_000
+    seed_phase1_target: int = 3_000_000
+    daily_loss_limit_pct: float = -4.0
     max_positions: int = 3
     cooldown_min: int = 10
     max_daily_orders: int = 10
