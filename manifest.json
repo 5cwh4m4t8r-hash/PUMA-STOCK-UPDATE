@@ -2,5 +2,5 @@
     "version":  "2.9.42",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.42_UPDATE.zip",
     "notes":  "v2.9.42: concrete is corrected to exist BEFORE the Bowl-3/EMA224 breakout, not after it. A qualifying below-EMA112 base is now detected and shown in advance while price is still below EMA224 and the Bowl-3 preparation context is developing. Its upper line is set from the preceding previous-high hill first, otherwise from the highest bullish-candle close inside the active base. The breakout engine then uses that already-existing i-1 concrete box when a later strong bullish EMA224 body breakout occurs; post-break retrospective concrete reconstruction has been removed entirely. Preview concrete requires substantial prior time below EMA224 and a developing approach toward the long-MA zone so random boxes are not painted. Once price is above EMA224 the current concrete is not displayed. Accumulation, Bowl-3 marker placement, watermelon, pullback, condition-search, zoom and live-order rules remain unchanged.",
-    "sha256":  "7610180a63aa4012eb2f25b083bb8cfa8ca6dbef6d8f1c6430e798b1f7c6475f"
+    "sha256":  "947d06b1fabf2cb9999e36971f6d5b072d0d08c7bc1ed913513a89338a8f3d78"
 }
