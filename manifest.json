@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.49",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.49_UPDATE.zip",
-    "notes":  "v2.9.49: mobile whole-candidate auto-trading no longer depends on the watchlist. The mobile ALL scope now always uses the seven danta condition scanners as the candidate pool, automatically starts the condition-search stream when needed, then applies PUMA secondary filtering and the existing Gaboja entry rules. The mobile candidate-source control is fixed to this path so stale WATCHLIST settings cannot block startup. Selected-stock mode remains available. Trading strategy and signal rules are unchanged.",
-    "sha256":  "00b26391d99b840a76c71af0f82a17d985ea42ba516993744728bc01d0baa3c7"
+    "version":  "2.9.50",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.50_UPDATE.zip",
+    "notes":  "v2.9.50: integrated trading now includes direct stock search by Korean stock name or six-digit code. Name search uses the official ka10099 stock list for KOSPI, KOSDAQ and ETF, loads it off the GUI thread, caches it once per session, supports exact/prefix/substring matches and opens the selected stock in the existing chart and three-strategy analysis view. Six-digit codes open immediately without waiting for the universe cache. Trading rules are unchanged.",
+    "sha256":  "af1579a4dace1d1a8b2206cabbfb18c88b243a59c95966e851cdeaef8c42c521"
 }
