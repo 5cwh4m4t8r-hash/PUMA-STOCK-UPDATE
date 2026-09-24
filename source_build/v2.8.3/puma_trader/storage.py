@@ -52,7 +52,12 @@ def save_watchlist(items):
 def load_runtime() -> dict:
     """주문 안전상 필요한 최소 런타임 상태만 저장. 인증키/시크릿은 절대 저장하지 않음."""
     CONFIG_DIR.mkdir(exist_ok=True)
-    default = {"daily_order_date": "", "daily_order_count": 0, "managed_qty": {}, "managed_meta": {}, "pending_orders": {}}
+    default = {
+        "daily_order_date": "", "daily_order_count": 0,
+        "managed_qty": {}, "managed_meta": {}, "pending_orders": {},
+        "seed_capital": 500_000, "daily_start_seed": 500_000,
+        "daily_realized_pnl": 0.0, "daily_loss_locked": False,
+    }
     if not RUNTIME_PATH.exists():
         return default
     try:
@@ -107,6 +112,7 @@ def load_runtime() -> dict:
                 "partial_time_after": str(item.get("partial_time_after", "")),
                 "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
                 "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
+                "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
@@ -114,6 +120,10 @@ def load_runtime() -> dict:
             "managed_qty": {str(k): max(0, int(v)) for k, v in managed.items() if str(k)},
             "managed_meta": safe_meta,
             "pending_orders": safe_pending,
+            "seed_capital": max(0.0, float(raw.get("seed_capital", 500_000) or 500_000)),
+            "daily_start_seed": max(0.0, float(raw.get("daily_start_seed", raw.get("seed_capital", 500_000)) or 500_000)),
+            "daily_realized_pnl": float(raw.get("daily_realized_pnl", 0) or 0),
+            "daily_loss_locked": bool(raw.get("daily_loss_locked", False)),
         }
     except Exception:
         return default
@@ -157,6 +167,7 @@ def save_runtime(data: dict):
             "partial_time_after": str(item.get("partial_time_after", "")),
             "remainder_down_trigger_bar_after": str(item.get("remainder_down_trigger_bar_after", "")),
             "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
+            "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
@@ -164,6 +175,10 @@ def save_runtime(data: dict):
         "managed_qty": {str(k): max(0, int(v)) for k, v in dict(data.get("managed_qty", {})).items()},
         "managed_meta": managed_meta,
         "pending_orders": pending,
+        "seed_capital": max(0.0, float(data.get("seed_capital", 500_000) or 500_000)),
+        "daily_start_seed": max(0.0, float(data.get("daily_start_seed", data.get("seed_capital", 500_000)) or 500_000)),
+        "daily_realized_pnl": float(data.get("daily_realized_pnl", 0) or 0),
+        "daily_loss_locked": bool(data.get("daily_loss_locked", False)),
     }
     # 주문 상태 파일은 중간 종료/전원 차단 중 반쪽 JSON이 남지 않도록 원자적으로 교체한다.
     payload = json.dumps(safe, ensure_ascii=False, indent=2)
