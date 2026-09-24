@@ -44,7 +44,7 @@ def test_bowl3_pullback_requires_bearish_candle_and_can_use_reference_open():
     candles = [
         _candle(98, 100, 97, 99),
         _candle(99, 106, 98.5, 105),   # 기준봉
-        _candle(104, 105, 101, 103),   # 음봉이지만 기준봉 시가까지 안 내려옴
+        _candle(104, 105, 102, 103),   # 음봉이지만 기준봉 시가 근처까지 안 내려옴
         _candle(103, 104, 98.8, 99.8), # 음봉, 기준봉 시가 99 근처까지 눌림
     ]
     e112 = [90.0] * len(candles)
