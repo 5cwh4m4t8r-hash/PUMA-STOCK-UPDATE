@@ -53,7 +53,7 @@ class StrategySettings:
     seed_initial_capital: int = 500_000
     seed_phase1_target: int = 3_000_000
     daily_loss_limit_pct: float = -4.0
-    max_positions: int = 3
+    max_positions: int = 1
     cooldown_min: int = 10
     max_daily_orders: int = 10
     account_sync_sec: int = 5
