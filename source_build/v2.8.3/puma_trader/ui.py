@@ -9,7 +9,7 @@ from pathlib import Path
 import time
 from copy import deepcopy
 from .performance import DisplayCache, settings_key, data_revision, analysis_scope, check_cancelled, AnalysisCancelled, DEVICE_PROFILE
-from .chart_loader import FocusDataThread, NameLookupThread, reader_broker
+from .chart_loader import FocusDataThread, NameLookupThread, StockUniverseThread, reader_broker
 
 from PySide6.QtCore import QTime, QTimer, Qt, QDate, QSettings, QThread, Signal, QEvent, QStandardPaths
 from PySide6.QtGui import QColor, QFont
@@ -782,6 +782,11 @@ class MainWindow(QMainWindow):
         self.focus_data_code: str = ""
         self._strategy_refresh_after_focus: bool = False
 
+        # 통합 트레이딩 종목검색: ka10099 전체 종목목록은 세션당 한 번만 받아 캐시한다.
+        self.stock_search_universe: list[dict] = []
+        self.stock_search_thread: StockUniverseThread | None = None
+        self.stock_search_pending_query: str = ""
+
         # Mobile companion bridge. HTTP thread never touches Qt widgets directly.
         self.mobile_bridge = MobileBridge(self)
         self.mobile_bridge.commandReceived.connect(self._on_mobile_command)
@@ -946,6 +951,26 @@ class MainWindow(QMainWindow):
         head.addWidget(self.focus_origin, 1)
         head.addWidget(refresh)
         root.addLayout(head)
+
+        search_row = QHBoxLayout()
+        search_row.addWidget(QLabel("종목 검색"))
+        self.focus_stock_search = QLineEdit()
+        self.focus_stock_search.setPlaceholderText("종목명 또는 6자리 코드 · 예: 동양 / 001520")
+        self.focus_stock_search.setClearButtonEnabled(True)
+        self.focus_stock_search.returnPressed.connect(self.search_focus_stock)
+        self.focus_stock_search_btn = QPushButton("🔎 검색")
+        self.focus_stock_search_btn.clicked.connect(self.search_focus_stock)
+        self.focus_stock_search_results = NoWheelComboBox()
+        self.focus_stock_search_results.addItem("검색 결과가 여기에 표시됩니다.", None)
+        self.focus_stock_search_results.setMinimumWidth(320)
+        self.focus_stock_search_results.activated.connect(self._open_focus_search_result)
+        self.focus_stock_search_status = QLabel("코드는 즉시 · 종목명은 전체 상장종목에서 검색")
+        self.focus_stock_search_status.setStyleSheet("color:#8fb6d9;font-weight:700")
+        search_row.addWidget(self.focus_stock_search, 2)
+        search_row.addWidget(self.focus_stock_search_btn)
+        search_row.addWidget(self.focus_stock_search_results, 2)
+        search_row.addWidget(self.focus_stock_search_status, 2)
+        root.addLayout(search_row)
 
         tools = QHBoxLayout()
         self.focus_chart_mode_combo = NoWheelComboBox()
@@ -3652,6 +3677,126 @@ class MainWindow(QMainWindow):
         if hasattr(self, "focus_condition_table"):
             self._upsert_focus_candidate_row(code, refresh_count=refresh_focus_count)
 
+    def search_focus_stock(self):
+        query = self.focus_stock_search.text().strip()
+        if not query:
+            self.focus_stock_search_status.setText("종목명 또는 종목코드를 입력하세요.")
+            return
+
+        # 6자리 코드는 전체 목록을 기다릴 필요 없이 즉시 기존 차트/분석 경로로 연다.
+        if query.isdigit() and len(query) == 6:
+            name = self.name_cache.get(query) or query
+            self.focus_stock_search_status.setText(f"{query} 불러오는 중…")
+            self.open_focus_stock(query, name)
+            return
+
+        if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
+            self.focus_stock_search_status.setText("종목명 검색은 키움 연결 후 사용할 수 있습니다.")
+            return
+
+        self.stock_search_pending_query = query
+        if self.stock_search_universe:
+            self._show_focus_stock_search_results(query)
+            return
+
+        running = self.stock_search_thread
+        if running is not None and running.isRunning():
+            self.focus_stock_search_status.setText("전체 종목목록 받는 중… 완료되면 바로 검색합니다.")
+            return
+
+        self.focus_stock_search_btn.setEnabled(False)
+        self.focus_stock_search_status.setText("전체 상장종목 목록을 처음 한 번 불러오는 중…")
+        thread = StockUniverseThread(self.broker, self)
+        thread.loaded.connect(self._stock_search_loaded)
+        thread.failed.connect(self._stock_search_failed)
+        thread.finished.connect(lambda t=thread: self._stock_search_thread_finished(t))
+        self.stock_search_thread = thread
+        thread.start()
+
+    def _stock_search_loaded(self, rows):
+        self.stock_search_universe = [
+            dict(row) for row in (rows or [])
+            if isinstance(row, dict) and row.get("code") and row.get("name")
+        ]
+        for row in self.stock_search_universe:
+            self.name_cache[str(row["code"])] = str(row["name"])
+        query = self.stock_search_pending_query or self.focus_stock_search.text().strip()
+        self._show_focus_stock_search_results(query)
+
+    def _stock_search_failed(self, text: str):
+        self.focus_stock_search_status.setText(f"종목목록 조회 실패: {text}")
+
+    def _stock_search_thread_finished(self, thread):
+        if self.stock_search_thread is thread:
+            self.stock_search_thread = None
+        if getattr(self, "focus_stock_search_btn", None) is not None:
+            self.focus_stock_search_btn.setEnabled(True)
+        thread.deleteLater()
+
+    def _show_focus_stock_search_results(self, query: str):
+        query = str(query or "").strip()
+        combo = self.focus_stock_search_results
+        combo.blockSignals(True)
+        combo.clear()
+
+        if not query:
+            combo.addItem("검색어를 입력하세요.", None)
+            combo.blockSignals(False)
+            return
+
+        q = query.casefold()
+        matches = []
+        for row in self.stock_search_universe:
+            code = str(row.get("code") or "").strip()
+            name = str(row.get("name") or "").strip()
+            if not code or not name:
+                continue
+            n = name.casefold()
+            if code == query or n == q:
+                rank = 0
+            elif n.startswith(q):
+                rank = 1
+            elif q in n:
+                rank = 2
+            elif code.startswith(query):
+                rank = 3
+            else:
+                continue
+            matches.append((rank, len(name), name, code, row))
+
+        matches.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
+        shown = matches[:50]
+        combo.addItem(f"검색 결과 {len(matches)}개 · 선택하면 바로 열림", None)
+        for _, _, name, code, row in shown:
+            market = str(row.get("market_name") or "").strip()
+            label = f"{name}  [{code}]" + (f" · {market}" if market else "")
+            combo.addItem(label, (code, name))
+        combo.blockSignals(False)
+
+        if not matches:
+            self.focus_stock_search_status.setText(f"'{query}' 검색 결과 없음")
+            return
+
+        self.focus_stock_search_status.setText(
+            f"{len(matches)}개 검색됨" + (" · 상위 50개 표시" if len(matches) > 50 else "")
+        )
+
+        # 정확한 종목명은 검색 버튼/Enter 한 번으로 바로 연다.
+        exact = [m for m in matches if m[0] == 0]
+        if len(exact) == 1:
+            _, _, name, code, _ = exact[0]
+            combo.setCurrentIndex(1)
+            self.open_focus_stock(code, name)
+
+    def _open_focus_search_result(self, index: int):
+        data = self.focus_stock_search_results.itemData(int(index))
+        if not (isinstance(data, tuple) and len(data) == 2):
+            return
+        code, name = str(data[0]), str(data[1])
+        self.focus_stock_search.setText(name)
+        self.focus_stock_search_status.setText(f"{name} [{code}] 불러오는 중…")
+        self.open_focus_stock(code, name)
+
     def _focus_condition_row_clicked(self, row: int, column: int):
         item = self.focus_condition_table.item(row, 0)
         if not item:
@@ -5693,7 +5838,8 @@ class MainWindow(QMainWindow):
             self.danta_analysis_pending = False
             self._range_pending = None
         workers = list(self._focus_readers) + [self.focus_analysis_thread, self.danta_analysis_thread,
-            self.classification_thread, self._name_worker, self._range_worker, self.auto_scan_thread]
+            self.classification_thread, self._name_worker, self._range_worker, self.auto_scan_thread,
+            self.stock_search_thread]
         running = [w for w in workers if w is not None and w.isRunning()]
         for worker in running:
             worker.requestInterruption()
