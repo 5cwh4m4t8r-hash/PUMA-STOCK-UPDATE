@@ -49,7 +49,7 @@ def test_historical_bowl3_marker_survives_newer_bars():
     assert any(
         marker["kind"] == "historical_core"
         and int(marker["index"]) == 304
-        and str(marker["label"]).startswith("밥3 ")
+        and str(marker["label"]) == "밥3"
         and str(marker.get("retest_source") or "") in ("기준봉시가", "112EMA", "공구리중간")
         for marker in markers
     )
