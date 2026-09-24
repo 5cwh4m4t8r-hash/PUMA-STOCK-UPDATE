@@ -476,6 +476,129 @@ def _fallback_hill(candles: list[dict], end_idx: int, settings: Any=None) -> dic
     }
 
 
+def _preview_concrete_before_bowl3(
+    candles: list[dict],
+    box: dict | None,
+    current_idx: int,
+    e112,
+    e224,
+    settings: Any=None,
+) -> dict | None:
+    """Qualified concrete preview before Bowl-3 / EMA224 breakout."""
+    if not isinstance(box, dict) or box.get("structure_type") != "공구리":
+        return None
+    if current_idx <= 0 or current_idx >= len(candles):
+        return None
+    if current_idx >= len(e224) or e224[current_idx] is None:
+        return None
+
+    current_close = float(candles[current_idx]["close"])
+    current_224 = float(e224[current_idx])
+    if current_close >= current_224:
+        return None
+
+    start = max(0, int(box.get("start", 0)))
+    end = min(current_idx, int(box.get("end", current_idx)))
+    low = float(box.get("low", 0) or 0)
+    if end < start or low <= 0:
+        return None
+
+    valid_112 = [
+        float(e112[j])
+        for j in range(start, end + 1)
+        if 0 <= j < len(e112) and e112[j] is not None
+    ]
+    if not valid_112:
+        return None
+    max_allowed_top = min(valid_112)
+
+    look_start = max(0, current_idx - 99)
+    valid_224 = [
+        j for j in range(look_start, current_idx + 1)
+        if j < len(e224) and e224[j] is not None
+    ]
+    below_224_count = sum(
+        1 for j in valid_224
+        if float(candles[j]["close"]) < float(e224[j])
+    )
+    if len(valid_224) < 60 or below_224_count < 60:
+        return None
+
+    near_224 = abs(current_close / current_224 - 1.0) <= 0.06
+    near_or_above_112 = bool(
+        current_idx < len(e112)
+        and e112[current_idx] is not None
+        and current_close >= float(e112[current_idx]) * 0.97
+    )
+
+    volume_impulse = False
+    for j in range(max(20, current_idx - 19), current_idx + 1):
+        if j <= 0:
+            continue
+        _, vs_prev, vs_avg = _volume_strength(candles, j)
+        if vs_prev >= 1.5 or vs_avg >= 1.8:
+            volume_impulse = True
+            break
+
+    if not (near_224 or (near_or_above_112 and volume_impulse)):
+        return None
+
+    selected_level = 0.0
+    selected_source = ""
+    anchor_idx = -1
+
+    hill = _fallback_hill(candles, end, settings)
+    if isinstance(hill, dict):
+        hill_level = float(hill.get("high", 0) or 0)
+        hill_end = int(hill.get("end", -1))
+        if (
+            hill_level > low
+            and hill_level < max_allowed_top
+            and hill_end >= max(start, end - 15)
+        ):
+            selected_level = hill_level
+            selected_source = "전고언덕"
+            anchor_idx = hill_end
+
+    if selected_level <= 0:
+        bullish_candidates = []
+        recent_start = max(start, end - 40)
+        for j in range(recent_start, end + 1):
+            c = candles[j]
+            op = float(c["open"])
+            close = float(c["close"])
+            if close <= op:
+                continue
+            if close <= low or close >= max_allowed_top:
+                continue
+            bullish_candidates.append((close, j))
+        if bullish_candidates:
+            selected_level, anchor_idx = max(bullish_candidates, key=lambda x: x[0])
+            selected_source = "양봉종가"
+
+    if selected_level <= low or selected_level >= max_allowed_top:
+        return None
+
+    out = dict(box)
+    out["high"] = float(selected_level)
+    out["upper_source"] = selected_source
+    out["upper_anchor_idx"] = int(anchor_idx)
+    out["breakout_idx"] = -1
+    out["preview"] = True
+    out["accepted"] = False
+    out["start"] = start
+    out["end"] = end
+    out["period"] = end - start + 1
+    mid = (float(selected_level) + low) / 2.0
+    out["width_pct"] = (
+        (float(selected_level) - low) / mid * 100.0
+        if mid > 0 else 999.0
+    )
+    if out["width_pct"] > float(_s(settings, "box_width_pct", 30.0)):
+        return None
+    return out
+
+
 def _anchor_concrete_before_224_breakout(
     candles: list[dict],
     box: dict | None,
