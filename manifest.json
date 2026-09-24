@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.29",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.29_UPDATE.zip",
-    "notes":  "v2.9.29: real auto-trading now uses a single LIVE arm. The former second-stage text confirmation before starting automatic trading has been removed. The primary LIVE unlock is still required for real accounts, and manual real orders still require their separate LIVE ORDER confirmation. Account synchronization, daily order limits, duplicate-order blocking, and the trading strategy remain unchanged. Accumulation, Bowl-3, and EMA rules from v2.9.28 remain unchanged.",
-    "sha256":  "eaef309d101e27d2439b7142dc644e77491a58f7b49ccedfc60564e9e758ff74"
+    "version":  "2.9.30",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.30_UPDATE.zip",
+    "notes":  "v2.9.30: accumulation detection is now volume/price-behavior based instead of a fixed 3x-volume long-wick rule. A large bearish dump can be accumulation when volume is abnormal, a long upper wick can qualify with clearly elevated relative volume, and unusually large volume with only a muted price response is treated as suspicious accumulation/absorption. Relative volume uses the prior 20-bar average together with the recent 60-bar volume distribution, so visibly unusual volume can qualify below 3x. Tiny ambiguous cross/doji candles remain excluded. Individual suspicious bars are shown subtly as accumulation candidates; repeated candidates within the cluster window remain highlighted as confirmed accumulation. Bowl-3, EMA, and live-order rules remain unchanged.",
+    "sha256":  "9341874bc8a0f40d6f99eca3ccd1c2ac219ffba54703db566bcbd6a816e5ad27"
 }
