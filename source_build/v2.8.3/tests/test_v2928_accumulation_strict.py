@@ -109,3 +109,36 @@ def test_chart_confirmation_still_requires_repeated_candidates():
     confirmed = confirm_accumulation_flags(raw, meta, cluster_window=20)
     assert raw[30] is True and raw[38] is True
     assert confirmed[30] is True and confirmed[38] is True
+
+
+def test_declining_volume_bar_is_never_accumulation_even_if_absolute_volume_is_huge():
+    candles = _base_candles()
+    candles[-2]["volume"] = 5000.0
+    candles[-1] = {
+        "date": "x",
+        "open": 100.0,
+        "high": 116.0,
+        "low": 98.0,
+        "close": 102.0,
+        "volume": 4000.0,  # huge, but lower than previous bar => blue volume
+    }
+    raw, meta = accumulation_flags(candles, SwingSettings())
+    assert raw[-1] is False
+    assert meta[-1]["volume_up_vs_prev"] is False
+    assert meta[-1]["excluded_volume_not_up"] is True
+
+
+def test_equal_volume_is_not_accumulation():
+    candles = _base_candles()
+    candles[-2]["volume"] = 4000.0
+    candles[-1] = {
+        "date": "x",
+        "open": 100.0,
+        "high": 116.0,
+        "low": 98.0,
+        "close": 102.0,
+        "volume": 4000.0,
+    }
+    raw, meta = accumulation_flags(candles, SwingSettings())
+    assert raw[-1] is False
+    assert meta[-1]["volume_up_vs_prev"] is False
