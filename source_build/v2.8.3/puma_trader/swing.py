@@ -640,7 +640,9 @@ def analyze(candles_raw: List[dict], settings: SwingSettings | None = None) -> t
     wm_stage = series.get('watermelon_stage', [0])[-1] if series.get('watermelon_stage') else 0
     wm_score = series.get('watermelon_score', [0])[-1] if series.get('watermelon_score') else 0
     wm_reason = series.get('watermelon_reason', ['-'])[-1] if series.get('watermelon_reason') else '-'
-    analysis.details['PUMA 수박근사'] = f'{wm_stage}단계 · {wm_score}/100 · {wm_reason}'
+    fp_score = series.get('watermelon_footprint_score', [0])[-1] if series.get('watermelon_footprint_score') else 0
+    fp_reason = series.get('watermelon_footprint_reason', ['-'])[-1] if series.get('watermelon_footprint_reason') else '-'
+    analysis.details['PUMA 수박근사'] = f'{wm_stage}단계 · {wm_score}/100 · 대형자금흔적 {fp_score}/100 · {fp_reason} · {wm_reason}'
     return analysis, series
 
 
