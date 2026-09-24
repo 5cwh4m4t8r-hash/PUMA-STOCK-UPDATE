@@ -197,7 +197,7 @@ def build_puma_watermelon(
 
     last_display = -10**9
     # 수박은 밥3 직전 준비구간에만 드물게 표시한다.
-    min_display_gap = 35
+    min_display_gap = 20
 
     pre_bowl_prev = False
 
@@ -397,14 +397,13 @@ def build_puma_watermelon(
         evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
 
         # 밥3 분석기의 '3번 직전' 기준과 맞춘다:
-        # 1) EMA224 아래 장기 체류(최근 100봉 중 70봉 이상)
-        # 2) 현재가 EMA224 ±2%
-        # 3) 최근20봉 안 112봉 신고거래량
+        # 1) EMA224 아래 장기 체류(최근 100봉 중 60봉 이상)
+        # 2) 현재가 EMA224 ±4%
+        # 3) 112봉 신고거래량 또는 대형자금/매집 흔적 중 하나
         # 4) 60 < 112 < 224 역배열 또는 최근 112EMA 회복
-        # 5) 최근 대형자금/매집 흔적
         near_224_prebreak = False
         if e224[i] is not None and float(e224[i]) > 0:
-            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.020
+            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.040
 
         reverse_60_112_224 = False
         if e60[i] is not None and e112[i] is not None and e224[i] is not None:
@@ -424,7 +423,7 @@ def build_puma_watermelon(
             1 for j in prior_idx
             if closes[j] < float(e224[j])
         )
-        long_below_224 = bool(len(prior_idx) >= 70 and below224_count >= 70)
+        long_below_224 = bool(len(prior_idx) >= 60 and below224_count >= 60)
 
         recent_large_money = bool(
             big_money_footprint
@@ -441,23 +440,28 @@ def build_puma_watermelon(
                 and closes[i] > float(e224[i]) * 1.003
             )
 
+        volume_pre_signal = bool(
+            record112_recent
+            or recent_large_money
+            or (impulse and structural_touch)
+        )
+
         pre_bowl3 = bool(
             bottom_context
             and long_below_224
             and near_224_prebreak
-            and record112_recent
             and (reverse_60_112_224 or reclaimed_112_recent)
-            and recent_large_money
+            and volume_pre_signal
             and not bullish_224_body_break
         )
 
         pre_bowl3_flags[i] = pre_bowl3
 
-        # 점수는 보조값이고, 실제 표시는 밥3 직전 구조를 통과해야만 허용한다.
+        # 수박은 밥3 직전 구조 + 세력성 거래흔적이 보이면 표시한다.
+        # 신고거래량과 대형자금흔적을 동시에 요구하지 않는다.
         strict = bool(
             pre_bowl3
-            and evidence_confirmed
-            and score >= 80
+            and score >= 70
         )
 
         if strict:
