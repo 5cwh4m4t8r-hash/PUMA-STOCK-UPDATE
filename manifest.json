@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.52",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.52_UPDATE.zip",
-    "notes":  "v2.9.52: phase-one live money management is now locked to a single danta stock at a time. The seed starts at 500,000 KRW and realized profit or loss rolls directly into the next trade budget, so 550,000 becomes the next budget after profit and 480,000 becomes the next budget after loss. The danta pool is checked in PUMA-score priority order, only one position may be open, all automatic-start paths reject non-danta stocks, and new buys are locked for the rest of the trading day once realized seed loss reaches -4% versus that day\u0027s starting seed. At 3,000,000 KRW, phase one stops new buys pending the phase-two rules. Existing Gaboja entry/exit signal rules are unchanged.",
-    "sha256":  "5cec97efc11f028048fe5ece4eeac2d6ed87804d951ed1749a7112bdf820ac10"
+    "version":  "2.9.55",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.55_UPDATE.zip",
+    "notes":  "v2.9.55: Gaboja trend tracking is now the default exit mode. The first structural stop is the confirmed Cha pullback low, and every later confirmed higher Cha low can only raise the stop, never lower it. At +4% PUMA realizes 25% and keeps 75% for the trend instead of using the old +/-2% remainder band. The 13:00 forced exit is removed in trend mode; remaining intraday quantity is safety-closed at 15:20. The mobile rule card now shows the same live rules. Compound seed, one-stock selection and the daily -4% new-buy lock are unchanged.",
+    "sha256":  "4f5de7303e5818cdb826ad9ed23614e242fd08770599679a4a699db3ed9a8cbd"
 }
