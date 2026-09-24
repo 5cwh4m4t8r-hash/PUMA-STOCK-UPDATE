@@ -3,6 +3,7 @@ from puma_trader.market_path import _ema_series
 from puma_trader.signals import _ema as signal_ema, build_arrow_signals
 from puma_trader.swing import ema as swing_ema
 from puma_trader.swing_reference import _ema as reference_ema
+from puma_trader.watermelon_proxy import _ema as watermelon_ema
 
 
 def _trend_candles(n=700):
@@ -29,6 +30,7 @@ def test_all_long_ma_modules_use_same_hero_eavg():
         assert swing_ema(values, period) == expected
         assert _ema_series(values, period) == expected
         assert reference_ema(values, period) == expected
+        assert watermelon_ema(values, period) == expected
 
 
 def test_extended_bullish_long_ma_context_suppresses_display_signals_only():
@@ -57,3 +59,16 @@ def test_black_disparity_uses_exponential_ema224():
     assert e224[-1] is not None
     disparity = closes[-1] / float(e224[-1]) * 100.0
     assert disparity > 100.0
+
+
+def test_arrow_diagnostics_expose_exact_formula_inputs():
+    candles = _trend_candles(700)
+    out = build_arrow_signals(candles)
+    n = len(candles)
+    for key in (
+        "signal_ema112", "signal_ema224", "signal_ema448",
+        "signal_x_bb40_22", "signal_x_ema112", "signal_x_ema224", "signal_x_ema448",
+        "signal_sar_ok", "signal_vema40", "signal_disparity224",
+    ):
+        assert key in out
+        assert len(out[key]) == n
