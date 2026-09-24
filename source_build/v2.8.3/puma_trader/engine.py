@@ -623,8 +623,13 @@ class TradeEngine:
                     self.managed_meta[code] = meta
                     self._persist_runtime()
 
-            # 당일 단타 최종 안전청산. 추세가 살아 있으면 장중에는 계속 보유한다.
-            day_exit = str(getattr(self.settings, "gabojago_force_exit_time", "15:20") or "15:20")
+            # 당일 단타 최종 안전청산. 새 추세추적 모드는 레거시 13:00 설정과 분리.
+            trend_tracking = bool(getattr(self.settings, "gabojago_trend_tracking_enabled", True))
+            day_exit = (
+                str(getattr(self.settings, "gabojago_trend_force_exit_time", "15:20") or "15:20")
+                if trend_tracking
+                else str(getattr(self.settings, "gabojago_force_exit_time", "13:00") or "13:00")
+            )
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
                 return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산", require_enabled=True)
 
