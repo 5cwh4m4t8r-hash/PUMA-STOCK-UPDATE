@@ -28,11 +28,11 @@ def test_engine_submit_paths_recheck_enabled_immediately_before_order():
     buy = src.index("def _submit_buy")
     sell = src.index("def _submit_sell")
     partial = src.index("def _submit_partial_sell")
-    assert "if not self.enabled:" in src[buy:sell]
+    assert "if require_enabled and not self.enabled:" in src[buy:sell]
     assert "신규주문 차단" in src[buy:sell]
-    assert "if not self.enabled:" in src[sell:partial]
+    assert "if require_enabled and not self.enabled:" in src[sell:partial]
     assert "자동주문 차단" in src[sell:partial]
-    assert "if not self.enabled:" in src[partial:src.index("def process", partial)]
+    assert "if require_enabled and not self.enabled:" in src[partial:src.index("def process", partial)]
 
 
 def test_mobile_stop_publishes_state_immediately():
@@ -40,3 +40,9 @@ def test_mobile_stop_publishes_state_immediately():
     block = src[src.index('if command == "auto_stop":'):src.index('if command == "auto_start":')]
     assert "self.stop_auto()" in block
     assert "self._publish_mobile_snapshot()" in block
+
+
+def test_auto_process_passes_require_enabled_to_submit_paths():
+    src = Path("puma_trader/engine.py").read_text(encoding="utf-8")
+    process = src[src.index("def process"): ]
+    assert process.count("require_enabled=True") >= 4
