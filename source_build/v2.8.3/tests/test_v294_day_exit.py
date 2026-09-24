@@ -41,7 +41,7 @@ def test_gaboja_force_exit_at_1520_after_partial():
         previous_bar_close=10400,
     )
     assert sell is True
-    assert "13:00 전량청산" in reason
+    assert "15:20 전량청산" in reason
 
 
 def test_gaboja_not_forced_before_1520():
@@ -53,4 +53,4 @@ def test_gaboja_not_forced_before_1520():
         previous_bar_close=10400,
     )
     assert sell is False
-    assert "잔량 보유" in reason
+    assert "추세추적 보유" in reason
