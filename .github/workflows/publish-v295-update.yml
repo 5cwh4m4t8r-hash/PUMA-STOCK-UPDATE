@@ -1,4 +1,4 @@
-name: Publish PUMA v2.9.46 In-App Update
+name: Publish PUMA v2.9.47 In-App Update
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ jobs:
         working-directory: source_build/v2.8.3
         run: |
           python -m compileall -q app.py puma_trader
-          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.46 UPDATE SMOKE OK')"
-          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2935_condition_immediate.py tests/test_v2937_marker_exactness.py tests/test_v2938_chart_signal_density.py tests/test_v2939_bowl_concrete_cleanup.py tests/test_v2941_concrete_anchor.py tests/test_v2943_ksp_concrete_history.py tests/test_v2945_mobile_remote.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
+          python -c "import puma_trader.engine, puma_trader.ui, puma_trader.gaboja, puma_trader.conditions, puma_trader.updater; print('PUMA v2.9.47 UPDATE SMOKE OK')"
+          python -m pytest -q tests/test_v273_watermelon.py tests/test_v276_hero_arrows.py tests/test_v2925_arrow_consistency.py tests/test_v2912_visuals.py tests/test_v2913_swing_reference.py tests/test_v2914_condition_buckets.py tests/test_v2916_danta_pool.py tests/test_v2917_ui_logic.py tests/test_v2918_condition_name_normalization.py tests/test_v2919_bowl_chart_markers.py tests/test_v2927_bowl_definition.py tests/test_v2928_accumulation_strict.py tests/test_v2929_live_lock.py tests/test_v2931_arrow_history_gate.py tests/test_v2932_chart_zoom_scale.py tests/test_v2933_watermelon_footprint.py tests/test_v2935_condition_immediate.py tests/test_v2937_marker_exactness.py tests/test_v2938_chart_signal_density.py tests/test_v2939_bowl_concrete_cleanup.py tests/test_v2941_concrete_anchor.py tests/test_v2943_ksp_concrete_history.py tests/test_v2945_mobile_remote.py tests/test_v2947_dongyang_concrete.py tests/test_v2920_danta_morning_strength.py tests/test_danta.py tests/test_gaboja_v284.py tests/test_gaboja_v290.py tests/test_v2921_bowl_confirm_and_union.py
 
       - name: Build update package
         shell: powershell
@@ -70,15 +70,15 @@ jobs:
 
           $releaseDir = Join-Path $PWD "releases"
           New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.46_UPDATE.zip"
+          $zip = Join-Path $releaseDir "PUMA_STOCK_PRO_v2.9.47_UPDATE.zip"
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           Compress-Archive -Path (Join-Path $pkg "*") -DestinationPath $zip -CompressionLevel Optimal
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.46"
-            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.46_UPDATE.zip"
-            notes = "v2.9.46: mobile external access is simplified to the existing Safari/IP workflow with Tailscale. PUMA MobileBridge already binds 0.0.0.0, and now detects the PC Tailscale IPv4 in the 100.64.0.0/10 range and exposes an external URL such as http://100.x.x.x:8765. The Mobile tab shows the normal LAN URL separately from the external 5G/LTE Tailscale URL, includes copy/refresh controls, and removes the need to use the native iPhone app or Apple code signing. With Tailscale active on both PC and iPhone, Safari can reach the home PUMA server over cellular or another Wi-Fi without router port forwarding. Trading strategy, orders, condition-search, charts, concrete, Bowl-3, accumulation, watermelon and updater behavior remain unchanged."
+            version = "2.9.47"
+            url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.47_UPDATE.zip"
+            notes = "v2.9.47: fixes the two recent concrete-box failure modes visible on Tongyang (001520). Historical concrete searches are now cycle-isolated: after a strong EMA224 reference breakout, the next concrete search cannot reach backward through that prior launch/reference candle, preventing a new box from swallowing the previous launch area. The concrete upper-line previous-high hill also now uses the actual last top-touch bar inside the active base instead of treating the search end as the hill touch, eliminating stale/incorrect upper anchors. The historical box still ends immediately before its own strong reference candle. Dongyang-style repeated-launch regression tests were added. Mobile/Tailscale, trading strategy, order rules, Bowl-3, accumulation, watermelon, condition-search and zoom behavior are unchanged."
             sha256 = $sha
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $PWD "manifest.json") -Encoding UTF8
@@ -89,11 +89,11 @@ jobs:
         run: |
           git config user.name "PUMA Update Bot"
           git config user.email "puma-update@users.noreply.github.com"
-          git add releases/PUMA_STOCK_PRO_v2.9.46_UPDATE.zip manifest.json
+          git add releases/PUMA_STOCK_PRO_v2.9.47_UPDATE.zip manifest.json
           if (git diff --cached --quiet) {
             Write-Host "No update files changed."
             exit 0
           }
-          git commit -m "Publish PUMA STOCK PRO v2.9.46 in-app update"
+          git commit -m "Publish PUMA STOCK PRO v2.9.47 in-app update"
           git pull --rebase origin main
           git push origin main
