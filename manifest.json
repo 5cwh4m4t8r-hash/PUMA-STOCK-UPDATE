@@ -2,5 +2,5 @@
     "version":  "2.9.51",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.51_UPDATE.zip",
     "notes":  "v2.9.51: searched stocks can now be added directly to the integrated-trading list with a dedicated Add to List button. Search-added stocks are labeled as manually searched entries and are available for the same chart and analysis workflow, but they are excluded from automatic whole-candidate trading unless they later enter an actual automatic condition-search source. The whole-candidate auto button is also renamed to make clear that it monitors all candidates but only trades stocks that satisfy the existing PUMA and Gaboja entry conditions. Trading rules are unchanged.",
-    "sha256":  "df9a9da1644042a6107262236c9764554775afdc83c94573773b96baf1c363b4"
+    "sha256":  "e687c0d4f662707b0c33e9cc092dd78dda72f5c4eda3ece7647f58a720658494"
 }
