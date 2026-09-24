@@ -902,6 +902,13 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
         q=_quality_breakout(structure,info)
         item=dict(structure)
+        if item.get("structure_type") == "공구리":
+            # Once the strong 224 reference bar exists, freeze the concrete
+            # rectangle immediately before it. Pullback/rebreak bars never
+            # extend the right edge.
+            item["end"] = i - 1
+            item["period"] = int(item["end"]) - int(item.get("start", 0)) + 1
+            item["reference_idx"] = i
         item.update({
             "breakout_idx":i,
             "breakout_ma_period":int(info["breakout_ma_period"]),
@@ -1124,26 +1131,19 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     # Preserve confirmed historical concrete plus any NEW pre-break concrete
     # already visible before the next Bowl-3/EMA224 breakout.
-    confirmed_concrete = [
-        x for x in events
-        if x.get("structure_type") == "공구리"
-        and int(x.get("breakout_ma_period", 0)) == 224
-        and concrete_allowed_below_long_mas(x)
-        and str(x.get("upper_source") or "") in ("전고언덕", "양봉종가")
-    ]
-
-    # Full-history concrete scan: show past valid bases as well as the current one.
+    # Historical display uses ONE canonical box per strong EMA224 reference bar.
+    # Do not mix event snapshots back in, because that recreates duplicates.
     historical_previews = _scan_historical_concrete_previews(
         candles, e112, e224, settings
     )
-    display_boxes = _dedupe_display_boxes(
-        confirmed_concrete + historical_previews
-    )
 
-    # Current preview is selected separately for the analysis panel.
+    # Current preview is the only unconfirmed/live box.
     raw_preview = find_box_before(candles, n - 1, settings)
     preview_box = _preview_concrete_before_bowl3(
         candles, raw_preview, n - 1, e112, e224, settings
+    )
+    display_boxes = _dedupe_display_boxes(
+        historical_previews + ([preview_box] if preview_box else [])
     )
 
     current_above_224 = bool(
