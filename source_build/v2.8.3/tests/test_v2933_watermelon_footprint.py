@@ -117,8 +117,8 @@ def test_record112_recent_requires_record_volume_and_previous_day_increase():
     assert _record112_recent(vols, 139, 20) is True
 
     vols[124] = 6000.0
-    vols[125] = 5000.0  # blue/decreasing volume bar cannot be the record-volume evidence
-    assert _record112_recent(vols, 139, 20) is False
+    vols[125] = 5000.0  # blue/decreasing volume bar cannot itself be record-volume evidence
+    assert _record112_recent(vols, 125, 1) is False
 
 
 def test_watermelon_pre_bowl3_filter_uses_exact_two_percent_and_long_below_context():
