@@ -1304,7 +1304,7 @@ class MainWindow(QMainWindow):
         br.addWidget(sb)
         of.addRow(br)
         ov.addWidget(order)
-        order_note = QLabel("자동매매는 LIVE 1회 잠금 해제 후 추가 LIVE START 입력 없이 시작합니다. 수동 주문은 LIVE ORDER 확인을 유지합니다.")
+        order_note = QLabel("자동매매는 LIVE 1회 잠금 해제 후 추가 입력 없이 시작합니다. 수동 주문은 LIVE ORDER 확인을 유지합니다.")
         order_note.setWordWrap(True)
         order_note.setStyleSheet("color:#9eb4c9")
         ov.addWidget(order_note)
@@ -1882,7 +1882,7 @@ class MainWindow(QMainWindow):
         safety_note = QLabel(
             "· 프로그램 시작 시 실전 서버 자동 인증 가능\n"
             "· 실제 주문은 별도 실전주문 잠금 해제 필요\n"
-            "· 자동매매 시작 시 추가 LIVE START 입력 없음\n"
+            "· 자동매매 시작 시 추가 확인 입력 없음\n"
             "· 실제 잔고 동기화 / 일일 주문 상한 / 중복주문 차단 유지"
         )
         safety_note.setWordWrap(True)
@@ -2467,7 +2467,7 @@ class MainWindow(QMainWindow):
         if ok and text.strip().upper() == "LIVE":
             self.real_armed = True
             self.live_auto_confirmed_session = False
-            QMessageBox.warning(self, "실전 잠금 해제", "실전 주문 잠금이 해제됐습니다. 자동매매는 추가 LIVE START 입력 없이 시작됩니다.")
+            QMessageBox.warning(self, "실전 잠금 해제", "실전 주문 잠금이 해제됐습니다. 자동매매는 추가 확인 입력 없이 시작됩니다.")
         else:
             self.real_armed = False
             self.live_auto_confirmed_session = False
@@ -4702,7 +4702,7 @@ class MainWindow(QMainWindow):
     def _confirm_live_auto_once(self, title: str, message: str) -> bool:
         """Real auto-trading requires only the primary LIVE arm.
 
-        The former second-stage LIVE START text prompt was intentionally removed.
+        The former second-stage text prompt was intentionally removed.
         Manual real orders still keep their separate LIVE ORDER confirmation.
         """
         if not (isinstance(self.broker, KiwoomRestBroker) and self.broker.real):
