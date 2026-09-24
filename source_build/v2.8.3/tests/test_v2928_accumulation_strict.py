@@ -15,7 +15,7 @@ def _base_candles(n=30):
     ]
 
 
-def test_low_volume_long_upper_wick_is_not_accumulation():
+def test_ordinary_volume_long_upper_wick_is_not_accumulation():
     candles = _base_candles()
     candles[-1] = {
         "date": "x",
@@ -23,14 +23,30 @@ def test_low_volume_long_upper_wick_is_not_accumulation():
         "high": 112.0,
         "low": 99.0,
         "close": 102.0,
-        "volume": 2500.0,  # < 3x prior 20-bar average
+        "volume": 1200.0,
     }
     raw, meta = accumulation_flags(candles, SwingSettings())
     assert raw[-1] is False
+    assert meta[-1]["volume_ratio"] < 1.35
+
+
+def test_visible_volume_spike_under_three_times_can_be_accumulation():
+    candles = _base_candles()
+    candles[-1] = {
+        "date": "x",
+        "open": 100.0,
+        "high": 112.0,
+        "low": 99.0,
+        "close": 102.0,
+        "volume": 2200.0,  # clearly visible, but below 3x
+    }
+    raw, meta = accumulation_flags(candles, SwingSettings())
+    assert raw[-1] is True
     assert meta[-1]["volume_ratio"] < 3.0
+    assert meta[-1]["pattern"] == "고거래량 긴 윗꼬리"
 
 
-def test_large_bearish_dump_is_not_accumulation_even_with_volume():
+def test_large_bearish_dump_with_burst_volume_is_accumulation_candidate():
     candles = _base_candles()
     candles[-1] = {
         "date": "x",
@@ -41,10 +57,12 @@ def test_large_bearish_dump_is_not_accumulation_even_with_volume():
         "volume": 5000.0,
     }
     raw, meta = accumulation_flags(candles, SwingSettings())
-    assert raw[-1] is False
+    assert raw[-1] is True
+    assert meta[-1]["big_bear"] is True
+    assert meta[-1]["pattern"] == "고거래량 장대음봉"
 
 
-def test_small_cross_doji_is_not_accumulation_even_with_long_wick_and_volume():
+def test_small_cross_doji_stays_excluded_even_with_large_volume():
     candles = _base_candles()
     candles[-1] = {
         "date": "x",
@@ -59,25 +77,24 @@ def test_small_cross_doji_is_not_accumulation_even_with_long_wick_and_volume():
     assert meta[-1]["excluded_small_cross"] is True
 
 
-def test_high_volume_long_upper_wick_is_accumulation_candidate():
+def test_suspicious_volume_with_muted_price_response_is_accumulation():
     candles = _base_candles()
+    candles[-2]["close"] = 100.0
     candles[-1] = {
         "date": "x",
         "open": 100.0,
-        "high": 112.0,
-        "low": 99.0,
-        "close": 102.0,
-        "volume": 5000.0,
+        "high": 103.0,
+        "low": 98.5,
+        "close": 101.5,  # price barely moves compared with volume
+        "volume": 1900.0,
     }
     raw, meta = accumulation_flags(candles, SwingSettings())
     assert raw[-1] is True
-    assert meta[-1]["pattern"] == "고거래량 긴 윗꼬리"
-    assert meta[-1]["volume_ratio"] >= 3.0
-    assert meta[-1]["upper_wick_ratio"] >= 0.45
-    assert meta[-1]["body_ratio"] >= 0.10
+    assert meta[-1]["muted_price_response"] is True
+    assert meta[-1]["pattern"] == "가격반응대비 이상거래량"
 
 
-def test_chart_confirmation_still_requires_repeated_strict_candidates():
+def test_chart_confirmation_still_requires_repeated_candidates():
     candles = _base_candles(45)
     for idx in (30, 38):
         candles[idx] = {
@@ -86,7 +103,7 @@ def test_chart_confirmation_still_requires_repeated_strict_candidates():
             "high": 112.0,
             "low": 99.0,
             "close": 102.0,
-            "volume": 5000.0,
+            "volume": 2300.0,
         }
     raw, meta = accumulation_flags(candles, SwingSettings())
     confirmed = confirm_accumulation_flags(raw, meta, cluster_window=20)
