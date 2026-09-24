@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.32",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.32_UPDATE.zip",
-    "notes":  "v2.9.32: wheel zoom now rescales the vertical price axis from the currently visible candles so price swings remain readable instead of looking flat. Only real price overlays (EMA5/20/60/112/224/448, blue line and kijun) may participate in price-axis scaling; diagnostic arrays such as volume EMA, boolean signal inputs and disparity values are explicitly excluded. Nearby long EMAs/cloud values are included, but distant overlays are clipped from autoscale so they cannot crush the candle range. Maximum zoom depth is increased from 25 bars to 15 bars, with tighter vertical padding at higher zoom. Arrow, watermelon, Bowl-3, accumulation and live-order logic remain unchanged.",
-    "sha256":  "f9bcdec18a603870583db653b9b088cc137c147a0a39ce1cbc3a347edaae7a6d"
+    "version":  "2.9.33",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.33_UPDATE.zip",
+    "notes":  "v2.9.33: PUMA watermelon is redefined around observable bottom-area concentrated-capital footprints rather than only later long-MA reclaim confirmation. The model now scores abnormal relative volume, high-volume absorption patterns (large bearish bars, long upper wicks, or unusually large volume with muted price response), direct interaction with EMA112/224, and interaction/reclaim of the visible Ichimoku cloud. A bottom-area footprint touching these structural levels can mark the intervention zone before the rebound fully matures; later long-MA reclaim, settling and reversal still strengthen confirmation. The analysis panel now exposes a separate large-money footprint score and reason. This is a chart-based proxy for concentrated capital activity, not identification of any specific market participant. Arrow, Bowl-3, accumulation, zoom and live-order rules remain unchanged.",
+    "sha256":  "c78ab0fc7e172ef0a588424fcb6402b307dffa2d5c3d65947552ad9cb19b67b4"
 }
