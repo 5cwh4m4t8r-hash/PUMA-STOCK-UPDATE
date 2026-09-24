@@ -7,6 +7,7 @@ from .swing import ema, normalize_candles
 from .signals import build_arrow_signals, latest_signal_reason
 from .watermelon_proxy import build_puma_watermelon
 from .swing_reference import evaluate_swing_reference_profiles
+from .market_path import find_box_before
 
 
 @dataclass
@@ -73,6 +74,115 @@ def is_bowl3_confirmed_state(
     )
 
 
+def _is_bullish_body_224_breakout(
+    candles: list[dict],
+    e224,
+    i: int,
+    settings: BowlSettings,
+) -> bool:
+    """True only when a bullish candle body itself crosses EMA224."""
+    if i <= 0 or i >= len(candles) or i >= len(e224):
+        return False
+    if e224[i] is None or e224[i - 1] is None:
+        return False
+    c = candles[i]
+    op = float(c["open"])
+    close = float(c["close"])
+    line = float(e224[i])
+    prev_close = float(candles[i - 1]["close"])
+    prev_line = float(e224[i - 1])
+    return bool(
+        close > op
+        and op <= line
+        and close > line * (1 + float(settings.breakout_buffer_pct) / 100.0)
+        and prev_close <= prev_line
+    )
+
+
+def _concrete_mid_before(
+    candles: list[dict],
+    breakout_idx: int,
+    settings: BowlSettings,
+) -> tuple[float, dict | None]:
+    """Return the midpoint of the concrete box immediately before breakout."""
+    if breakout_idx <= 0:
+        return 0.0, None
+    try:
+        box = find_box_before(candles, breakout_idx - 1, settings)
+    except Exception:
+        box = None
+    if not isinstance(box, dict) or box.get("structure_type") != "공구리":
+        return 0.0, box if isinstance(box, dict) else None
+    low = float(box.get("low", 0) or 0)
+    high = float(box.get("high", 0) or 0)
+    if low <= 0 or high <= low:
+        return 0.0, box
+    return (low + high) / 2.0, box
+
+
+def _find_bowl3_pullback(
+    candles: list[dict],
+    e112,
+    breakout_idx: int,
+    settings: BowlSettings,
+    *,
+    end_idx: int | None = None,
+) -> dict | None:
+    """Find the first bearish pullback to the breakout-open/EMA112/concrete-mid.
+
+    The bullish EMA224 body-breakout candle is the reference candle. A Bowl-3
+    retest is not another touch of EMA224 by itself: a later bearish candle must
+    pull back to the reference candle open, EMA112, or the midpoint of the
+    concrete box that existed before the breakout, while closing without a
+    material support failure.
+    """
+    if breakout_idx < 0 or breakout_idx >= len(candles):
+        return None
+
+    ref_open = float(candles[breakout_idx]["open"])
+    concrete_mid, box = _concrete_mid_before(candles, breakout_idx, settings)
+    stop = min(
+        len(candles),
+        int(end_idx) if end_idx is not None else breakout_idx + 36,
+    )
+    start = breakout_idx + 1
+    touch_tol = float(settings.retest_tolerance_pct) / 100.0
+    hold_tol = float(settings.acceptance_tolerance_pct) / 100.0
+
+    for j in range(start, stop):
+        candle = candles[j]
+        op = float(candle["open"])
+        close = float(candle["close"])
+        low = float(candle["low"])
+
+        # User definition: the pullback candle itself must be bearish.
+        if close >= op:
+            continue
+
+        targets: list[tuple[str, int, float]] = []
+        if ref_open > 0:
+            targets.append(("기준봉시가", 0, ref_open))
+        if j < len(e112) and e112[j] is not None and float(e112[j]) > 0:
+            targets.append(("112EMA", 112, float(e112[j])))
+        if concrete_mid > 0:
+            targets.append(("공구리중간", 0, concrete_mid))
+
+        for source, line_no, target in targets:
+            touched = low <= target * (1 + touch_tol)
+            held = close >= target * (1 - hold_tol)
+            if touched and held:
+                return {
+                    "index": j,
+                    "source": source,
+                    "line": line_no,
+                    "value": target,
+                    "reference_open": ref_open,
+                    "concrete_mid": concrete_mid,
+                    "box": box,
+                }
+    return None
+
+
 def _historical_bowl3_markers(
     candles: list[dict],
     e112,
@@ -105,51 +215,29 @@ def _historical_bowl3_markers(
         prior = [j for j in range(prior_start, i) if e224[j] is not None]
         enough = len(prior) >= min(int(settings.min_below_closes), int(settings.below_lookback))
         below_count = sum(1 for j in prior if closes[j] < float(e224[j]))
-        crossed = (
-            closes[i - 1] <= float(e224[i - 1])
-            and closes[i] > float(e224[i]) * (1 + float(settings.breakout_buffer_pct) / 100.0)
-        )
+        crossed = _is_bullish_body_224_breakout(candles, e224, i, settings)
         if not (enough and below_count >= int(settings.min_below_closes) and crossed):
             continue
 
-        # A past Bowl-3-like position is the first real pullback after the
-        # breakout that holds EMA224, or at minimum EMA112.
-        retest_limit = min(n, i + 36)
-        found_idx = -1
-        found_line = 0
-        for j in range(i + 1, retest_limit):
-            low = float(candles[j]["low"])
-            close = closes[j]
-
-            held224 = False
-            if j < len(e224) and e224[j] is not None:
-                line224 = float(e224[j])
-                held224 = (
-                    low <= line224 * (1 + float(settings.retest_tolerance_pct) / 100.0)
-                    and close >= line224 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-                )
-
-            held112 = False
-            if j < len(e112) and e112[j] is not None:
-                line112 = float(e112[j])
-                held112 = (
-                    low <= line112 * (1 + float(settings.retest_tolerance_pct) / 100.0)
-                    and close >= line112 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-                )
-
-            if held224 or held112:
-                found_idx = j
-                found_line = 224 if held224 else 112
-                break
+        # Historical display uses the same strict user definition as current:
+        # bullish body through EMA224, then bearish pullback to reference-open,
+        # EMA112, or the prior concrete-box midpoint.
+        pullback = _find_bowl3_pullback(
+            candles, e112, i, settings, end_idx=min(n, i + 36)
+        )
+        found_idx = int(pullback["index"]) if pullback else -1
+        found_line = int(pullback.get("line", 0)) if pullback else 0
+        found_source = str(pullback.get("source", "")) if pullback else ""
 
         if found_idx >= 0:
             markers.append({
                 "index": found_idx,
                 "kind": "historical_core",
                 "label": "밥3",
-                "stage": f"과거 유사 · {found_line}EMA 눌림/안착",
+                "stage": f"과거 유사 · {found_source} 눌림",
                 "breakout_index": i,
                 "retest_line": found_line,
+                "retest_source": found_source,
             })
             # Avoid several tags for repeated recrosses inside the same bowl.
             cooldown_until = found_idx + 20
@@ -187,7 +275,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     Transparent model used by the program:
       1) long decline / long stay below EMA224
       2) bottom/base with reverse MA context and evidence of strong volume
-      3) price approaches then breaks EMA224, holds above it, and ideally retests
+      3) a bullish candle body breaks EMA224; that candle becomes the reference candle
+      4) a later bearish pullback reaches the reference open, EMA112, or concrete midpoint
 
     The user's first photographed swing searcher is treated as a pre-3 filter:
     EMA224 within 2% + 112-bar record volume inside 20 bars + 60<112<224.
@@ -236,10 +325,7 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         prior = [j for j in range(prior_start, i) if e224[j] is not None]
         below_count = sum(1 for j in prior if closes[j] < float(e224[j]))
         enough = len(prior) >= min(int(settings.min_below_closes), int(settings.below_lookback))
-        crossed = (
-            closes[i - 1] <= float(e224[i - 1])
-            and closes[i] > float(e224[i]) * (1 + float(settings.breakout_buffer_pct) / 100.0)
-        )
+        crossed = _is_bullish_body_224_breakout(candles, e224, i, settings)
         if enough and below_count >= int(settings.min_below_closes) and crossed:
             breakout_idx = i
             below_count_at_break = below_count
@@ -273,6 +359,10 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     retest = False
     retest_idx = -1
     retest_line = 0
+    retest_source = ""
+    retest_value = 0.0
+    reference_open = float(candles[breakout_idx]["open"]) if breakout_idx >= 0 else 0.0
+    concrete_mid = 0.0
     support_alive = False
     if breakout_idx >= 0:
         after = range(breakout_idx, min(n, breakout_idx + int(settings.acceptance_window)))
@@ -288,40 +378,28 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         accepted_count = running_accepts
         accepted = accepted_idx >= 0
 
-        # 밥3 핵심은 '224 돌파 그 자체'가 아니라 이후 눌림이 224 또는 최소 112에서
-        # 실제로 지지/안착되는 자리다. 돌파봉 자체는 눌림으로 인정하지 않는다.
-        tail_start = max(breakout_idx + 1, n - 35)
-        for j in range(tail_start, n):
-            low = float(candles[j]['low'])
-            close = closes[j]
-
-            held224 = False
-            if e224[j] is not None:
-                line224 = float(e224[j])
-                held224 = (
-                    low <= line224 * (1 + float(settings.retest_tolerance_pct) / 100.0)
-                    and close >= line224 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-                )
-
-            held112 = False
-            if e112[j] is not None:
-                line112 = float(e112[j])
-                held112 = (
-                    low <= line112 * (1 + float(settings.retest_tolerance_pct) / 100.0)
-                    and close >= line112 * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
-                )
-
-            if held224 or held112:
-                retest = True
-                retest_idx = j
-                retest_line = 224 if held224 else 112
+        # 밥3 핵심:
+        # 1) 양봉 몸통이 EMA224를 돌파한 봉 = 기준봉
+        # 2) 이후 음봉 눌림이 기준봉 시가 / EMA112 / 공구리 중간값까지 내려옴
+        # 3) 해당 기준을 종가로 크게 이탈하지 않고 지지
+        pullback = _find_bowl3_pullback(
+            candles, e112, breakout_idx, settings,
+            end_idx=min(n, breakout_idx + 36),
+        )
+        if pullback:
+            retest = True
+            retest_idx = int(pullback["index"])
+            retest_line = int(pullback.get("line", 0))
+            retest_source = str(pullback.get("source", ""))
+            retest_value = float(pullback.get("value", 0.0) or 0.0)
+            reference_open = float(pullback.get("reference_open", reference_open) or reference_open)
+            concrete_mid = float(pullback.get("concrete_mid", 0.0) or 0.0)
 
         if retest:
-            current_support = (
-                float(e224[last]) if retest_line == 224 and e224[last] is not None
-                else float(e112[last]) if retest_line == 112 and e112[last] is not None
-                else 0.0
-            )
+            if retest_source == "112EMA":
+                current_support = float(e112[last]) if e112[last] is not None else 0.0
+            else:
+                current_support = retest_value
             support_alive = bool(
                 current_support > 0
                 and current >= current_support * (1 - float(settings.acceptance_tolerance_pct) / 100.0)
@@ -369,7 +447,7 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     )
 
     # 사용자가 말한 밥3 정의를 엄격히 적용:
-    # 224 돌파 → 눌림 → 224 또는 112 안착까지 와야 목록상 밥3이다.
+    # 224 양봉 몸통돌파 → 음봉 눌림 → 기준봉시가/112EMA/공구리중간 지지까지 와야 밥3이다.
     if not bowl3_confirmed:
         score = min(score, 49)
 
@@ -378,13 +456,13 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
     if extended_above_224:
         stage = f'224 돌파 후 이격과다 · +{distance:.1f}%'
     elif bowl3_confirmed:
-        stage = f'밥3 핵심 · {retest_line}EMA 눌림/안착 확인'
+        stage = f'밥3 핵심 · {retest_source} 눌림 확인'
     elif retest and not support_alive:
-        stage = f'224 돌파 후 {retest_line}EMA 지지 이탈'
+        stage = f'224 양봉돌파 후 {retest_source} 지지 이탈'
     elif accepted:
-        stage = '224 돌파 유지 · 눌림/안착 대기'
+        stage = '224 양봉 몸통돌파 유지 · 음봉 눌림 대기'
     elif breakout_idx >= 0:
-        stage = '224EMA 돌파 · 눌림 대기'
+        stage = '224EMA 양봉 몸통돌파 · 음봉 눌림 대기'
     elif stage2_ready:
         stage = '224EMA 돌파 직전 준비구간'
     elif long_below:
@@ -421,14 +499,14 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         '2번구간 횡보': (
             f"{'확인' if base_ok else '미확인'} · 폭 {base_width:.1f}% · 방향성 {base_direction:.2f}"
         ),
-        '224EMA 돌파': (
-            f'확인 · 돌파봉 거래량/20봉평균 {breakout_volume_ratio:.2f}배'
+        '224EMA 양봉 몸통돌파': (
+            f'확인 · 기준봉 시가 {reference_open:,.0f} · 돌파봉 거래량/20봉평균 {breakout_volume_ratio:.2f}배'
             if breakout_idx >= 0 else '대기'
         ),
         '224EMA 위 유지': f'확인 · {accepted_count}봉' if accepted else '대기',
         '눌림/안착': (
-            f'확인 · {retest_line}EMA 지지 · 현재유지 {"O" if support_alive else "X"}'
-            if retest else '대기'
+            f'확인 · 음봉 → {retest_source} {retest_value:,.0f} · 현재유지 {"O" if support_alive else "X"}'
+            if retest else '대기 · 기준봉시가 / 112EMA / 공구리중간'
         ),
         '밥3 확정': '확정' if bowl3_confirmed else '미확정',
         '224EMA 거리': (
@@ -468,8 +546,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         bowl3_markers.append({
             'index': breakout_idx,
             'kind': 'breakout',
-            'label': '224 돌파',
-            'stage': '224EMA 돌파',
+            'label': '224 양봉돌파',
+            'stage': '224EMA 양봉 몸통돌파 · 기준봉',
         })
     if accepted and accepted_idx >= 0:
         bowl3_markers.append({
@@ -488,8 +566,8 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         bowl3_markers.append({
             'index': retest_idx,
             'kind': 'core',
-            'label': f'밥3 {retest_line}안착',
-            'stage': f'{retest_line}EMA 눌림/안착',
+            'label': f'밥3 {retest_source}',
+            'stage': f'음봉 → {retest_source} 눌림',
         })
 
     bowl3_markers.sort(key=lambda m: int(m.get('index', -1)))
@@ -504,6 +582,10 @@ def analyze_bowl(candles_raw: List[dict], settings: BowlSettings | None = None) 
         'bowl_accepted_idx': accepted_idx,
         'bowl_retest_idx': retest_idx,
         'bowl_retest_line': retest_line,
+        'bowl_retest_source': retest_source,
+        'bowl_retest_value': retest_value,
+        'bowl_reference_open': reference_open,
+        'bowl_concrete_mid': concrete_mid,
         'bowl3_confirmed': bowl3_confirmed,
         'bowl3_markers': bowl3_markers,
         'bowl_reference_a': ref_a,
