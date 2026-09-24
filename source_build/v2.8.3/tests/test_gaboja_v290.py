@@ -48,11 +48,12 @@ class CaptureBroker:
         return {"ord_no": "TEST", "return_code": 0}
 
 
-def test_auto_buy_budget_is_fixed_500k_even_if_setting_differs():
+def test_phase_one_auto_buy_starts_from_500k_seed_even_if_legacy_setting_differs():
     broker = CaptureBroker()
     settings = StrategySettings(order_budget=9_999_999)
     engine = TradeEngine(broker, settings)
-    assert engine.settings.order_budget == AUTO_ORDER_BUDGET == 500_000
+    assert AUTO_ORDER_BUDGET == 500_000
+    assert engine.current_trade_budget() == 500_000
     result = engine._submit_buy("000001", "TEST", 120_000, "test", stop_price=100_000)
     assert broker.last_buy == ("000001", 4)
     assert result["status"] == "BUY_SENT"
