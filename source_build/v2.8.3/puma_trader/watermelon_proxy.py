@@ -114,17 +114,17 @@ def build_puma_watermelon(
     *,
     acc_flags: list[bool] | None = None,
 ) -> dict:
-    """PUMA watermelon approximation v2.
+    """PUMA watermelon approximation v3.
 
     Important:
       The proprietary Stock Dante watermelon formula is not public.
       This is a transparent approximation built only from observable/public
-      concepts: bottom-area context, 112/224 long-MA retest/reclaim,
-      reversal/settling, prior volume/accumulation, and arrow confluence.
+      concepts: bottom-area context, abnormal volume/absorption, interaction
+      with EMA112/224 and Ichimoku cloud, prior accumulation, and arrow confluence.
 
     Goal:
-      Place sparse markers around the *first bottom/reversal entry zone*,
-      rather than waiting until price is already far above EMA224.
+      Mark sparse bottom-area locations where concentrated-capital footprints
+      appear, then strengthen them when reclaim/reversal confirmation follows.
 
     Uses only current/past bars. No future-bar confirmation is used.
     """
