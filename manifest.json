@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.31",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.31_UPDATE.zip",
-    "notes":  "v2.9.31: arrow reliability is hardened for Hero/Kiwoom comparison. The integrated DAY chart no longer publishes provisional swing arrows from the short first-page history; candles still appear immediately, but arrows are calculated only after the full requested adjusted-price daily history is loaded. Background candidate classification may still use a short sample for speed, but that partial result is no longer cached as the visual arrow chart. Date-level diagnostics now expose EMA112/224/448, BB40/2.2 cross, EMA crosses, SAR condition, volume EMA40 and EMA224 disparity behind the four raw formulas. Watermelon EMA112/224/448 is also unified with the same Hero-style cumulative EAVG used by the visible chart and arrow formulas. This is especially important for corporate-action stocks such as Signetics after its 5:1 share consolidation. Trading strategy, Bowl-3, accumulation and live-order rules remain unchanged.",
-    "sha256":  "ac2f4d6dd62deea83ce7c4918d109f51891497ac97226f2b644de71a44edf79a"
+    "version":  "2.9.32",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.32_UPDATE.zip",
+    "notes":  "v2.9.32: wheel zoom now rescales the vertical price axis from the currently visible candles so price swings remain readable instead of looking flat. Only real price overlays (EMA5/20/60/112/224/448, blue line and kijun) may participate in price-axis scaling; diagnostic arrays such as volume EMA, boolean signal inputs and disparity values are explicitly excluded. Nearby long EMAs/cloud values are included, but distant overlays are clipped from autoscale so they cannot crush the candle range. Maximum zoom depth is increased from 25 bars to 15 bars, with tighter vertical padding at higher zoom. Arrow, watermelon, Bowl-3, accumulation and live-order logic remain unchanged.",
+    "sha256":  "f9097d53c4da04e44644833d83a81e2bd117c2916156a0be2c55efea7c15acec"
 }
