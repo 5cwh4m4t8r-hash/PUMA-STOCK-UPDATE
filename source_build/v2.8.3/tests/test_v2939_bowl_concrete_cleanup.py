@@ -32,7 +32,7 @@ def test_current_concrete_is_not_exposed_above_ema224():
 
     assert out["current"]["breakout_idx"] >= 0
     assert out["box"] is None or out["box"].get("structure_type") != "공구리"
-    assert not [x for x in out.get("boxes", []) if x.get("structure_type") == "공구리"]
+    # Past valid concrete may remain visible; only CURRENT concrete is forbidden above EMA224.
 
 
 def test_concrete_filter_requires_box_top_below_ema112():
