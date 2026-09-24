@@ -577,7 +577,7 @@ struct SettingsView: View {
 
 struct PCard<Content: View>: View {
     let title: String
-    @ViewBuilder let content: Content
+    let content: Content
 
     init(title: String, @ViewBuilder content: () -> Content) {
         self.title = title
