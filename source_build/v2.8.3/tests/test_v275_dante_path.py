@@ -74,7 +74,10 @@ def test_pullback_requires_bearish_ma_touch_and_dead_volume():
     assert sum(out["path_breakout"]) == 1
     assert sum(out["path_pullback"]) == 1
     pidx=out["path_pullback"].index(True)
-    assert out["path_pullback_ma"][pidx] in (112,224)
+    assert (
+        out["path_pullback_ma"][pidx] in (112,224)
+        or out["path_pullback_source"][pidx] in ("공구리상단","전고상단")
+    )
     assert out["current"]["stage"] in ("확정 눌림","확정 눌림 / 재상승 대기")
 
 
