@@ -786,6 +786,8 @@ class MainWindow(QMainWindow):
         self.stock_search_universe: list[dict] = []
         self.stock_search_thread: StockUniverseThread | None = None
         self.stock_search_pending_query: str = ""
+        self.focus_stock_search_selected_code: str = ""
+        self.focus_stock_search_selected_name: str = ""
 
         # Mobile companion bridge. HTTP thread never touches Qt widgets directly.
         self.mobile_bridge = MobileBridge(self)
@@ -960,6 +962,11 @@ class MainWindow(QMainWindow):
         self.focus_stock_search.returnPressed.connect(self.search_focus_stock)
         self.focus_stock_search_btn = QPushButton("🔎 검색")
         self.focus_stock_search_btn.clicked.connect(self.search_focus_stock)
+        self.focus_stock_add_btn = QPushButton("＋ 리스트 추가")
+        self.focus_stock_add_btn.setObjectName("conditionBtn")
+        self.focus_stock_add_btn.setEnabled(False)
+        self.focus_stock_add_btn.setToolTip("검색한 종목을 통합 트레이딩 왼쪽 리스트에 수동으로 추가합니다. 검색추가만으로 자동매수 대상이 되지는 않습니다.")
+        self.focus_stock_add_btn.clicked.connect(self.add_searched_stock_to_focus_list)
         self.focus_stock_search_results = NoWheelComboBox()
         self.focus_stock_search_results.addItem("검색 결과가 여기에 표시됩니다.", None)
         self.focus_stock_search_results.setMinimumWidth(320)
@@ -968,6 +975,7 @@ class MainWindow(QMainWindow):
         self.focus_stock_search_status.setStyleSheet("color:#8fb6d9;font-weight:700")
         search_row.addWidget(self.focus_stock_search, 2)
         search_row.addWidget(self.focus_stock_search_btn)
+        search_row.addWidget(self.focus_stock_add_btn)
         search_row.addWidget(self.focus_stock_search_results, 2)
         search_row.addWidget(self.focus_stock_search_status, 2)
         root.addLayout(search_row)
@@ -1361,7 +1369,7 @@ class MainWindow(QMainWindow):
         afm.addRow("트레일링 시작", self.focus_trail_start)
         afm.addRow("고점대비 하락", self.focus_trail_gap)
         ar = QHBoxLayout()
-        start = QPushButton("▶ 전체 후보 자동매매 시작")
+        start = QPushButton("▶ 전체 후보 감시 · 조건충족만 매매")
         start.setObjectName("startBtn")
         selected_start = QPushButton("선택 종목만")
         stop = QPushButton("■ 중지")
@@ -1374,7 +1382,7 @@ class MainWindow(QMainWindow):
         ar.addWidget(stop)
         afm.addRow(ar)
         auv.addWidget(auto)
-        note = QLabel("단타 검색기 7개 결과 합집합 → 종목코드 중복 제거 → PUMA 단타 2차 선별 → 가보자 차 눌림/전고 몸통돌파에서만 50만원 매수. 관심종목 등록은 필요 없습니다. '선택 종목만'은 수동 점검용 보조 기능입니다.")
+        note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. 단타 검색기 7개 결과 합집합을 감시 → PUMA 단타 2차 선별 → 가보자 차 눌림/전고 몸통돌파 조건을 통과한 종목만 50만원 매수합니다. 검색으로 수동 추가한 종목은 단타 검색기 후보가 아닌 한 자동매수 대상에 포함되지 않습니다.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -3010,6 +3018,8 @@ class MainWindow(QMainWindow):
             return f"단타검색 {overlap} · {puma}"
         if auto_count and manual_count:
             return f"자동 {auto_count}식 + 수동"
+        if item.get("manual_search_only") and manual_count:
+            return "검색추가"
         if manual_count:
             return "수동편입"
         return f"편입 · {auto_count}식" if auto_count > 1 else "편입"
@@ -3474,6 +3484,8 @@ class MainWindow(QMainWindow):
             entry_event=True,
             now=now,
         )
+        if self._candidate_source_counts(item)[0] > 0:
+            item["manual_search_only"] = False
         self._upsert_condition_row(code)
         self._ensure_market_row(code, item.get("name", code), "영웅문4")
         if not name or name == code:
@@ -3686,6 +3698,9 @@ class MainWindow(QMainWindow):
         # 6자리 코드는 전체 목록을 기다릴 필요 없이 즉시 기존 차트/분석 경로로 연다.
         if query.isdigit() and len(query) == 6:
             name = self.name_cache.get(query) or query
+            self.focus_stock_search_selected_code = query
+            self.focus_stock_search_selected_name = name
+            self.focus_stock_add_btn.setEnabled(True)
             self.focus_stock_search_status.setText(f"{query} 불러오는 중…")
             self.open_focus_stock(query, name)
             return
@@ -3774,6 +3789,9 @@ class MainWindow(QMainWindow):
         combo.blockSignals(False)
 
         if not matches:
+            self.focus_stock_search_selected_code = ""
+            self.focus_stock_search_selected_name = ""
+            self.focus_stock_add_btn.setEnabled(False)
             self.focus_stock_search_status.setText(f"'{query}' 검색 결과 없음")
             return
 
@@ -3786,6 +3804,9 @@ class MainWindow(QMainWindow):
         if len(exact) == 1:
             _, _, name, code, _ = exact[0]
             combo.setCurrentIndex(1)
+            self.focus_stock_search_selected_code = code
+            self.focus_stock_search_selected_name = name
+            self.focus_stock_add_btn.setEnabled(True)
             self.open_focus_stock(code, name)
 
     def _open_focus_search_result(self, index: int):
@@ -3793,9 +3814,43 @@ class MainWindow(QMainWindow):
         if not (isinstance(data, tuple) and len(data) == 2):
             return
         code, name = str(data[0]), str(data[1])
+        self.focus_stock_search_selected_code = code
+        self.focus_stock_search_selected_name = name
+        self.focus_stock_add_btn.setEnabled(True)
         self.focus_stock_search.setText(name)
         self.focus_stock_search_status.setText(f"{name} [{code}] 불러오는 중…")
         self.open_focus_stock(code, name)
+
+    def add_searched_stock_to_focus_list(self):
+        code = str(self.focus_stock_search_selected_code or "").strip()
+        name = str(self.focus_stock_search_selected_name or self.name_cache.get(code) or code).strip()
+        if not code:
+            self.focus_stock_search_status.setText("먼저 검색 결과에서 종목을 선택하세요.")
+            return
+
+        self.session_excluded_codes.discard(code)
+        now = datetime.now().strftime("%H:%M:%S")
+        item = update_candidate_source(
+            self.condition_candidates,
+            seq="MANUAL:SEARCH",
+            condition_name="검색 직접추가",
+            code=code,
+            stock_name=name or code,
+            active=True,
+            entry_event=False,
+            now=now,
+        )
+        item["manual_pinned"] = True
+        item["manual_search_only"] = True
+
+        self._upsert_condition_row(code)
+        self._ensure_market_row(code, item.get("name", code), "검색추가")
+        if not name or name == code:
+            self._queue_name_lookup(code)
+        self._queue_candidate_classification(code)
+        self._refresh_focus_candidate_count()
+        self.focus_stock_search_status.setText(f"{item.get('name', code)} [{code}] · 리스트 추가 완료")
+        self.log(item.get("name", code), "SEARCH ADD", "-", "통합 트레이딩 리스트 수동 추가 · 자동 단타후보 아님")
 
     def _focus_condition_row_clicked(self, row: int, column: int):
         item = self.focus_condition_table.item(row, 0)
@@ -4999,6 +5054,9 @@ class MainWindow(QMainWindow):
                 if code in self.session_excluded_codes and code not in self.engine.positions and code not in self.engine.pending_orders:
                     continue
                 if item.get("active"):
+                    auto_count, _manual_count = self._candidate_source_counts(item)
+                    if item.get("manual_search_only") and auto_count == 0:
+                        continue
                     # 초기 조회 종목과 이후 신규 편입 종목을 모두 PUMA 자동검토 대상으로 사용한다.
                     # 조건검색 편입은 후보 공급일 뿐이며 실제 주문은 엔진의 2차 선별/가보자 타점을 통과해야 한다.
                     if code in merged:
