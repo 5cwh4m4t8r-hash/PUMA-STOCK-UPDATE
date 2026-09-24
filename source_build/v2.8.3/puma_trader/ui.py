@@ -1680,7 +1680,7 @@ class MainWindow(QMainWindow):
         af.addRow("긴 윗꼬리 / 전체폭 ≥", self.sw_wick_ratio)
         af.addRow("장대음봉 몸통 / 전체폭 ≥", self.sw_bear_body)
         af.addRow("매집 확인 Lookback", self.sw_acc_lookback)
-        af.addRow(QLabel("※ 매집은 당일 거래량 > 전일 거래량 필수. 일반 음봉은 제외하고 장대음봉만 허용. 양봉/보합은 긴 윗꼬리+증가거래량이 기본이며, 윗꼬리가 짧으면 평균 2.5배급 압도적 거래량일 때만 허용."))
+        af.addRow(QLabel("※ 매집표시는 확실한 것만 표시. 당일 거래량 > 전일 거래량 필수. 일반 음봉 제외, 강한 장대음봉만 허용. 양봉/보합은 긴 윗꼬리+강한 거래량이 기본이며, 윗꼬리가 짧으면 20봉 평균 3배급 압도적 거래량만 허용. 반복군집은 가장 강한 1봉만 표시."))
         right.addWidget(acc)
 
         box = QGroupBox("공구리(박스권) 기준")
