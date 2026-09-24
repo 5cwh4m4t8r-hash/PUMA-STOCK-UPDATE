@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.46",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.46_UPDATE.zip",
-    "notes":  "v2.9.46: mobile external access is simplified to the existing Safari/IP workflow with Tailscale. PUMA MobileBridge already binds 0.0.0.0, and now detects the PC Tailscale IPv4 in the 100.64.0.0/10 range and exposes an external URL such as http://100.x.x.x:8765. The Mobile tab shows the normal LAN URL separately from the external 5G/LTE Tailscale URL, includes copy/refresh controls, and removes the need to use the native iPhone app or Apple code signing. With Tailscale active on both PC and iPhone, Safari can reach the home PUMA server over cellular or another Wi-Fi without router port forwarding. Trading strategy, orders, condition-search, charts, concrete, Bowl-3, accumulation, watermelon and updater behavior remain unchanged.",
-    "sha256":  "6397975fd9865dec55df9942a9baf7e2dd42da5b70d022cb7abd7bb5778f173f"
+    "version":  "2.9.47",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.47_UPDATE.zip",
+    "notes":  "v2.9.47: fixes the two recent concrete-box failure modes visible on Tongyang (001520). Historical concrete searches are now cycle-isolated: after a strong EMA224 reference breakout, the next concrete search cannot reach backward through that prior launch/reference candle, preventing a new box from swallowing the previous launch area. The concrete upper-line previous-high hill also now uses the actual last top-touch bar inside the active base instead of treating the search end as the hill touch, eliminating stale/incorrect upper anchors. The historical box still ends immediately before its own strong reference candle. Dongyang-style repeated-launch regression tests were added. Mobile/Tailscale, trading strategy, order rules, Bowl-3, accumulation, watermelon, condition-search and zoom behavior are unchanged.",
+    "sha256":  "4632af776335a86c9c9df23651493b72123b2ec892cba9b1072c8e4d8330368c"
 }
