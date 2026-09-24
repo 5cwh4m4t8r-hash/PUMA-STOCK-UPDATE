@@ -1,0 +1,155 @@
+name: Build Signed PUMA iPhone IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: "iOS export method"
+        required: true
+        default: "ad-hoc"
+        type: choice
+        options:
+          - ad-hoc
+          - app-store
+
+jobs:
+  sign:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      BUNDLE_ID: com.pumastock.mobile
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in APPLE_TEAM_ID CERTIFICATE_P12_BASE64 CERTIFICATE_PASSWORD PROVISIONING_PROFILE_BASE64; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios/PUMAMobile
+        run: xcodegen generate
+
+      - name: Install signing certificate and provisioning profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/puma_signing.p12"
+          PROFILE_PATH="$RUNNER_TEMP/puma.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/puma-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+
+          echo "$CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH"             -P "$CERTIFICATE_PASSWORD"             -A             -t cert             -f pkcs12             -k "$KEYCHAIN_PATH"
+          security set-key-partition-list             -S apple-tool:,apple:,codesign:             -s             -k "$KEYCHAIN_PASSWORD"             "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$PROFILE_PLIST")
+          PROFILE_TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$PROFILE_PLIST")
+
+          if [ "$PROFILE_TEAM" != "$APPLE_TEAM_ID" ]; then
+            echo "::error::Provisioning profile Team ID does not match APPLE_TEAM_ID"
+            exit 1
+          fi
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Archive signed app
+        working-directory: ios/PUMAMobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild             -project PUMAMobile.xcodeproj             -scheme PUMAMobile             -configuration Release             -destination 'generic/platform=iOS'             -archivePath "$RUNNER_TEMP/PUMAMobile.xcarchive"             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"             CODE_SIGN_STYLE=Manual             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"             archive
+
+      - name: Create export options
+        shell: bash
+        run: |
+          set -euo pipefail
+          METHOD="${{ inputs.export_method }}"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>$METHOD</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Export signed IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/export"
+          xcodebuild             -exportArchive             -archivePath "$RUNNER_TEMP/PUMAMobile.xcarchive"             -exportPath "$RUNNER_TEMP/export"             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          test -f "$RUNNER_TEMP/export/PUMA Mobile.ipa" || test -n "$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          cp "$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)" "$RUNNER_TEMP/PUMA_STOCK_MOBILE.ipa"
+
+      - name: Verify code signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/verify"
+          mkdir -p "$RUNNER_TEMP/verify"
+          unzip -q "$RUNNER_TEMP/PUMA_STOCK_MOBILE.ipa" -d "$RUNNER_TEMP/verify"
+          APP_PATH="$(find "$RUNNER_TEMP/verify/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -d --entitlements :- "$APP_PATH" 2> "$RUNNER_TEMP/entitlements.plist"
+          /usr/libexec/PlistBuddy -c 'Print :application-identifier' "$RUNNER_TEMP/entitlements.plist" || true
+
+      - name: Upload signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PUMA-STOCK-MOBILE-signed
+          path: ${{ runner.temp }}/PUMA_STOCK_MOBILE.ipa
+          retention-days: 14
+
+      - name: Remove temporary signing keychain
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
