@@ -79,3 +79,22 @@ def test_watermelon_exposes_large_money_footprint_arrays():
     assert len(out["watermelon_footprint_score"]) == n
     assert len(out["watermelon_footprint_reason"]) == n
     assert all(0 <= int(x) <= 100 for x in out["watermelon_footprint_score"])
+
+
+def test_declining_volume_cannot_be_large_money_footprint():
+    candles = _base(30)
+    i = len(candles) - 1
+    candles[i - 1]["volume"] = 5000.0
+    candles[i].update({
+        "open": 100.0,
+        "high": 114.0,
+        "low": 84.0,
+        "close": 86.0,
+        "volume": 4000.0,  # still huge, but below previous day's volume
+    })
+    vols = [c["volume"] for c in candles]
+    v20 = _rolling_avg(vols, 20)
+    fp = _volume_footprint(candles, vols, v20, i)
+    assert fp["volume_up_vs_prev"] is False
+    assert fp["abnormal"] is False
+    assert fp["absorption"] is False
