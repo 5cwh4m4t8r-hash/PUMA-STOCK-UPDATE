@@ -476,6 +476,122 @@ def _fallback_hill(candles: list[dict], end_idx: int, settings: Any=None) -> dic
     }
 
 
+def _anchor_concrete_before_224_breakout(
+    candles: list[dict],
+    box: dict | None,
+    breakout_idx: int,
+    e112,
+    settings: Any=None,
+) -> dict | None:
+    """Rebuild concrete from the strong EMA224 breakout candle backwards.
+
+    The upper line is NOT a generic high quantile anymore.
+    Priority:
+      1) the immediately preceding previous-high hill resistance,
+      2) otherwise the highest meaningful bullish-candle CLOSE before breakout.
+
+    The selected upper line must remain below EMA112 throughout the box.
+    """
+    if not isinstance(box, dict) or box.get("structure_type") != "공구리":
+        return None
+    if breakout_idx <= 0 or breakout_idx > len(candles) - 1:
+        return None
+
+    start = max(0, int(box.get("start", 0)))
+    end = min(breakout_idx - 1, int(box.get("end", breakout_idx - 1)))
+    low = float(box.get("low", 0) or 0)
+    if end < start or low <= 0:
+        return None
+
+    valid_112 = [
+        float(e112[j])
+        for j in range(start, end + 1)
+        if 0 <= j < len(e112) and e112[j] is not None
+    ]
+    if not valid_112:
+        return None
+    max_allowed_top = min(valid_112)
+
+    breakout = candles[breakout_idx]
+    breakout_open = float(breakout["open"])
+    breakout_close = float(breakout["close"])
+    if breakout_close <= breakout_open:
+        return None
+
+    selected_level = 0.0
+    selected_source = ""
+
+    # 1) Previous-high hill immediately before the EMA224 breakout.
+    hill = _fallback_hill(candles, end, settings)
+    if isinstance(hill, dict):
+        hill_level = float(hill.get("high", 0) or 0)
+        hill_end = int(hill.get("end", -1))
+        hill_start = int(hill.get("start", -1))
+        # Keep the hill relevant to this concrete/base, not a remote old high.
+        if (
+            hill_level > low
+            and hill_level < max_allowed_top
+            and hill_end <= end
+            and hill_start <= end
+            and hill_end >= max(start, end - 12)
+            and breakout_open <= hill_level * 1.01
+            and breakout_close > hill_level * 1.0015
+        ):
+            selected_level = hill_level
+            selected_source = "전고언덕"
+
+    # 2) If no usable hill exists, use a meaningful bullish candle close.
+    if selected_level <= 0:
+        bullish_candidates = []
+        recent_start = max(start, end - 40)
+        for j in range(recent_start, end + 1):
+            c = candles[j]
+            op = float(c["open"])
+            close = float(c["close"])
+            if close <= op:
+                continue
+            if close <= low or close >= max_allowed_top:
+                continue
+            # The breakout body must actually cross this close-level.
+            if breakout_open > close * 1.01 or breakout_close <= close * 1.0015:
+                continue
+            rng = max(float(c["high"]) - float(c["low"]), 1e-9)
+            body_ratio = (close - op) / rng
+            if body_ratio < 0.20:
+                continue
+            bullish_candidates.append((close, j))
+
+        if bullish_candidates:
+            # Highest valid bullish close is the resistance line.
+            selected_level, anchor_idx = max(bullish_candidates, key=lambda x: x[0])
+            selected_source = "양봉종가"
+        else:
+            anchor_idx = -1
+    else:
+        anchor_idx = int(hill.get("end", -1)) if isinstance(hill, dict) else -1
+
+    if selected_level <= low or selected_level >= max_allowed_top:
+        return None
+
+    out = dict(box)
+    out["high"] = float(selected_level)
+    out["upper_source"] = selected_source
+    out["upper_anchor_idx"] = int(anchor_idx)
+    out["breakout_idx"] = int(breakout_idx)
+    out["period"] = int(end - start + 1)
+    out["start"] = start
+    out["end"] = end
+    mid = (float(selected_level) + low) / 2.0
+    out["width_pct"] = (
+        (float(selected_level) - low) / mid * 100.0
+        if mid > 0 else 999.0
+    )
+    # Reject malformed boxes after re-anchoring.
+    if out["width_pct"] > float(_s(settings, "box_width_pct", 30.0)):
+        return None
+    return out
+
+
 def _structure_before(candles: list[dict], end_idx: int, settings: Any=None) -> dict | None:
     return find_box_before(candles, end_idx, settings) or _fallback_hill(candles, end_idx, settings)
 
@@ -586,7 +702,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
 
     events=[]
     recent_levels=[]
-    structure_cache: dict[int, dict | None] = {}
+    structure_cache: dict[tuple, dict | None] = {}
 
     def concrete_allowed_below_long_mas(box: dict | None) -> bool:
         """Concrete is a base BELOW EMA112 (and therefore below the long-MA zone).
@@ -615,16 +731,26 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         # Strict user rule: the entire box top is below EMA112.
         return box_high < min(valid_112)
 
-    def structure_at(end_idx: int):
-        if end_idx not in structure_cache:
-            concrete = find_box_before(candles, end_idx, settings)
-            if concrete and concrete_allowed_below_long_mas(concrete):
-                structure_cache[end_idx] = concrete
+    def structure_at(end_idx: int, breakout_idx: int, crossed: list[int]):
+        cache_key = (end_idx, breakout_idx, tuple(crossed))
+        if cache_key not in structure_cache:
+            concrete = None
+            # Concrete is defined retrospectively from a STRONG EMA224 breakout.
+            # A 112-only cross never creates a concrete box.
+            if 224 in crossed:
+                raw_box = find_box_before(candles, end_idx, settings)
+                if raw_box and concrete_allowed_below_long_mas(raw_box):
+                    concrete = _anchor_concrete_before_224_breakout(
+                        candles, raw_box, breakout_idx, e112, settings
+                    )
+                    if concrete and not concrete_allowed_below_long_mas(concrete):
+                        concrete = None
+
+            if concrete:
+                structure_cache[cache_key] = concrete
             else:
-                # At/above EMA112 there is no "공구리". A repeated high can still
-                # be treated only as a previous-high hill/resistance structure.
-                structure_cache[end_idx] = _fallback_hill(candles, end_idx, settings)
-        return structure_cache[end_idx]
+                structure_cache[cache_key] = _fallback_hill(candles, end_idx, settings)
+        return structure_cache[cache_key]
 
     for i in range(1,n):
         if i % 32 == 0:
@@ -637,7 +763,7 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
         if not (bottom_ok or bowl_ok):
             continue
 
-        structure=structure_at(i-1)
+        structure=structure_at(i-1, i, crossed)
         if not structure:
             continue
         ok,info=_confirm_breakout(candles,i,structure,settings,e112,e224)
@@ -772,19 +898,10 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
                 break
 
     if not events:
-        box=find_box_before(candles,n-1,settings)
-        if box and not concrete_allowed_below_long_mas(box):
-            box=None
+        # No strong EMA224 breakout -> no concrete box is drawn yet.
+        # Concrete is a pre-break structure confirmed retrospectively by the breakout.
         cur=dict(default)
-        if box:
-            cur.update({
-                "stage":"공구리 형성 / 112·224 동반 돌파 대기",
-                "reason":f"횡보 {box['period']}봉 · 지지 {box['low']:,.0f} / 저항 {box['high']:,.0f} · 상단 {box['top_touches']}회·하단 {box['bottom_touches']}회·왕복 {box['alternations']}회",
-                "box_high":box["high"],"box_low":box["low"],"structure_type":box["structure_type"],
-                "quality_score":int(min(100,box.get("score",0))),
-            })
-        display_boxes = _dedupe_display_boxes([box] if box else [])
-        return {"current":cur,"box":box,"boxes":display_boxes,"path_breakout":breakout_flags,"path_pullback":pullback_flags,
+        return {"current":cur,"box":None,"boxes":[],"path_breakout":breakout_flags,"path_pullback":pullback_flags,
                 "path_rebreakout":rebreak_flags,"path_breakout_ma":breakout_ma,"path_pullback_ma":pullback_ma,
                 "path_pullback_source":pullback_source,"path_pullback_value":pullback_value}
 
@@ -824,7 +941,11 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     })
 
     ma=int(event.get("breakout_ma_period",0))
-    structure_name="공구리 상단" if event.get("structure_type")=="공구리" else "전고점"
+    if event.get("structure_type") == "공구리":
+        source = str(event.get("upper_source") or "")
+        structure_name = f"공구리 상단({source})" if source else "공구리 상단"
+    else:
+        structure_name = "전고점"
     pull_label = str(event.get("pullback_source") or "")
     if not pull_label and int(event.get("pullback_ma_period",0) or 0):
         pull_label = f"{int(event.get('pullback_ma_period',0))}EMA"
@@ -861,16 +982,14 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
     # Preserve the historical concrete boxes that actually participated in
     # confirmed breakout paths, plus the newest still-forming concrete box.
     # The chart can therefore show recent + past concrete zones together.
-    latest_box = find_box_before(candles, n - 1, settings)
-    if latest_box and not concrete_allowed_below_long_mas(latest_box):
-        latest_box = None
     historical_concrete = [
         x for x in events
-        if x.get("structure_type") == "공구리" and concrete_allowed_below_long_mas(x)
+        if x.get("structure_type") == "공구리"
+        and int(x.get("breakout_ma_period", 0)) == 224
+        and concrete_allowed_below_long_mas(x)
+        and str(x.get("upper_source") or "") in ("전고언덕", "양봉종가")
     ]
-    display_boxes = _dedupe_display_boxes(
-        historical_concrete + ([latest_box] if latest_box else [])
-    )
+    display_boxes = _dedupe_display_boxes(historical_concrete)
 
     current_above_224 = bool(
         e224[-1] is not None
