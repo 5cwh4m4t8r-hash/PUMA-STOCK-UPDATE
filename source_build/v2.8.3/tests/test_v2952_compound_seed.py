@@ -70,3 +70,28 @@ def test_runtime_persists_compound_seed_fields():
         '"seed_pnl_delta"',
     ):
         assert key in src
+
+
+def test_mobile_auto_ui_has_no_legacy_strategy_inputs():
+    src = Path("puma_trader/mobile_bridge.py").read_text(encoding="utf-8")
+    for legacy_id in (
+        "autoDailyOrders",
+        "autoTP",
+        "autoSL",
+        "autoTrailing",
+        "autoTrailStart",
+        "autoTrailGap",
+    ):
+        assert legacy_id not in src
+    assert "가보자 고정 매매 규칙" in src
+    assert "현재 복리 시드 전액 · 최우선 1종목만 진입" in src
+    start = src[src.index("async function startAuto()"):src.index("async function stopAuto()")]
+    for legacy_field in (
+        "max_daily_orders",
+        "take_profit_pct",
+        "stop_loss_pct",
+        "trailing_enabled",
+        "trailing_start_pct",
+        "trailing_gap_pct",
+    ):
+        assert legacy_field not in start
