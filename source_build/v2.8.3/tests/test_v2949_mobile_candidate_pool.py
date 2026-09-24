@@ -12,7 +12,7 @@ def test_mobile_all_scope_ignores_watchlist_and_uses_danta_pool():
 
 def test_mobile_web_sends_hero_source_for_all_scope():
     src = Path("puma_trader/mobile_bridge.py").read_text(encoding="utf-8")
-    assert "단타 검색기 전체 → PUMA 2차선별" in src
+    assert "단타 검색기 전체 → PUMA 최우선 1종목" in src
     assert "candidate_source:(scope==='ALL'?'HERO4'" in src
 
 
