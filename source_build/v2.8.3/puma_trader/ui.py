@@ -3499,11 +3499,12 @@ class MainWindow(QMainWindow):
 
     def _on_candidate_classified(self, code: str, payload: object):
         data = payload if isinstance(payload, dict) else {}
+        # CandidateClassifier intentionally uses only a short daily sample for
+        # background list classification. Never cache that partial sample as
+        # the visual chart/arrow result: EMA112/224/448 and BB40 crossings can
+        # shift when the full adjusted-price history arrives (especially around
+        # splits/consolidations such as Signetics 2026-08).
         prepared = data.get("prepared")
-        if prepared:
-            key = prepared["result"]["context_key"]
-            if self._display_cache.get(key) is None:
-                self._display_cache.put(key, prepared)
         resolved_name = str(data.get("name") or "").strip()
         if resolved_name and resolved_name != code:
             self.name_cache[code] = resolved_name
@@ -4118,6 +4119,13 @@ class MainWindow(QMainWindow):
             # its history with the short first page or recompute a reduced sample.
             self._apply_focus_metadata({**record["payload"], "info": payload.get("info") or {},
                                         "quote_at": payload.get("quote_at")})
+            return
+        if not payload.get("complete") and self.focus_chart_mode == "DAY":
+            # Show candles immediately via preview, but never publish provisional
+            # swing arrows from an incomplete history. EAVG112/224/448 and BB40
+            # are history-sensitive, especially across corporate actions.
+            self._apply_focus_metadata(payload)
+            self.focus_origin.setText("차트 선표시 완료 · 수정주가 전체 일봉 수집 후 화살표 확정 계산 중")
             return
         self._start_focus_analysis(payload)
 
