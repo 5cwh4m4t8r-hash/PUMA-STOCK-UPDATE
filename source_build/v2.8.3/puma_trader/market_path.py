@@ -756,7 +756,17 @@ def _analyze_market_path_uncached(candles: list[dict], settings: Any=None) -> di
             if concrete:
                 structure_cache[cache_key] = concrete
             else:
-                structure_cache[cache_key] = _fallback_hill(candles, end_idx, settings)
+                # A sideways zone that does NOT qualify as concrete is still a
+                # valid resistance structure for generic breakout/pullback logic.
+                # Downgrade it to previous-high resistance instead of deleting it.
+                raw_resistance = find_box_before(candles, end_idx, settings)
+                if raw_resistance:
+                    raw_resistance = dict(raw_resistance)
+                    raw_resistance["structure_type"] = "전고점언덕"
+                    raw_resistance["upper_source"] = "횡보상단"
+                    structure_cache[cache_key] = raw_resistance
+                else:
+                    structure_cache[cache_key] = _fallback_hill(candles, end_idx, settings)
         return structure_cache[cache_key]
 
     for i in range(1,n):
