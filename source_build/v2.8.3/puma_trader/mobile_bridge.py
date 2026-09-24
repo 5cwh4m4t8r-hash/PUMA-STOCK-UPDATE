@@ -135,13 +135,30 @@ INDEX_HTML = r"""<!doctype html>
       </label>
       <label>전체 후보 경로
         <select id="autoSource" disabled>
-          <option value="HERO4">단타 검색기 전체 → PUMA 2차선별</option>
+          <option value="HERO4">단타 검색기 전체 → PUMA 최우선 1종목</option>
         </select>
       </label>
-      <div class="grid2">
-        <label>종목당 투입금<input id="autoBudget" type="number" min="10000" step="10000"></label>
-        <label>최대 보유종목<input id="autoMaxPositions" type="number" min="1" max="50"></label>
+      <div class="grid2 compound-grid">
+        <div class="compound-stat">
+          <div class="k">현재 복리 시드</div>
+          <div id="autoSeed" class="compound-value">-</div>
+        </div>
+        <div class="compound-stat">
+          <div class="k">동시 보유</div>
+          <div class="compound-value">1종목 고정</div>
+        </div>
       </div>
+      <div class="grid2 compound-grid">
+        <div class="compound-stat">
+          <div class="k">오늘 시드 손익</div>
+          <div id="autoDailyLoss" class="compound-value">-</div>
+        </div>
+        <div class="compound-stat">
+          <div class="k">신규매수 상태</div>
+          <div id="autoRiskState" class="compound-value">-</div>
+        </div>
+      </div>
+      <div id="autoPhaseNote" class="muted small compound-note">1차 목표 300만원 · 하루 -4% 도달 시 신규매수 중단</div>
       <div class="grid2">
         <label>일일 주문수<input id="autoDailyOrders" type="number" min="1" max="100"></label>
         <label>익절 %<input id="autoTP" type="number" step="0.1"></label>
@@ -219,7 +236,7 @@ header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-
 .brand{font-size:18px;font-weight:900;letter-spacing:.4px}.muted{color:var(--muted);font-size:12px}.small{font-size:11px}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:11px}.badge.on{background:#0a6b45;color:#8fffc2}.badge.off{background:#542331;color:#ff9cac}
 main{max-width:760px;margin:0 auto;padding:12px}.page{display:none}.page.active{display:block}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px;box-shadow:0 5px 18px rgba(0,0,0,.18)}.card-title{font-weight:900;margin-bottom:9px}.k{font-size:11px;color:var(--muted)}.v{font-size:17px;font-weight:900}.price{font-size:21px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}.analysis{white-space:pre-wrap;margin:0;color:#f4d46b;font:700 12px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:13px;color:#68f29c}
 .page-head,.stock-head,.chart-toolbar,.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:7px}.stock-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;background:#0b1b2c;border:1px solid #203b58;border-radius:10px}.stock-row:active{transform:scale(.995);background:#142f4e}.stock-title{font-weight:900}.stock-meta{font-size:11px;color:var(--muted);margin-top:3px}.class-pill{align-self:center;padding:5px 7px;border-radius:7px;background:#15395d;color:#6dc6ff;font-size:11px;font-weight:900}.inactive{opacity:.55}.log-row{display:grid;grid-template-columns:52px 70px 1fr;gap:7px;padding:7px 0;border-bottom:1px solid rgba(78,111,145,.25);font-size:11px}.log-kind{font-weight:900;color:#72bfff}.warning{background:#4a3011;color:#ffd77c;border:1px solid #7a5520;border-radius:9px;padding:9px;margin-bottom:10px;font-size:12px;font-weight:800}
-button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.auto-command-msg{min-height:18px;margin:8px 2px 2px}.auto-command-msg.ok{color:#61ff8f}.auto-command-msg.busy{color:#ffd65a}.auto-command-msg.err{color:#ff7885}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}
+button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.compound-grid{margin:8px 0}.compound-stat{padding:10px;background:#091a2c;border:1px solid #31506f;border-radius:9px}.compound-value{margin-top:3px;font-size:14px;font-weight:900;color:#edf5ff}.compound-note{margin:4px 2px 10px;line-height:1.45}.auto-command-msg{min-height:18px;margin:8px 2px 2px}.auto-command-msg.ok{color:#61ff8f}.auto-command-msg.busy{color:#ffd65a}.auto-command-msg.err{color:#ff7885}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}
 .chart-card{padding:10px}.mini{padding:5px 9px;margin-right:5px;font-size:10px;background:#102a46;border:1px solid #315a84}.active-mini{background:#1c65a6;color:#fff}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
 nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(7,17,29,.97);border-top:1px solid var(--line);backdrop-filter:blur(16px)}nav button{background:none;border-radius:0;color:#829db7;font-size:11px;padding:8px 2px}nav button.active{color:#65baff;border-top:2px solid #4da9ff}
 .overlay{position:fixed;inset:0;z-index:100;background:rgba(3,9,16,.94);display:flex;align-items:center;justify-content:center;padding:24px}.overlay.hidden{display:none}.pair-card{width:min(400px,100%);padding:25px;background:#10233a;border:1px solid #315273;border-radius:20px;text-align:center}.pair-card .logo{font-size:54px}.pair-card h1{font-size:21px}.pair-card input{text-align:center;font-size:28px;letter-spacing:9px;font-weight:900;margin:14px 0}.pair-card button{margin-bottom:8px}
@@ -327,14 +344,34 @@ function render(s){
       msg.className='muted small auto-command-msg '+(actuallyEnabled?'ok':'');
     }
   }
-  setInputValue('autoBudget',au.settings?.order_budget);
-  setInputValue('autoMaxPositions',au.settings?.max_positions);
-  setInputValue('autoDailyOrders',au.settings?.max_daily_orders);
-  setInputValue('autoTP',au.settings?.take_profit_pct);
-  setInputValue('autoSL',au.settings?.stop_loss_pct);
-  setInputValue('autoTrailStart',au.settings?.trailing_start_pct);
-  setInputValue('autoTrailGap',au.settings?.trailing_gap_pct);
-  if(document.activeElement?.id!=='autoTrailing') document.getElementById('autoTrailing').checked=!!au.settings?.trailing_enabled;
+  const autoSettings=au.settings||{};
+  const seed=Number(autoSettings.seed_capital??autoSettings.order_budget??0);
+  const dayStartSeed=Number(autoSettings.daily_start_seed??seed);
+  const lossPct=Number(autoSettings.daily_loss_pct??0);
+  const seedEl=document.getElementById('autoSeed');
+  const lossEl=document.getElementById('autoDailyLoss');
+  const riskEl=document.getElementById('autoRiskState');
+  const phaseEl=document.getElementById('autoPhaseNote');
+  seedEl.textContent=money(seed)+' 원';
+  lossEl.textContent=(lossPct>0?'+':'')+lossPct.toFixed(2)+'%';
+  lossEl.style.color=lossPct<0?'#ff7885':(lossPct>0?'#61ff8f':'#edf5ff');
+  if(autoSettings.phase1_complete){
+    riskEl.textContent='1차 목표 도달';
+    riskEl.style.color='#ffd65a';
+  }else if(autoSettings.daily_loss_locked){
+    riskEl.textContent='오늘 신규매수 중단';
+    riskEl.style.color='#ff7885';
+  }else{
+    riskEl.textContent='신규매수 가능';
+    riskEl.style.color='#61ff8f';
+  }
+  phaseEl.textContent='당일 시작 시드 '+money(dayStartSeed)+'원 · 1차 목표 3,000,000원 · 하루 -4% 도달 시 그날 신규매수 중단';
+  setInputValue('autoDailyOrders',autoSettings.max_daily_orders);
+  setInputValue('autoTP',autoSettings.take_profit_pct);
+  setInputValue('autoSL',autoSettings.stop_loss_pct);
+  setInputValue('autoTrailStart',autoSettings.trailing_start_pct);
+  setInputValue('autoTrailGap',autoSettings.trailing_gap_pct);
+  if(document.activeElement?.id!=='autoTrailing') document.getElementById('autoTrailing').checked=!!autoSettings.trailing_enabled;
   if(document.getElementById('autoSource')) document.getElementById('autoSource').value='HERO4';
   renderCandidates(s.candidates||[]);
   renderPositions(s.positions||[]);
@@ -424,8 +461,6 @@ async function startAuto(){
     code:state?.selected?.code||'',
     name:state?.selected?.name||'',
     candidate_source:(scope==='ALL'?'HERO4':document.getElementById('autoSource').value),
-    order_budget:Number(document.getElementById('autoBudget').value||0),
-    max_positions:Number(document.getElementById('autoMaxPositions').value||0),
     max_daily_orders:Number(document.getElementById('autoDailyOrders').value||0),
     take_profit_pct:Number(document.getElementById('autoTP').value||0),
     stop_loss_pct:Number(document.getElementById('autoSL').value||0),

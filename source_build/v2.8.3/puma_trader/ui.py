@@ -5523,8 +5523,10 @@ class MainWindow(QMainWindow):
         if idx >= 0:
             self.source_combo.setCurrentIndex(idx)
 
-        budget = 500_000
-        max_pos = max(1, min(20, int(float(data.get("max_positions") or self.settings.max_positions))))
+        # 1차 복리구간의 투입금/동시보유 수는 모바일 입력값을 받지 않는다.
+        # 실제 엔진 시드를 그대로 쓰고 한 종목만 허용해 PC/모바일 규칙을 일치시킨다.
+        budget = max(0, min(3_000_000, int(self.engine.current_trade_budget())))
+        max_pos = 1
         daily = max(1, min(100, int(float(data.get("max_daily_orders") or self.settings.max_daily_orders))))
         tp = max(0.1, min(100.0, float(data.get("take_profit_pct") or self.settings.take_profit_pct)))
         sl_raw = float(data.get("stop_loss_pct") if data.get("stop_loss_pct") not in (None, "") else self.settings.stop_loss_pct)
@@ -5533,7 +5535,7 @@ class MainWindow(QMainWindow):
         trail_gap = max(0.1, min(30.0, float(data.get("trailing_gap_pct") or self.settings.trailing_gap_pct)))
         trailing = bool(data.get("trailing_enabled", self.settings.trailing_enabled))
 
-        self.order_budget.setValue(500_000)
+        self.order_budget.setValue(budget)
         self.max_positions.setValue(max_pos)
         self.max_daily_orders.setValue(daily)
         self.take_profit.setValue(tp)
@@ -5543,7 +5545,7 @@ class MainWindow(QMainWindow):
         self.trailing_gap.setValue(trail_gap)
 
         if getattr(self, "focus_budget", None) is not None:
-            self.focus_budget.setValue(500_000)
+            self.focus_budget.setValue(budget)
             self.focus_tp.setValue(tp)
             self.focus_sl.setValue(sl)
             self.focus_trail.setChecked(trailing)
