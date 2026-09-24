@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.26",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.26_UPDATE.zip",
-    "notes":  "v2.9.26: aligns PUMA\u0027s long-EMA calculations so the chart, four arrow formulas, Bowl-3, swing reference and market-path logic all use the same Hero-style cumulative EAVG engine. The user\u0027s four Kiwoom arrow formulas and SAR parameters remain unchanged; raw formula arrays are kept separately from display signals for direct HTS comparison. All price moving averages remain exponential (EAVG/EMA): 5, 20, 60, 112, 224 and 448. Black-arrow 224-period disparity is also evaluated against EMA224, matching the user\u0027s chart rule. New context rule: when EMA112\u003eEMA224\u003eEMA448 and price is already more than +8% above EMA224, reversal/bottom overlays are not used or shown (arrows, concrete boxes, Bowl-3 tags, watermelon/path/accumulation overlays and non-EMA extra lines). This fixes internal causes of arrows appearing on different crossings from the visible long EMAs while preserving the literal source formulas for diagnostics.",
-    "sha256":  "bc772c45e7506553657d954d7104d5034414f1c492180fb1caefa9e1af8752aa"
+    "version":  "2.9.27",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.27_UPDATE.zip",
+    "notes":  "v2.9.27: Bowl-3 is now defined by the user\u0027s exact structure. EMA224 must be crossed by the BODY of a bullish daily candle; that breakout candle becomes the reference candle. A later bearish candle must pull back to and hold one of three targets: the reference-candle open, EMA112, or the midpoint of the pre-break concrete box. Bearish 224 breaks, gap-only opens above EMA224, bullish retest candles, and a generic EMA224 touch no longer qualify as Bowl-3. Historical Bowl-3 markers use the same definition. Price moving averages remain exponential EAVG/EMA throughout. Live-order safety confirmations are unchanged.",
+    "sha256":  "7508fd77ee0c6bc04112c7abd6f96c3231cb7097d908001784133d2a52591454"
 }
