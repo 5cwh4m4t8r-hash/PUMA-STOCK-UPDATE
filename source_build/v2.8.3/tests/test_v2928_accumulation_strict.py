@@ -94,7 +94,7 @@ def test_muted_price_response_without_long_wick_or_overwhelming_volume_is_exclud
     assert meta[-1]["overwhelming_volume"] is False
 
 
-def test_chart_confirmation_still_requires_repeated_candidates():
+def test_repeated_accumulation_cluster_displays_only_strongest_bar():
     candles = _base_candles(45)
     for idx in (30, 38):
         candles[idx] = {
@@ -108,7 +108,11 @@ def test_chart_confirmation_still_requires_repeated_candidates():
     raw, meta = accumulation_flags(candles, SwingSettings())
     confirmed = confirm_accumulation_flags(raw, meta, cluster_window=20)
     assert raw[30] is True and raw[38] is True
-    assert confirmed[30] is True and confirmed[38] is True
+    assert sum(1 for x in confirmed if x) == 1
+    assert meta[30]["cluster_confirmed"] is True
+    assert meta[38]["cluster_confirmed"] is True
+    shown = [i for i, x in enumerate(confirmed) if x]
+    assert meta[shown[0]]["cluster_representative"] is True
 
 
 def test_declining_volume_bar_is_never_accumulation_even_if_absolute_volume_is_huge():
@@ -191,3 +195,37 @@ def test_short_upper_wick_with_overwhelming_volume_can_be_accumulation():
     assert raw[-1] is True
     assert meta[-1]["overwhelming_volume"] is True
     assert meta[-1]["pattern"] == "압도적 거래량"
+
+
+def test_single_non_extreme_candidate_is_hidden_from_chart_confirmation():
+    candles = _base_candles()
+    candles[-1] = {
+        "date": "x",
+        "open": 100.0,
+        "high": 112.0,
+        "low": 99.0,
+        "close": 102.0,
+        "volume": 2200.0,
+    }
+    raw, meta = accumulation_flags(candles, SwingSettings())
+    confirmed = confirm_accumulation_flags(raw, meta, cluster_window=20)
+    assert raw[-1] is True
+    assert meta[-1]["confidence_score"] < 95
+    assert confirmed[-1] is False
+
+
+def test_single_extreme_big_bear_can_survive_as_certain_accumulation():
+    candles = _base_candles()
+    candles[-1] = {
+        "date": "x",
+        "open": 112.0,
+        "high": 114.0,
+        "low": 98.0,
+        "close": 100.0,
+        "volume": 5000.0,
+    }
+    raw, meta = accumulation_flags(candles, SwingSettings())
+    confirmed = confirm_accumulation_flags(raw, meta, cluster_window=20)
+    assert raw[-1] is True
+    assert meta[-1]["confidence_score"] >= 95
+    assert confirmed[-1] is True
