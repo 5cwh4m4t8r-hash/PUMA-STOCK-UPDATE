@@ -23,7 +23,7 @@ def pos():
 def test_remainder_plus_2_percent_sells_immediately():
     p = pos()
     sell, reason = evaluate_sell(
-        p, 102, StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False),
+        p, 102, StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False, gabojago_force_exit_time="23:59"),
         bar_key="202609240940", previous_bar_close=101,
     )
     assert sell is True
@@ -32,7 +32,7 @@ def test_remainder_plus_2_percent_sells_immediately():
 
 def test_minus_2_percent_waits_one_full_next_bar():
     p = pos()
-    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False)
+    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False, gabojago_force_exit_time="23:59")
 
     sell, _ = evaluate_sell(
         p, 98, settings, bar_key="202609240940", previous_bar_close=99,
@@ -63,7 +63,7 @@ def test_minus_2_percent_waits_one_full_next_bar():
 
 def test_minus_2_percent_recovery_cancels_down_state():
     p = pos()
-    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False)
+    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False, gabojago_force_exit_time="23:59")
     evaluate_sell(p, 98, settings, bar_key="202609240940", previous_bar_close=99)
     evaluate_sell(p, 97.5, settings, bar_key="202609240945", previous_bar_close=97.8)
 
@@ -78,7 +78,7 @@ def test_minus_2_percent_recovery_cancels_down_state():
 
 def test_no_11am_forced_exit_anymore():
     p = pos()
-    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False)
+    settings = StrategySettings(force_exit_enabled=False, gabojago_trend_tracking_enabled=False, gabojago_force_exit_time="23:59")
     sell, reason = evaluate_sell(
         p, 100, settings,
         now=datetime(2026, 9, 24, 11, 30),
