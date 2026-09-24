@@ -879,11 +879,8 @@ class MainWindow(QMainWindow):
         controls = QHBoxLayout()
         controls.addWidget(QLabel("자동매매 대상"))
         self.source_combo = NoWheelComboBox()
-        self.source_combo.addItem("관심종목만", "WATCHLIST")
-        self.source_combo.addItem("영웅문4 조건식", "HERO4")
-        self.source_combo.addItem("관심종목 + 영웅문4", "BOTH")
-        idx = self.source_combo.findData(self.settings.candidate_source)
-        self.source_combo.setCurrentIndex(max(0, idx))
+        self.source_combo.addItem("단타 검색기 전체 → PUMA 최우선 1종목", "HERO4")
+        self.source_combo.setEnabled(False)
         controls.addWidget(self.source_combo)
 
         self.start_btn = QPushButton("▶ 자동매매 시작")
@@ -5162,35 +5159,8 @@ class MainWindow(QMainWindow):
         self.scan_one()
 
     def start_auto(self):
-        self.focus_auto_danta_pool = False
-        self.focus_only_code = None
-        self.save_settings_silent()
-        source = self.settings.candidate_source
-        if source == "WATCHLIST" and not self.watchlist:
-            QMessageBox.information(self, "대상 없음", "관심종목을 먼저 추가하세요.")
-            return
-        if source in ("HERO4", "BOTH") and (not self.condition_thread or not self.condition_thread.isRunning()):
-            if source == "HERO4":
-                QMessageBox.information(self, "조건검색 필요", "'영웅문4 조건검색' 탭에서 실시간 조건검색을 먼저 시작하세요.")
-                return
-
-        if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
-            if not self._confirm_live_auto_once(
-                "실전 자동매매 최종 확인",
-                f"실제 주문이 전송됩니다.\n종목당 {self.settings.order_budget:,}원 / 최대 {self.settings.max_positions}종목 / 일일 주문 {self.settings.max_daily_orders}회",
-            ):
-                return
-            try:
-                self.engine.sync_account(force=True)
-                self._refresh_position_rows()
-            except Exception as exc:
-                QMessageBox.critical(self, "실계좌 동기화 실패", f"잔고 동기화에 실패하여 실전 자동매매를 시작하지 않습니다.\n{exc}")
-                return
-
-        self.engine.enabled = True
-        self.timer.start()
-        self.log("SYSTEM", "AUTO", "0", f"가보자 자동매매 시작 · {source}")
-        self.scan_one()
+        # 2026-10 실전 규칙: 모든 일반 자동매매 시작 경로는 단타 검색기 풀로 통일.
+        return self.start_danta_pool_auto()
 
     def stop_auto(self):
         self.engine.enabled = False
@@ -5713,8 +5683,13 @@ class MainWindow(QMainWindow):
                     "focus_only_code": self.focus_only_code or "",
                     "settings": {
                         "candidate_source": str(self.settings.candidate_source),
-                        "order_budget": int(self.settings.order_budget),
-                        "max_positions": int(self.settings.max_positions),
+                        "order_budget": int(self.engine.current_trade_budget()),
+                        "seed_capital": float(self.engine.seed_capital),
+                        "daily_start_seed": float(self.engine.daily_start_seed),
+                        "daily_loss_pct": round(self.engine.daily_loss_pct(), 2),
+                        "daily_loss_locked": bool(self.engine.daily_loss_locked),
+                        "phase1_complete": bool(self.engine.phase1_complete()),
+                        "max_positions": 1,
                         "max_daily_orders": int(self.settings.max_daily_orders),
                         "take_profit_pct": float(self.settings.take_profit_pct),
                         "stop_loss_pct": float(self.settings.stop_loss_pct),
@@ -5825,6 +5800,12 @@ class MainWindow(QMainWindow):
                     raise ValueError("자동매매 대상 구분이 올바르지 않습니다.")
 
                 self._apply_mobile_auto_settings(data)
+                self.settings.compound_seed_enabled = True
+                self.settings.seed_initial_capital = 500_000
+                self.settings.seed_phase1_target = 3_000_000
+                self.settings.daily_loss_limit_pct = -4.0
+                self.settings.max_positions = 1
+                self.engine.set_settings(self.settings)
                 source = str(self.settings.candidate_source)
 
                 if scope == "SELECTED":
@@ -5832,6 +5813,10 @@ class MainWindow(QMainWindow):
                     name = str(data.get("name") or self.name_cache.get(code) or code).strip()
                     if not code:
                         raise ValueError("선택 종목이 없습니다.")
+                    selected_item = self.condition_candidates.get(code, {})
+                    if not self._candidate_in_danta_feed(selected_item):
+                        raise ValueError("실전 자동매매는 단타 검색기 후보 종목만 허용합니다.")
+                    self.focus_auto_danta_pool = False
                     self.focus_only_code = code
                     if code != self.selected_code:
                         self.open_focus_stock(code, name or code)
