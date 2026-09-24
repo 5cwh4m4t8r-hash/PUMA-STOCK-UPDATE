@@ -5538,6 +5538,12 @@ class MainWindow(QMainWindow):
                 return
 
             if command == "auto_stop":
+                if not self.engine.enabled:
+                    self.mobile_bridge.complete_command(
+                        request_id, {"message": "이미 자동매매 중지 상태입니다."}
+                    )
+                    self._publish_mobile_snapshot()
+                    return
                 self.stop_auto()
                 self.mobile_bridge.complete_command(
                     request_id, {"message": "자동매매 중지 완료"}
@@ -5546,6 +5552,13 @@ class MainWindow(QMainWindow):
                 return
 
             if command == "auto_start":
+                if self.engine.enabled:
+                    self.mobile_bridge.complete_command(
+                        request_id,
+                        {"message": "이미 자동매매 실행 중입니다. 설정 변경은 중지 후 다시 시작하세요."},
+                    )
+                    self._publish_mobile_snapshot()
+                    return
                 if not self.mobile_bridge.live_unlocked:
                     raise PermissionError("모바일에서 실전 잠금을 최초 1회 해제하세요.")
 
