@@ -313,7 +313,12 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
         "accepted":False,
     }
 
-def find_box_before(candles: list[dict], end_idx: int, settings: Any=None) -> dict | None:
+def find_box_before(
+    candles: list[dict],
+    end_idx: int,
+    settings: Any=None,
+    start_floor: int | None=None,
+) -> dict | None:
     """Fast adaptive box finder.
 
     v2.4 evaluated virtually every even length for four end lags.
@@ -323,7 +328,8 @@ def find_box_before(candles: list[dict], end_idx: int, settings: Any=None) -> di
     if end_idx < 9:
         return None
     lookback = max(30, min(400, int(_s(settings, "box_search_lookback", 160))))
-    earliest = max(0, end_idx-lookback+1)
+    floor = max(0, int(start_floor or 0))
+    earliest = max(floor, end_idx-lookback+1)
 
     evaluated = {}
 
@@ -459,8 +465,11 @@ def _fallback_hill(candles: list[dict], end_idx: int, settings: Any=None) -> dic
     if len(top_idx) < 2:
         return None
 
+    last_top_touch_idx = start + top_idx[-1]
+
     return {
         "start":start, "end":end_idx,
+        "last_top_touch_idx":last_top_touch_idx,
         "low":low, "high":high,
         "width_pct":(high-low)/((high+low)/2)*100.0,
         "coverage":0.0,
@@ -557,18 +566,20 @@ def _preview_concrete_before_bowl3(
     selected_source = ""
     anchor_idx = -1
 
-    hill = _fallback_hill(candles, end, settings)
+    hill = _fallback_hill(candles[start:end + 1], end - start, settings)
     if isinstance(hill, dict):
         hill_level = float(hill.get("high", 0) or 0)
-        hill_end = int(hill.get("end", -1))
+        hill_touch_local = int(hill.get("last_top_touch_idx", -1))
+        hill_touch = start + hill_touch_local if hill_touch_local >= 0 else -1
         if (
             hill_level > low
             and hill_level < max_allowed_top
-            and hill_end >= max(start, end - 15)
+            and start <= hill_touch <= end
+            and hill_touch >= max(start, end - 20)
         ):
             selected_level = hill_level
             selected_source = "전고언덕"
-            anchor_idx = hill_end
+            anchor_idx = hill_touch
 
     if selected_level <= 0:
         bullish_candidates = []
@@ -673,16 +684,24 @@ def _scan_historical_concrete_previews(
 
     found = []
     last_ref = -999
+    last_strong_ref = -1
 
     for i in range(60, n):
         if not _is_strong_224_reference_bar(candles, i, e224, settings):
             continue
 
+        # A new concrete cycle may NEVER reach back through a previous strong
+        # EMA224 launch/reference candle. This prevents recent boxes from
+        # swallowing the prior launch area (seen clearly on 001520 동양).
+        search_floor = max(0, last_strong_ref + 1)
+        previous_strong_ref = last_strong_ref
+        last_strong_ref = i
+
         # Avoid duplicate reference bars from the same launch sequence.
-        if i - last_ref <= 5:
+        if previous_strong_ref >= 0 and i - previous_strong_ref <= 5:
             continue
 
-        raw = find_box_before(candles, i - 1, settings)
+        raw = find_box_before(candles, i - 1, settings, start_floor=search_floor)
         preview = _preview_concrete_before_bowl3(
             candles, raw, i - 1, e112, e224, settings
         )
