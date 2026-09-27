@@ -70,7 +70,7 @@ from .probability import estimate_from_flags, strategy_flags
 from .entry_signal import evaluate_core_entry
 from .market_path import analyze_market_path
 from .swing_chart import SwingChart
-from .updater import CURRENT_VERSION, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply, restart_app
+from .updater import CURRENT_VERSION, DEFAULT_MANIFEST_URL, _valid_manifest_url, download_package, fetch_manifest, load_update_config, save_update_config, stage_and_apply, restart_app
 from .secure_credentials import load_credentials, save_credentials, clear_credentials, CredentialError
 from .mobile_bridge import MobileBridge
 from .remote_relay import RemoteRelayClient
@@ -2004,12 +2004,10 @@ class MainWindow(QMainWindow):
 
     def check_update(self):
         url = self.update_url.text().strip()
+        if not _valid_manifest_url(url):
+            url = DEFAULT_MANIFEST_URL
+            self.update_url.setText(url)
         save_update_config({"manifest_url": url})
-        if not url:
-            self.update_status.setText("업데이트 서버가 아직 설정되지 않았습니다.")
-            self.update_notes.setText('v2.7: 차트 첫 응답 선표시, 완성 분석 캐시 즉시 재사용, 조건검색 사전분석 재사용, 최신 클릭 우선 처리, 과거 데이터 보완 중에도 화면 유지, 박스 중복계산 최적화.')
-            self.update_apply_btn.setEnabled(False)
-            return
         try:
             self.update_status.setText("업데이트 확인 중...")
             QApplication.processEvents()
@@ -2017,10 +2015,10 @@ class MainWindow(QMainWindow):
             self._pending_update = info
             self.update_notes.setText(info.notes or "변경사항 설명이 없습니다.")
             if info.newer:
-                self.update_status.setText(f"새 버전 v{info.version} 사용 가능")
+                self.update_status.setText(f"새 버전 v{info.version} 사용 가능 · 서버 확인 완료")
                 self.update_apply_btn.setEnabled(True)
             else:
-                self.update_status.setText("현재 최신 버전입니다.")
+                self.update_status.setText(f"현재 최신 버전입니다. · 서버 v{info.version}")
                 self.update_apply_btn.setEnabled(False)
         except Exception as exc:
             self._pending_update = None
