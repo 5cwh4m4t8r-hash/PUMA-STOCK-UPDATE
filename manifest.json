@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.55",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.55_UPDATE.zip",
-    "notes":  "v2.9.55: Gaboja trend tracking is now the default exit mode. The first structural stop is the confirmed Cha pullback low, and every later confirmed higher Cha low can only raise the stop, never lower it. At +4% PUMA realizes 25% and keeps 75% for the trend instead of using the old +/-2% remainder band. The 13:00 forced exit is removed in trend mode; remaining intraday quantity is safety-closed at 15:20. The mobile rule card now shows the same live rules. Compound seed, one-stock selection and the daily -4% new-buy lock are unchanged.",
-    "sha256":  "1b289303e6e012c04ff443ab5d030c84c340441fb02547c04f4dd68997247f3b"
+    "version":  "2.9.56",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.56_UPDATE.zip",
+    "notes":  "v2.9.56: updater reliability fix. Update checks now bypass CDN/proxy caches with a per-request cache-busting token and no-cache headers, invalid or blank saved manifest URLs automatically recover to the official PUMA manifest, and the update screen shows the server version it actually received. This specifically prevents an installed v2.9.52 client from incorrectly treating a stale v2.9.52 manifest as current after a newer release. Gaboja v2.9.55 trend-tracking rules remain unchanged.",
+    "sha256":  "2ac0edb005c793ad46fd5996ea8dc091935e8b2cbcd755c1ba275513e0632cd1"
 }
