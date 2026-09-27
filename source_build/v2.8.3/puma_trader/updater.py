@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+import urllib.parse
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +49,14 @@ def update_config_path() -> Path:
 DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/manifest.json"
 
 
+def _valid_manifest_url(url: str) -> bool:
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
 def load_update_config() -> dict:
     p = update_config_path()
     if not p.exists():
@@ -55,9 +64,9 @@ def load_update_config() -> dict:
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         url = str(data.get("manifest_url") or "").strip()
-        if not url:
-            data["manifest_url"] = DEFAULT_MANIFEST_URL
-        return data
+        if not _valid_manifest_url(url):
+            url = DEFAULT_MANIFEST_URL
+        return {"manifest_url": url}
     except Exception:
         return {"manifest_url": DEFAULT_MANIFEST_URL}
 
@@ -68,11 +77,34 @@ def save_update_config(data: dict) -> None:
     p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _cache_busted_url(url: str) -> str:
+    """Append a per-request query token so CDN/proxy caches cannot return an old manifest."""
+    parsed = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query.append(("_puma_ts", str(time.time_ns())))
+    return urllib.parse.urlunsplit((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        urllib.parse.urlencode(query),
+        parsed.fragment,
+    ))
+
+
 def fetch_manifest(manifest_url: str, timeout: int = 12) -> UpdateInfo:
-    manifest_url = (manifest_url or DEFAULT_MANIFEST_URL).strip()
+    manifest_url = str(manifest_url or "").strip()
+    if not _valid_manifest_url(manifest_url):
+        manifest_url = DEFAULT_MANIFEST_URL
+
+    request_url = _cache_busted_url(manifest_url)
     req = urllib.request.Request(
-        manifest_url,
-        headers={"User-Agent": f"PUMA-STOCK-UPDATER/{CURRENT_VERSION}"},
+        request_url,
+        headers={
+            "User-Agent": f"PUMA-STOCK-UPDATER/{CURRENT_VERSION}",
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Accept": "application/json,text/plain,*/*",
+        },
     )
     with urllib.request.urlopen(req, timeout=timeout) as res:
         raw = res.read()
