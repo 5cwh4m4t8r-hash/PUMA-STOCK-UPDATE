@@ -241,6 +241,119 @@ class KiwoomRestBroker(BaseBroker):
     def get_stock_info(self, code: str) -> dict:
         return self._post("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})
 
+    def get_nxt_premarket_candidates(self, limit: int = 30) -> list[dict]:
+        """Supply strong NXT premarket candidates without creating buy signals.
+
+        Kiwoom ranking endpoints ka10027 and ka10023 explicitly support
+        stex_tp=2 (NXT). The merged result is only a discovery pool; every
+        actual order still has to pass PUMA/Gaboja after 09:00.
+        """
+        if not self.real:
+            return []
+
+        def num(raw, default=0.0):
+            text = str(raw or "").strip().replace(",", "").replace("%", "")
+            try:
+                return float(text or default)
+            except (TypeError, ValueError):
+                return float(default)
+
+        def code_of(raw):
+            text = str(raw or "").strip()
+            if text.startswith("A") and len(text) >= 7:
+                text = text[1:]
+            if "_" in text:
+                text = text.split("_", 1)[0]
+            digits = "".join(ch for ch in text if ch.isdigit())
+            return digits[-6:] if len(digits) >= 6 else text
+
+        limit = max(1, min(100, int(limit or 30)))
+        merged: dict[str, dict] = {}
+
+        gain_data = self._post("/api/dostk/rkinfo", "ka10027", {
+            "mrkt_tp": "000",
+            "sort_tp": "1",
+            "trde_qty_cnd": "0000",
+            "stk_cnd": "0",
+            "crd_cnd": "0",
+            "updown_incls": "1",
+            "pric_cnd": "0",
+            "trde_prica_cnd": "0",
+            "stex_tp": "2",
+        })
+        gain_rows = gain_data.get("pred_pre_flu_rt_upper", [])
+        if isinstance(gain_rows, list):
+            for rank, row in enumerate(gain_rows[:limit], start=1):
+                if not isinstance(row, dict):
+                    continue
+                code = code_of(row.get("stk_cd"))
+                if not code:
+                    continue
+                item = merged.setdefault(code, {
+                    "code": code,
+                    "name": str(row.get("stk_nm") or code).strip(),
+                    "price": abs(num(row.get("cur_prc"))),
+                    "change_pct": num(row.get("flu_rt")),
+                    "volume": abs(num(row.get("now_trde_qty"))),
+                    "surge_pct": 0.0,
+                    "rise_rank": 9999,
+                    "volume_rank": 9999,
+                    "sources": [],
+                })
+                item["rise_rank"] = min(int(item.get("rise_rank", 9999)), rank)
+                item["change_pct"] = num(row.get("flu_rt"), item.get("change_pct", 0.0))
+                item["price"] = abs(num(row.get("cur_prc"), item.get("price", 0.0)))
+                item["volume"] = max(float(item.get("volume", 0.0)), abs(num(row.get("now_trde_qty"))))
+                if "NXT상승" not in item["sources"]:
+                    item["sources"].append("NXT상승")
+
+        volume_data = self._post("/api/dostk/rkinfo", "ka10023", {
+            "mrkt_tp": "000",
+            "sort_tp": "2",
+            "tm_tp": "1",
+            "trde_qty_tp": "5",
+            "stk_cnd": "0",
+            "pric_tp": "0",
+            "stex_tp": "2",
+            "tm": "5",
+        })
+        volume_rows = volume_data.get("trde_qty_sdnin", [])
+        if isinstance(volume_rows, list):
+            for rank, row in enumerate(volume_rows[:limit], start=1):
+                if not isinstance(row, dict):
+                    continue
+                code = code_of(row.get("stk_cd"))
+                if not code:
+                    continue
+                item = merged.setdefault(code, {
+                    "code": code,
+                    "name": str(row.get("stk_nm") or code).strip(),
+                    "price": abs(num(row.get("cur_prc"))),
+                    "change_pct": num(row.get("flu_rt")),
+                    "volume": abs(num(row.get("now_trde_qty"))),
+                    "surge_pct": num(row.get("sdnin_rt")),
+                    "rise_rank": 9999,
+                    "volume_rank": 9999,
+                    "sources": [],
+                })
+                if str(row.get("stk_nm") or "").strip():
+                    item["name"] = str(row.get("stk_nm")).strip()
+                item["volume_rank"] = min(int(item.get("volume_rank", 9999)), rank)
+                item["surge_pct"] = num(row.get("sdnin_rt"), item.get("surge_pct", 0.0))
+                item["change_pct"] = num(row.get("flu_rt"), item.get("change_pct", 0.0))
+                item["price"] = abs(num(row.get("cur_prc"), item.get("price", 0.0)))
+                item["volume"] = max(float(item.get("volume", 0.0)), abs(num(row.get("now_trde_qty"))))
+                if "NXT거래량" not in item["sources"]:
+                    item["sources"].append("NXT거래량")
+
+        ranked = list(merged.values())
+        ranked.sort(key=lambda x: (
+            -len(x.get("sources") or []),
+            min(int(x.get("rise_rank", 9999)), int(x.get("volume_rank", 9999))),
+            -float(x.get("change_pct", 0.0) or 0.0),
+        ))
+        return ranked[:limit]
+
     def list_domestic_stocks(self, market_types=("0", "10", "8")) -> list[dict]:
         """Load a searchable KRX stock universe via official ka10099.
 
