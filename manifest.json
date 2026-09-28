@@ -2,5 +2,5 @@
     "version":  "2.9.56",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.56_UPDATE.zip",
     "notes":  "v2.9.56: updater reliability fix. Update checks now bypass CDN/proxy caches with a per-request cache-busting token and no-cache headers, invalid or blank saved manifest URLs automatically recover to the official PUMA manifest, and the update screen shows the server version it actually received. This specifically prevents an installed v2.9.52 client from incorrectly treating a stale v2.9.52 manifest as current after a newer release. Gaboja v2.9.55 trend-tracking rules remain unchanged.",
-    "sha256":  "c18169db591129f646c2a9be98bfec654f6fac9d76e48877ca1124cd48ed0399"
+    "sha256":  "066293ad122c4bb0eab09545140a572cda8c1a588ed18c82e5258d54eb5db058"
 }
