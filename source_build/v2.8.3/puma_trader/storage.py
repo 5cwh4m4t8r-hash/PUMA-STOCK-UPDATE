@@ -19,7 +19,16 @@ def load_strategy() -> StrategySettings:
         save_strategy(s)
         return s
     try:
-        return StrategySettings.from_dict(json.loads(STRATEGY_PATH.read_text(encoding="utf-8")))
+        raw = json.loads(STRATEGY_PATH.read_text(encoding="utf-8"))
+        settings = StrategySettings.from_dict(raw)
+        # v2.9.57 migration: the old default was 08:50. Existing custom times are
+        # preserved, but the old default moves to 08:00 so NXT premarket discovery
+        # starts with the session. Actual buys remain separately locked to 09:00.
+        if "trade_start" not in raw and str(settings.scan_start) == "08:50":
+            settings.scan_start = "08:00"
+            settings.trade_start = "09:00"
+            save_strategy(settings)
+        return settings
     except Exception:
         return StrategySettings()
 
