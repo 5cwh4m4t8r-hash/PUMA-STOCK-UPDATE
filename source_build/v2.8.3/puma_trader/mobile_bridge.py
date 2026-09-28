@@ -163,7 +163,7 @@ INDEX_HTML = r"""<!doctype html>
         <div class="k">가보자 고정 매매 규칙</div>
         <div class="fixed-rule-line">현재 복리 시드 전액 · 최우선 1종목만 진입</div>
         <div class="fixed-rule-line">차 저점 이탈 손절 · +4% 도달 시 25%만 익절</div>
-        <div class="fixed-rule-line">잔량 75% 추세추적 · 새 차 저점마다 손절선 상향 · 15:20 최종청산</div>
+        <div class="fixed-rule-line">잔량 75% 추세추적 · 새 차 저점마다 손절선 상향 · 15:00 최종청산</div>
       </div>
       <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
       <button id="autoStopBtn" class="ghost full stop-auto" onclick="stopAuto()" disabled>■ 자동매매 중지</button>
