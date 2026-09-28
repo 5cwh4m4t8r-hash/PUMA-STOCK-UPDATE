@@ -566,7 +566,7 @@ class TradeEngine:
             "price": current, "signal": reason, "order": resp,
         }
 
-    def process(self, code, name, require_buy_filter: bool = True):
+    def process(self, code, name, require_buy_filter: bool = True, allow_buy: bool = True):
         self._roll_daily_counter()
         if self.broker.__class__.__name__ != "SimBroker":
             self.sync_account(force=False)
@@ -702,7 +702,7 @@ class TradeEngine:
                 "signal": f"1차 목표 300만원 달성 · 현재 시드 {self.seed_capital:,.0f}원 · 신규매수 중지",
             }
 
-        if self.enabled and sig.passed and self.can_open(code) and current > 0:
+        if self.enabled and allow_buy and sig.passed and self.can_open(code) and current > 0:
             # 가보자 최초 손절선은 진입 방식과 무관하게 확인된 '차 저점'.
             # 이후 추세가 이어지면 새 차 저점으로 손절선을 단계적으로 올린다.
             stop_price = float(sig.pullback_low or sig.basis_open or 0)
