@@ -47,7 +47,7 @@ class StrategySettings:
     # 추세추적: +4%에서 일부만 확보하고 나머지는 높아지는 차 저점을 따라간다.
     gabojago_trend_tracking_enabled: bool = True
     gabojago_partial_sell_ratio: float = 0.25
-    gabojago_trend_force_exit_time: str = "15:20"
+    gabojago_trend_force_exit_time: str = "15:00"
     gabojago_remainder_band_pct: float = 2.0  # 추세추적 OFF일 때만 쓰는 레거시 값
     gabojago_force_exit_time: str = "13:00"  # 레거시 모드 전용
 
@@ -72,7 +72,7 @@ class StrategySettings:
     trailing_start_pct: float = 2.0
     trailing_gap_pct: float = 1.2
     force_exit_enabled: bool = True
-    force_exit_time: str = "15:20"
+    force_exit_time: str = "15:00"
 
     def to_dict(self):
         return asdict(self)
