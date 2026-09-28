@@ -76,7 +76,7 @@ jobs:
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.56"
+            version = "2.9.57"
             url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.57_UPDATE.zip"
             notes = "v2.9.57: NXT premarket lead scan. PUMA now discovers strong NXT candidates from 08:00 using Kiwoom NXT ranking APIs, never sends an automatic buy before 09:00, and from 09:00 compares the saved NXT lead pool with new KRX condition-search candidates using the same live PUMA/Gaboja filters. Existing one-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:20 exit remain unchanged."
             sha256 = $sha
