@@ -46,7 +46,7 @@ def test_confirmed_higher_pullback_raises_stop_only():
     assert never_lower == 107
 
 
-def test_trend_mode_holds_after_partial_until_stop_or_1520():
+def test_trend_mode_holds_after_partial_until_stop_or_1500():
     settings = StrategySettings(force_exit_enabled=False)
     pos = Position(
         code="042370",
@@ -73,12 +73,12 @@ def test_trend_mode_holds_after_partial_until_stop_or_1520():
 
     sell, reason = evaluate_sell(
         pos, 120, settings,
-        now=datetime(2026, 9, 17, 15, 20),
+        now=datetime(2026, 9, 17, 15, 0),
         bar_key="202609171520",
         previous_bar_close=119,
     )
     assert sell is True
-    assert "15:20 전량청산" in reason
+    assert "15:00 전량청산" in reason
 
 
 def test_plus_four_partial_sell_is_25_percent_and_keeps_75_percent():
@@ -110,4 +110,4 @@ def test_gaboja_defaults_enable_trend_tracking():
     settings = StrategySettings()
     assert settings.gabojago_trend_tracking_enabled is True
     assert settings.gabojago_partial_sell_ratio == 0.25
-    assert settings.gabojago_trend_force_exit_time == "15:20"
+    assert settings.gabojago_trend_force_exit_time == "15:00"
