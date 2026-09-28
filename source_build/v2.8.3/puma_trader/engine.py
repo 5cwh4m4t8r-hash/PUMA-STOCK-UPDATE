@@ -685,6 +685,7 @@ class TradeEngine:
             candles,
             daily_rows,
             scan_start=self.settings.scan_start,
+            trade_start=str(getattr(self.settings, "trade_start", "09:00") or "09:00"),
             scan_end=self.settings.scan_end,
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
@@ -729,4 +730,9 @@ class TradeEngine:
             "rsi": None,
             "entry_kind": str(getattr(sig, "entry_kind", "") or ""),
             "basis_open": float(getattr(sig, "basis_open", 0) or 0),
+            "puma_score": int((getattr(sig, "details", {}) or {}).get("puma_score", 0) or 0),
+            "premarket_available": bool((getattr(sig, "details", {}) or {}).get("premarket_available", False)),
+            "premarket_change_pct": float((getattr(sig, "details", {}) or {}).get("premarket_change_pct", 0) or 0),
+            "premarket_high_retention_pct": float((getattr(sig, "details", {}) or {}).get("premarket_high_retention_pct", 0) or 0),
+            "premarket_volume": float((getattr(sig, "details", {}) or {}).get("premarket_volume", 0) or 0),
         }
