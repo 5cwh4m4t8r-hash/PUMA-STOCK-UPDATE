@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.56",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.56_UPDATE.zip",
-    "notes":  "v2.9.56: updater reliability fix. Update checks now bypass CDN/proxy caches with a per-request cache-busting token and no-cache headers, invalid or blank saved manifest URLs automatically recover to the official PUMA manifest, and the update screen shows the server version it actually received. This specifically prevents an installed v2.9.52 client from incorrectly treating a stale v2.9.52 manifest as current after a newer release. Gaboja v2.9.55 trend-tracking rules remain unchanged.",
-    "sha256":  "773b845e533134931246e9adfd5c5f76e14a51ff3d9e6624d921523ca7274826"
+    "version":  "2.9.57",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.57_UPDATE.zip",
+    "notes":  "v2.9.57: NXT premarket lead scan. PUMA now discovers strong NXT candidates from 08:00 using Kiwoom NXT ranking APIs, never sends an automatic buy before 09:00, and from 09:00 compares the saved NXT lead pool with new KRX condition-search candidates using the same live PUMA/Gaboja filters. Existing one-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:20 exit remain unchanged.",
+    "sha256":  "0c5016fedb164309922352093edd678efe5cc8f3ad9f0505227788c3a4ec69c1"
 }
