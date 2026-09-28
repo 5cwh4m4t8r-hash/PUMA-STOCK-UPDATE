@@ -626,7 +626,7 @@ class TradeEngine:
             # 당일 단타 최종 안전청산. 새 추세추적 모드는 레거시 13:00 설정과 분리.
             trend_tracking = bool(getattr(self.settings, "gabojago_trend_tracking_enabled", True))
             day_exit = (
-                str(getattr(self.settings, "gabojago_trend_force_exit_time", "15:20") or "15:20")
+                str(getattr(self.settings, "gabojago_trend_force_exit_time", "15:00") or "15:00")
                 if trend_tracking
                 else str(getattr(self.settings, "gabojago_force_exit_time", "13:00") or "13:00")
             )
