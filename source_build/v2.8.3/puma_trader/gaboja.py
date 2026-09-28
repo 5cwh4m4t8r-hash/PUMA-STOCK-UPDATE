@@ -34,6 +34,51 @@ def _hm(raw) -> str:
     return ""
 
 
+def _premarket_snapshot(
+    candles_raw: List[dict],
+    day: str,
+    *,
+    start: str = "08:00",
+    end: str = "08:50",
+) -> dict:
+    """Summarize today's NXT premarket bars without turning them into buy signals."""
+    candles = normalize_candles(candles_raw or [])
+    rows = [
+        x for x in candles
+        if _date_key(x.get("date")) == str(day)
+        and start <= _hm(x.get("date")) < end
+    ]
+    if not rows:
+        return {
+            "premarket_available": False,
+            "premarket_bars": 0,
+            "premarket_open": 0.0,
+            "premarket_close": 0.0,
+            "premarket_high": 0.0,
+            "premarket_low": 0.0,
+            "premarket_volume": 0.0,
+            "premarket_change_pct": 0.0,
+            "premarket_high_retention_pct": 0.0,
+        }
+
+    op = float(rows[0]["open"])
+    cl = float(rows[-1]["close"])
+    hi = max(float(x["high"]) for x in rows)
+    lo = min(float(x["low"]) for x in rows)
+    vol = sum(float(x["volume"]) for x in rows)
+    return {
+        "premarket_available": True,
+        "premarket_bars": len(rows),
+        "premarket_open": op,
+        "premarket_close": cl,
+        "premarket_high": hi,
+        "premarket_low": lo,
+        "premarket_volume": vol,
+        "premarket_change_pct": ((cl / op - 1.0) * 100.0) if op > 0 else 0.0,
+        "premarket_high_retention_pct": ((cl / hi) * 100.0) if hi > 0 else 0.0,
+    }
+
+
 def _eavg(values: List[float], period: int) -> List[float]:
     if not values:
         return []
@@ -203,16 +248,17 @@ def evaluate_gaboja(
     daily_rows: List[dict],
     *,
     now: datetime | None = None,
-    scan_start: str = "08:50",
+    scan_start: str = "08:00",
+    trade_start: str = "09:00",
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
 ) -> GabojaSignal:
     """가보자 단타 자동진입.
 
-    1) 영웅문 검색기 후보를 PUMA가 장중 힘으로 2차 선별한다.
-       09:00 이후 최근 5일 같은 시간대 평균 대비 누적 거래량 300% 이상을 필수로 본다.
-    2) 5분봉: 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
+    1) 08:00부터 NXT 선행 후보를 관찰하되 자동매수는 trade_start(기본 09:00) 전에는 금지한다.
+       09:00 이후에는 NXT 선행후보와 KRX 후보 모두 같은 PUMA 장중 힘 기준으로 재평가한다.
+    2) 실제 진입용 5분봉은 09:00 이후만 사용한다. 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
        영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
     3) 차 눌림 진입은 당일 기준봉 시가 손절.
        전고 몸통돌파 진입은 직전 차 눌림 저점 손절.
@@ -226,16 +272,39 @@ def evaluate_gaboja(
     latest_day = _date_key(candles[-1].get("date"))
     today_key = now.strftime("%Y%m%d")
     latest_price = float(candles[-1]["close"])
+    premarket = _premarket_snapshot(candles, today_key)
 
-    # 08:50부터 후보 감시는 가능하지만 실제 주문은 정규장 시작 뒤에만 허용한다.
-    # 장 시작 전 API가 전일 마지막 5분봉을 반환할 수 있으므로 stale 재진입을 막는다.
-    if hm < "09:00":
-        return GabojaSignal(False, reason=f"장 시작 전 · 자동매수 대기 {hm}", current_price=latest_price)
+    # NXT 프리마켓은 후보 정보로만 사용한다. trade_start 전에는 어떤
+    # 패턴이 보여도 passed=True를 반환하지 않아 실제 주문이 불가능하다.
+    if hm < trade_start:
+        if hm < scan_start:
+            reason = f"NXT 선행검색 시작 전 · {scan_start} 대기"
+        elif premarket.get("premarket_available"):
+            reason = f"NXT 선행검색 중 · 실제 자동매수는 {trade_start}부터"
+        else:
+            reason = f"NXT 선행후보 탐색 중 · 실제 자동매수는 {trade_start}부터"
+        return GabojaSignal(
+            False,
+            reason=reason,
+            current_price=latest_price,
+            details={**premarket, "time_ok": False, "trade_start": trade_start},
+        )
+
+    # 장 시작 직후 API가 아직 전일 마지막 봉을 반환할 수 있으므로 stale 재진입을 막는다.
     if latest_day != today_key:
-        return GabojaSignal(False, reason=f"당일 5분봉 대기 · 최신 데이터 {latest_day or '없음'}", current_price=latest_price)
+        return GabojaSignal(
+            False,
+            reason=f"당일 5분봉 대기 · 최신 데이터 {latest_day or '없음'}",
+            current_price=latest_price,
+            details={**premarket, "time_ok": False, "trade_start": trade_start},
+        )
 
     day = latest_day
-    session = [c for c in candles if _date_key(c.get("date")) == day and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")]
+    session = [
+        x for x in candles
+        if _date_key(x.get("date")) == day
+        and (_hm(x.get("date")) == "" or _hm(x.get("date")) >= trade_start)
+    ]
     if not session:
         return GabojaSignal(False, reason="장중 5분봉 데이터 없음", current_price=latest_price)
 
@@ -268,13 +337,20 @@ def evaluate_gaboja(
             current_price=float(session[-1]["close"]),
             basis_open=basis_open,
             day_volume_ratio=day_ratio,
-            details=d,
+            details={**d, **premarket, "trade_start": trade_start},
         )
     if len(session) < 4:
-        return GabojaSignal(False, reason="가보자 5분봉 구조 형성 대기", current_price=float(candles[-1]["close"]),
-                            basis_open=basis_open, day_volume_ratio=day_ratio, details=d)
+        return GabojaSignal(
+            False,
+            reason="가보자 5분봉 구조 형성 대기",
+            current_price=float(candles[-1]["close"]),
+            basis_open=basis_open,
+            day_volume_ratio=day_ratio,
+            details={**d, **premarket, "trade_start": trade_start},
+        )
 
-    time_ok = scan_start <= hm <= scan_end
+    entry_window_start = max(str(scan_start), str(trade_start))
+    time_ok = entry_window_start <= hm <= scan_end
     current = session[-1]
     current_price = float(current["close"])
 
@@ -318,7 +394,8 @@ def evaluate_gaboja(
     if not pairs:
         return GabojaSignal(False, reason="영1 이후 유효한 차(저거래량 눌림) 대기",
                             current_price=current_price, basis_open=basis_open,
-                            day_volume_ratio=day_ratio, details={**d, "time_ok": time_ok})
+                            day_volume_ratio=day_ratio,
+                            details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start})
 
     i, j, young1_high, pullback_low, safety = pairs[-1]
     latest = len(session) - 1
@@ -362,7 +439,9 @@ def evaluate_gaboja(
         day_volume_ratio=day_ratio,
         details={
             **d,
+            **premarket,
             "time_ok": time_ok,
+            "trade_start": trade_start,
             "young1_index": i,
             "pullback_index": j,
             "young1_high": young1_high,
