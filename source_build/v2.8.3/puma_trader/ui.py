@@ -5175,6 +5175,9 @@ class MainWindow(QMainWindow):
                         "code": code,
                         "name": item.get("name", code),
                         "hero": True,
+                        # puma_score is kept as the legacy background-score alias for
+                        # UI/tests; live_puma_score below is the current-market recheck.
+                        "puma_score": int(scores.get("danta", 0) or 0),
                         "danta_score": int(scores.get("danta", 0) or 0),
                         "live_puma_score": item.get("live_puma_score"),
                         "source_count": int(item.get("source_count", 0) or 0),
