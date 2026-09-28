@@ -669,12 +669,13 @@ class AutoScanThread(QThread):
     resultReady = Signal(object)
     failed = Signal(object)
 
-    def __init__(self, engine, code: str, name: str, require_buy_filter: bool, parent=None):
+    def __init__(self, engine, code: str, name: str, require_buy_filter: bool, parent=None, *, allow_buy: bool = True):
         super().__init__(parent)
         self.engine = engine
         self.code = str(code)
         self.name = str(name)
         self.require_buy_filter = bool(require_buy_filter)
+        self.allow_buy = bool(allow_buy)
 
     def run(self):
         try:
@@ -682,10 +683,33 @@ class AutoScanThread(QThread):
                 self.code,
                 self.name,
                 require_buy_filter=self.require_buy_filter,
+                allow_buy=self.allow_buy,
             )
             self.resultReady.emit(result)
         except Exception as exc:
             self.failed.emit(exc)
+
+
+class NxtPremarketScanThread(QThread):
+    """Fetch the NXT lead-candidate pool without blocking the GUI/trading loop."""
+    resultReady = Signal(object)
+    failed = Signal(object)
+
+    def __init__(self, broker, limit: int = 30, parent=None):
+        super().__init__(parent)
+        self.broker = broker
+        self.limit = int(limit)
+
+    def run(self):
+        broker = reader_broker(self.broker, self.isInterruptionRequested)
+        try:
+            rows = broker.get_nxt_premarket_candidates(self.limit)
+            self.resultReady.emit(rows)
+        except Exception as exc:
+            self.failed.emit(exc)
+        finally:
+            if broker is not self.broker and hasattr(broker, "session"):
+                broker.session.close()
 
 
 class MainWindow(QMainWindow):
@@ -804,6 +828,10 @@ class MainWindow(QMainWindow):
         self.danta_analysis_thread: DantaAnalysisThread | None = None
         self.danta_analysis_pending: bool = False
         self.auto_scan_thread: AutoScanThread | None = None
+        self.nxt_premarket_thread: NxtPremarketScanThread | None = None
+        self.nxt_premarket_candidates: dict[str, dict] = {}
+        self.nxt_premarket_date: str = ""
+        self.nxt_premarket_last_fetch: float = 0.0
 
         self.timer = QTimer(self)
         self.timer.setInterval(1800)
@@ -2182,6 +2210,8 @@ class MainWindow(QMainWindow):
                 parts.append(f"영웅문4×{auto_count}" if auto_count > 1 else "영웅문4")
             if manual_count:
                 parts.append("수동조건")
+        if code in getattr(self, "nxt_premarket_candidates", {}):
+            parts.append("NXT선행")
         if code in self.engine.positions:
             parts.append("보유")
         if code in self.engine.pending_orders:
@@ -5024,6 +5054,92 @@ class MainWindow(QMainWindow):
         self.scan_one()
 
     # ---------- trading ----------
+    def _reset_nxt_premarket_day(self):
+        day = datetime.now().strftime("%Y%m%d")
+        if self.nxt_premarket_date != day:
+            self.nxt_premarket_date = day
+            self.nxt_premarket_candidates.clear()
+            self.nxt_premarket_last_fetch = 0.0
+
+    def _maybe_scan_nxt_premarket(self):
+        self._reset_nxt_premarket_day()
+        if not self.focus_auto_danta_pool or not self.engine.enabled:
+            return
+        if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.real or not self.broker.token:
+            return
+
+        hm = datetime.now().strftime("%H:%M")
+        scan_start = str(getattr(self.settings, "scan_start", "08:00") or "08:00")
+        trade_start = str(getattr(self.settings, "trade_start", "09:00") or "09:00")
+        if not (scan_start <= hm < trade_start):
+            return
+
+        worker = self.nxt_premarket_thread
+        if worker is not None and worker.isRunning():
+            return
+        now_mono = time.monotonic()
+        if now_mono - float(self.nxt_premarket_last_fetch or 0.0) < 15.0:
+            return
+
+        self.nxt_premarket_last_fetch = now_mono
+        worker = NxtPremarketScanThread(self.broker, 30, self)
+        self.nxt_premarket_thread = worker
+        worker.resultReady.connect(self._on_nxt_premarket_ready)
+        worker.failed.connect(self._on_nxt_premarket_error)
+        worker.finished.connect(self._on_nxt_premarket_finished)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_nxt_premarket_ready(self, rows):
+        if self._closing:
+            return
+        previous = set(self.nxt_premarket_candidates)
+        current: dict[str, dict] = {}
+        stamp = datetime.now().strftime("%H:%M:%S")
+        for raw in list(rows or []):
+            if not isinstance(raw, dict):
+                continue
+            code = str(raw.get("code") or "").strip()
+            if not code or code in self.session_excluded_codes:
+                continue
+            item = dict(raw)
+            item["seen_at"] = stamp
+            item["live_puma_score"] = self.nxt_premarket_candidates.get(code, {}).get("live_puma_score")
+            current[code] = item
+            name = str(item.get("name") or code).strip()
+            if name and name != code:
+                self.name_cache[code] = name
+
+        self.nxt_premarket_candidates = current
+        for code, item in current.items():
+            name = str(item.get("name") or self.name_cache.get(code) or code)
+            row = self._ensure_market_row(code, name, "NXT선행")
+            price = float(item.get("price", 0) or 0)
+            if price > 0:
+                self.market_table.item(row, 3).setText(f"{price:,.0f}")
+            self.market_table.item(row, 4).setText("NXT선행")
+            self.market_table.item(row, 5).setText(
+                f"08시 후보 · 등락 {float(item.get('change_pct', 0) or 0):+.2f}% · "
+                f"상승순위 {int(item.get('rise_rank', 9999)) if int(item.get('rise_rank', 9999)) < 9999 else '-'} · "
+                f"거래량순위 {int(item.get('volume_rank', 9999)) if int(item.get('volume_rank', 9999)) < 9999 else '-'}"
+            )
+
+        if set(current) != previous:
+            self.log("NXT", "PRE", "-", f"08:00 선행후보 갱신 · {len(current)}종목 · 09:00 전 주문 없음")
+        if self.engine.enabled:
+            QTimer.singleShot(0, self.scan_one)
+
+    def _on_nxt_premarket_error(self, exc):
+        if self._closing:
+            return
+        # NXT 후보 공급 실패가 KRX 자동매매까지 중단시키지는 않는다.
+        self.log("NXT", "WARN", "0", f"선행후보 조회 실패 · {exc}")
+
+    def _on_nxt_premarket_finished(self):
+        worker = self.sender()
+        if self.nxt_premarket_thread is worker:
+            self.nxt_premarket_thread = None
+
     def _active_targets(self) -> list[dict]:
         source = str(self.source_combo.currentData())
         merged: dict[str, dict] = {}
@@ -5048,7 +5164,8 @@ class MainWindow(QMainWindow):
                     merged.setdefault(c, {"code": c, "name": self.name_cache.get(c, c), "hero": False, "puma_score": 10_000})
                 return list(merged.values())
 
-            # 평상시에는 단타 검색기 7개 합집합 중 PUMA 단타점수가 높은 후보부터 확인한다.
+            # 09:00 이후 비교 풀 = 기존 KRX 7개 검색기 합집합 + 08시 NXT 선행후보.
+            # NXT였다는 이유만으로 가산점을 주지 않고, 실제 PUMA 재평가 점수를 최우선한다.
             for code, item in self.condition_candidates.items():
                 if code in self.session_excluded_codes:
                     continue
@@ -5058,13 +5175,48 @@ class MainWindow(QMainWindow):
                         "code": code,
                         "name": item.get("name", code),
                         "hero": True,
-                        "puma_score": int(scores.get("danta", 0) or 0),
+                        "danta_score": int(scores.get("danta", 0) or 0),
+                        "live_puma_score": item.get("live_puma_score"),
                         "source_count": int(item.get("source_count", 0) or 0),
+                        "nxt_premarket": False,
+                        "premarket_change_pct": 0.0,
+                        "nxt_rank": 9999,
                     }
 
+            for code, item in self.nxt_premarket_candidates.items():
+                if code in self.session_excluded_codes:
+                    continue
+                target = merged.setdefault(code, {
+                    "code": code,
+                    "name": item.get("name", self.name_cache.get(code, code)),
+                    "hero": True,
+                    "danta_score": 0,
+                    "live_puma_score": item.get("live_puma_score"),
+                    "source_count": 0,
+                    "nxt_premarket": True,
+                    "premarket_change_pct": float(item.get("change_pct", 0) or 0),
+                    "nxt_rank": min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999))),
+                })
+                target["nxt_premarket"] = True
+                target["premarket_change_pct"] = float(item.get("change_pct", 0) or 0)
+                target["nxt_rank"] = min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999)))
+                if target.get("live_puma_score") is None:
+                    target["live_puma_score"] = item.get("live_puma_score")
+
+            # 아직 현재장 PUMA 점수를 못 받은 후보는 먼저 1회 probe한다.
+            # 모두 같은 09:00 이후 기준으로 점수가 생긴 뒤에는 live PUMA → 단타점수 →
+            # NXT 선행강도 순으로 비교한다.
             return sorted(
                 merged.values(),
-                key=lambda x: (-int(x.get("puma_score", 0)), -int(x.get("source_count", 0)), str(x.get("name", ""))),
+                key=lambda x: (
+                    0 if x.get("live_puma_score") is None else 1,
+                    -int(x.get("live_puma_score") or 0),
+                    -int(x.get("danta_score", 0) or 0),
+                    -float(x.get("premarket_change_pct", 0) or 0),
+                    int(x.get("nxt_rank", 9999) or 9999),
+                    -int(x.get("source_count", 0) or 0),
+                    str(x.get("name", "")),
+                ),
             )
 
         if source in ("WATCHLIST", "BOTH"):
@@ -5153,7 +5305,10 @@ class MainWindow(QMainWindow):
             1 for item in self.condition_candidates.values()
             if self._candidate_in_danta_feed(item)
         )
-        self.log("SYSTEM", "AUTO", "0", f"단타 검색기 합집합 → PUMA 실시간 2차선별 → 가보자 자동매매 시작 · 현재 후보 {candidate_count}종목")
+        self.log(
+            "SYSTEM", "AUTO", "0",
+            f"08:00 NXT 선행검색 → 09:00 KRX+NXT 통합비교 → 가보자 최우선 1종목 자동매매 시작 · KRX 후보 {candidate_count}종목"
+        )
         self.scan_one()
 
     def start_auto(self):
@@ -5169,6 +5324,12 @@ class MainWindow(QMainWindow):
             self.log("SYSTEM", "STOP", "0", "자동매매 중지")
 
     def scan_one(self):
+        # 08:00~09:00는 NXT 선행 후보만 모은다. 주문 엔진은 09:00 전에는 호출하지 않는다.
+        self._maybe_scan_nxt_premarket()
+        trade_start = str(getattr(self.settings, "trade_start", "09:00") or "09:00")
+        if self.focus_auto_danta_pool and datetime.now().strftime("%H:%M") < trade_start:
+            return
+
         # REST 조회/주문은 GUI event loop에서 절대 직접 실행하지 않는다.
         # 1.8초 타이머가 다시 울려도 이전 scan이 끝나지 않았다면 겹쳐 실행하지 않는다.
         worker = self.auto_scan_thread
@@ -5178,15 +5339,27 @@ class MainWindow(QMainWindow):
         targets = self._active_targets()
         if not targets:
             return
-        item = targets[self.scan_index % len(targets)]
-        self.scan_index += 1
+
+        # 새 후보는 먼저 score-only probe를 한 번 거쳐 같은 시각대의 PUMA 점수를 만든다.
+        # 첫 조회에서 바로 주문하지 않아 NXT 선행후보와 09시 KRX 후보를 비교할 기회를 보장한다.
+        unscored = [x for x in targets if x.get("live_puma_score") is None]
+        probe_only = bool(unscored)
+        if probe_only:
+            item = unscored[0]
+        else:
+            item = targets[self.scan_index % len(targets)]
+            self.scan_index += 1
+
         code = item["code"]
         name = item.get("name", code)
         hero = bool(item.get("hero"))
-        # 조건검색 후보는 반드시 PUMA 2차 선별을 거친 뒤 가보자 진입조건을 평가한다.
+        # 후보 공급원이 NXT든 KRX든 실제 진입은 같은 PUMA 2차 선별 + 가보자 조건을 통과해야 한다.
         require_filter = True
 
-        worker = AutoScanThread(self.engine, code, name, require_filter, self)
+        worker = AutoScanThread(
+            self.engine, code, name, require_filter, self,
+            allow_buy=not probe_only,
+        )
         self.auto_scan_thread = worker
         worker.resultReady.connect(self._on_auto_scan_result)
         worker.failed.connect(self._on_auto_scan_error)
@@ -5197,6 +5370,17 @@ class MainWindow(QMainWindow):
     def _on_auto_scan_result(self, res):
         if self._closing:
             return
+        code = str(res.get("code") or "")
+        if "puma_score" in res and code:
+            score = int(res.get("puma_score", 0) or 0)
+            if code in self.condition_candidates:
+                self.condition_candidates[code]["live_puma_score"] = score
+            if code in self.nxt_premarket_candidates:
+                self.nxt_premarket_candidates[code]["live_puma_score"] = score
+                if res.get("premarket_available"):
+                    self.nxt_premarket_candidates[code]["chart_premarket_change_pct"] = float(res.get("premarket_change_pct", 0) or 0)
+                    self.nxt_premarket_candidates[code]["chart_premarket_high_retention_pct"] = float(res.get("premarket_high_retention_pct", 0) or 0)
+
         self.update_row(res)
         self._refresh_seed_labels()
         if res.get("status") in (
