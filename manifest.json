@@ -1,6 +1,6 @@
 ﻿{
     "version":  "2.9.57",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.57_UPDATE.zip",
-    "notes":  "v2.9.57: NXT premarket lead scan. PUMA now discovers strong NXT candidates from 08:00 using Kiwoom NXT ranking APIs, never sends an automatic buy before 09:00, and from 09:00 compares the saved NXT lead pool with new KRX condition-search candidates using the same live PUMA/Gaboja filters. Existing one-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:20 exit remain unchanged.",
-    "sha256":  "0c5016fedb164309922352093edd678efe5cc8f3ad9f0505227788c3a4ec69c1"
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.58_UPDATE.zip",
+    "notes":  "v2.9.58: final intraday liquidation moved to 15:00. Remaining Gaboja position is forced to exit from 15:00 instead of 15:20, giving a 30-minute buffer before the 15:30 KRX close. NXT 08:00 lead scan, 09:00 KRX+NXT comparison, one-stock compound seed, -4% daily lock, +4% 25% partial profit and trend tracking remain unchanged.",
+    "sha256":  "420d0d61f98c80059e1cd261c0500aac124168ad42f1afba354e03ca4a7a1a7b"
 }
