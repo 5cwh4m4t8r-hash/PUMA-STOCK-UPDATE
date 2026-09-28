@@ -24,9 +24,22 @@ def load_strategy() -> StrategySettings:
         # v2.9.57 migration: the old default was 08:50. Existing custom times are
         # preserved, but the old default moves to 08:00 so NXT premarket discovery
         # starts with the session. Actual buys remain separately locked to 09:00.
+        changed = False
         if "trade_start" not in raw and str(settings.scan_start) == "08:50":
             settings.scan_start = "08:00"
             settings.trade_start = "09:00"
+            changed = True
+
+        # v2.9.58: final intraday liquidation moves from 15:20 to 15:00.
+        # Only the previous defaults are migrated; custom non-default times are kept.
+        if str(getattr(settings, "gabojago_trend_force_exit_time", "")) == "15:20":
+            settings.gabojago_trend_force_exit_time = "15:00"
+            changed = True
+        if str(getattr(settings, "force_exit_time", "")) == "15:20":
+            settings.force_exit_time = "15:00"
+            changed = True
+
+        if changed:
             save_strategy(settings)
         return settings
     except Exception:
