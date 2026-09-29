@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.59",
+    "version":  "2.9.60",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.60_UPDATE.zip",
     "notes":  "v2.9.60: first-Cha live entry added. After a valid Young rise, PUMA treats only the deep zone above the basis open and at or below 50% of the Young rise as the first Cha. The current in-progress 5-minute bar can trigger entry immediately without waiting for a future confirmation bar; shallow pullbacks above the midpoint are rejected. Early-Cha stop is the basis open. 08:00 NXT live trading, one-stock compound seed, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
-    "sha256":  "759b091a1bfd7900c300bcf4054ea09676f9c6370883e074871bafd5c0f4a978"
+    "sha256":  "40610f81a718ca95188a6793031c4b618217a6efa5aa1b120ab5f1230bb343ef"
 }
