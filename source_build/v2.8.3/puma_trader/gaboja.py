@@ -281,7 +281,7 @@ def evaluate_gaboja(
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
-    cha_max_ratio: float = 0.50,
+    cha_max_ratio: float = 0.35,
     cha_volume_pace_ratio: float = 1.00,
     cha_min_live_seconds: int = 20,
 ) -> GabojaSignal:
@@ -292,7 +292,7 @@ def evaluate_gaboja(
     2) '영'은 장대양봉 한 봉에 고정하지 않는다. 단일 임펄스 또는 여러 5분봉이 이어진 상승 언덕 전체를
        영 구간으로 인정한다.
     3) 1차 차는 미래봉을 기다려 확정하지 않는다. B=기준봉 시가, H=영 고점, R=H-B일 때
-       B < 현재가 <= B + R*cha_max_ratio(기본 0.50)인 깊은 눌림 영역에 현재 5분봉이 들어오면
+       B < 현재가 <= B + R*cha_max_ratio(기본 0.35 = 고점 대비 65% 되돌림)인 깊은 눌림 영역에 현재 5분봉이 들어오면
        그 봉 자체를 실시간 차 후보로 본다. 동시에 현재봉의 '초당 거래량'이 완료된 영 구간 평균
        초당 거래량보다 둔화됐는지 확인한다. 미래봉은 사용하지 않는다.
     4) 진행봉은 기본 20초 이상 관찰한 뒤 차로 조기진입하며 B 이탈은 차 실패다.
@@ -391,10 +391,10 @@ def evaluate_gaboja(
 
     # 실시간 1차 차 영역:
     #   B = 기준봉 시가, H = 영 고점, R = H-B
-    #   B < 현재가 <= B + R*0.50  (기본값)
+    #   B < 현재가 <= B + R*0.35  (영 고점에서 65% 이상 되돌림)
     # 즉 고점 근처의 얕은 눌림은 차로 보지 않고, 영 상승폭의 절반 아래까지 깊게 눌린
     # 현재 봉만 1차 차 후보로 본다. 현재 봉을 그대로 사용하므로 미래 봉 확인이 필요 없다.
-    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.50)))
+    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.35)))
     cha_pace_ratio = min(2.0, max(0.10, float(cha_volume_pace_ratio or 1.00)))
     cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
     latest_index = len(session) - 1
@@ -506,7 +506,7 @@ def evaluate_gaboja(
                 break
 
     if not pairs:
-        return GabojaSignal(False, reason="영 이후 50%선 아래 1차 차 영역 진입 대기",
+        return GabojaSignal(False, reason="영 이후 65% 이상 되돌린 1차 차 영역 진입 대기",
                             current_price=current_price, basis_open=basis_open,
                             day_volume_ratio=day_ratio,
                             details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
@@ -545,7 +545,7 @@ def evaluate_gaboja(
             reason = f"가보자 {label} 진입 · 직전 차 저점 {pullback_low:,.0f} 이탈 손절"
         else:
             reason = (
-                f"가보자 1차 차 실시간 조기진입 · 현재봉 50%선 이하 "
+                f"가보자 1차 차 실시간 조기진입 · 현재봉 65% 되돌림선 이하 "
                 f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
                 f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
                 f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
