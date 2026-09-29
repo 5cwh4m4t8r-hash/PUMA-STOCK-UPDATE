@@ -249,17 +249,17 @@ def evaluate_gaboja(
     *,
     now: datetime | None = None,
     scan_start: str = "08:00",
-    trade_start: str = "09:00",
+    trade_start: str = "08:00",
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
 ) -> GabojaSignal:
     """가보자 단타 자동진입.
 
-    1) 08:00부터 NXT 선행 후보를 관찰하되 자동매수는 trade_start(기본 09:00) 전에는 금지한다.
-       09:00 이후에는 NXT 선행후보와 KRX 후보 모두 같은 PUMA 장중 힘 기준으로 재평가한다.
-    2) 실제 진입용 5분봉은 09:00 이후만 사용한다. 영1 이후 거래량이 줄어든 차(눌림), 또는 그 눌림 뒤
-       영1 전고를 양봉 몸통이 실제로 관통하는 재돌파에서만 진입.
+    1) NXT 프리마켓 08:00부터 후보 검색과 실제 자동매매를 함께 시작한다.
+       09:00 이후에는 08시부터 이어진 NXT 흐름과 KRX 신규 후보를 같은 PUMA 기준으로 비교한다.
+    2) '영'은 장대양봉 한 봉에 고정하지 않는다. 단일 임펄스 또는 여러 5분봉이 이어진 상승 언덕 전체를
+       영 구간으로 인정하고, 그 뒤 거래량이 줄어든 차(눌림) 또는 영 고점 몸통 재돌파에서 진입한다.
     3) 차 눌림 진입은 당일 기준봉 시가 손절.
        전고 몸통돌파 진입은 직전 차 눌림 저점 손절.
     """
@@ -274,15 +274,15 @@ def evaluate_gaboja(
     latest_price = float(candles[-1]["close"])
     premarket = _premarket_snapshot(candles, today_key)
 
-    # NXT 프리마켓은 후보 정보로만 사용한다. trade_start 전에는 어떤
-    # 패턴이 보여도 passed=True를 반환하지 않아 실제 주문이 불가능하다.
+    # trade_start 이전에는 신규진입을 막는다. v2.9.59 기본 trade_start는
+    # 08:00이므로 NXT 프리마켓도 실제 가보자 진입 세션에 포함된다.
     if hm < trade_start:
         if hm < scan_start:
-            reason = f"NXT 선행검색 시작 전 · {scan_start} 대기"
+            reason = f"가보자 검색 시작 전 · {scan_start} 대기"
         elif premarket.get("premarket_available"):
-            reason = f"NXT 선행검색 중 · 실제 자동매수는 {trade_start}부터"
+            reason = f"가보자 검색 중 · 실제 자동매수는 {trade_start}부터"
         else:
-            reason = f"NXT 선행후보 탐색 중 · 실제 자동매수는 {trade_start}부터"
+            reason = f"가보자 후보 탐색 중 · 실제 자동매수는 {trade_start}부터"
         return GabojaSignal(
             False,
             reason=reason,
@@ -318,7 +318,7 @@ def evaluate_gaboja(
         "close": float(session[-1]["close"]),
         "volume": sum(float(x["volume"]) for x in session),
     }
-    morning = market_open_volume_ratio(candles, 5)
+    morning = market_open_volume_ratio(candles, 5, session_start=trade_start)
     morning_ratio = float(morning.get("ratio", 0.0) or 0.0)
     candidate_ok, d = _candidate_filter(
         daily_rows,
@@ -354,50 +354,96 @@ def evaluate_gaboja(
     current = session[-1]
     current_price = float(current["close"])
 
-    # 기준봉 시가까지 눌리는 것은 '차'가 아니다. 영1 상승폭의 15% 또는 시가의 0.2% 중
-    # 큰 값을 최소 안전거리로 두며 이후 설정값으로 조정 가능하게 설계한다.
+    # 기준봉 시가까지 눌리는 것은 '차'가 아니다. 영 상승폭의 15% 또는 시가의 0.2% 중
+    # 큰 값을 최소 안전거리로 둔다.
+    #
+    # 영은 '장대양봉 한 봉'으로 고정하지 않는다.
+    #  - single: 기존처럼 한 봉이 전고를 힘있게 돌파한 경우
+    #  - hill: 최근 구조의 저점에서 여러 봉이 이어져 상승 언덕을 만들고 마지막 봉이 구간 고점을 만든 경우
+    # 두 형태 모두 같은 차 눌림/몸통 재돌파 규칙으로 연결한다.
     pairs = []
     for i in range(1, len(session) - 1):
         bar = session[i]
         prior = session[max(0, i - 3):i]
         if not prior:
             continue
+
         prior_high = max(float(x["high"]) for x in prior)
         prior_vol = mean(float(x["volume"]) for x in prior)
-        impulse = (
+        single_impulse = (
             float(bar["close"]) > float(bar["open"])
             and float(bar["high"]) > prior_high
             and float(bar["volume"]) >= prior_vol
         )
-        if not impulse:
+
+        # 언덕형 영: 최근 최대 7봉 안에서 가장 낮은 저점을 시작점으로 잡아
+        # 상승 진행과 구간 고점 갱신을 확인한다. 특정 '몇 번째 봉'을 영으로 고정하지 않는다.
+        lookback_start = max(0, i - 6)
+        lookback = session[lookback_start:i + 1]
+        rel_start = min(
+            range(len(lookback)),
+            key=lambda k: float(lookback[k]["low"]),
+        )
+        young_start = lookback_start + rel_start
+        hill = session[young_start:i + 1]
+        bullish = sum(1 for x in hill if float(x["close"]) >= float(x["open"]))
+        progress = sum(
+            1 for k in range(1, len(hill))
+            if float(hill[k]["close"]) >= float(hill[k - 1]["close"])
+        )
+        hill_high = max(float(x["high"]) for x in hill)
+        hill_open = float(hill[0]["open"])
+        before_hill = session[max(0, young_start - 3):young_start]
+        before_high = max((float(x["high"]) for x in before_hill), default=basis_open)
+        hill_shape = (
+            len(hill) >= 2
+            and float(bar["high"]) >= hill_high
+            and float(bar["close"]) > hill_open
+            and hill_high > max(basis_open, before_high)
+            and bullish >= max(2, (len(hill) + 1) // 2)
+            and progress >= max(1, (len(hill) - 1) // 2)
+        )
+
+        if single_impulse:
+            young_start = i
+            young_high = float(bar["high"])
+            young_volume = float(bar["volume"])
+            young_kind = "single"
+        elif hill_shape:
+            young_high = hill_high
+            young_volume = max(float(x["volume"]) for x in hill)
+            young_kind = "hill"
+        else:
             continue
 
-        young1_high = float(bar["high"])
-        safety = max((young1_high - basis_open) * 0.15, basis_open * 0.002)
-        if young1_high <= basis_open or safety <= 0:
+        safety = max((young_high - basis_open) * 0.15, basis_open * 0.002)
+        if young_high <= basis_open or safety <= 0:
             continue
 
         for j in range(i + 1, min(len(session), i + 5)):
             pb = session[j]
             pb_mid = (float(pb["high"]) + float(pb["low"])) / 2.0
             pullback = (
-                float(pb["low"]) < young1_high
-                and float(pb["close"]) < young1_high
+                float(pb["low"]) < young_high
+                and float(pb["close"]) < young_high
                 and float(pb["low"]) >= basis_open + safety
-                and float(pb["volume"]) < float(bar["volume"])
+                and float(pb["volume"]) < young_volume
                 and float(pb["close"]) >= pb_mid
             )
             if pullback:
-                pairs.append((i, j, young1_high, float(pb["low"]), safety))
+                pairs.append((
+                    young_start, i, j, young_high,
+                    float(pb["low"]), safety, young_volume, young_kind,
+                ))
                 break
 
     if not pairs:
-        return GabojaSignal(False, reason="영1 이후 유효한 차(저거래량 눌림) 대기",
+        return GabojaSignal(False, reason="영 상승구간 이후 유효한 차(저거래량 눌림) 대기",
                             current_price=current_price, basis_open=basis_open,
                             day_volume_ratio=day_ratio,
                             details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start})
 
-    i, j, young1_high, pullback_low, safety = pairs[-1]
+    young_start, i, j, young1_high, pullback_low, safety, young_volume, young_kind = pairs[-1]
     latest = len(session) - 1
     pb = session[j]
 
@@ -443,12 +489,15 @@ def evaluate_gaboja(
             "time_ok": time_ok,
             "trade_start": trade_start,
             "young1_index": i,
+            "young_start_index": young_start,
+            "young_end_index": i,
+            "young_kind": young_kind,
             "pullback_index": j,
             "young1_high": young1_high,
             "pullback_low": pullback_low,
             "stop_safety": safety,
             "pullback_volume": float(pb["volume"]),
-            "young1_volume": float(session[i]["volume"]),
+            "young1_volume": young_volume,
             "body_rebreak": body_rebreak,
         },
     )
