@@ -76,7 +76,7 @@ jobs:
 
           $sha = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower()
           $manifest = [ordered]@{
-            version = "2.9.60"
+            version = "2.9.61"
             url = "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.61_UPDATE.zip"
             notes = "v2.9.61: live current-bar Cha detection now uses only information available at that moment. For every candidate stock, after a valid Young rise PUMA watches the active 5-minute bar, requires price to enter the deep Cha zone above the basis open and at or below the 50% Young-rise line, waits a short 20-second noise filter, and compares the active bar volume per second with the completed Young-section volume pace. If volume pace has slowed, the current bar can trigger the first-Cha entry immediately without waiting for candle close or future bars. Basis-open stop, 08:00 NXT live trading, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged."
             sha256 = $sha
