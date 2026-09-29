@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.61",
+    "version":  "2.9.62",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.62_UPDATE.zip",
     "notes":  "v2.9.62: first-Cha depth is changed from 50% to 65% retracement from the Young high. For every candidate stock, PUMA now requires the active 5-minute bar to retrace at least 65% of the Young rise while staying above the basis open, pass the 20-second live-noise filter, and show slower per-second volume pace than the completed Young section before an early entry. In price terms the Cha ceiling is B + 35% of the Young rise. Basis-open stop, 08:00 NXT live trading, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
-    "sha256":  "0b9824b49ea7f6fc6d8f5a7699f3711ba29ffb0e380f5643dd2e243bd924a980"
+    "sha256":  "1d7844acf39efd7b480666d7e1ac4c21adb57b29dbe5c6337443cb2f7fa6f682"
 }
