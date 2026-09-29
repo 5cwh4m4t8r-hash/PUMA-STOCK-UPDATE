@@ -81,7 +81,7 @@ def test_shallow_pullback_above_midpoint_is_not_cha():
 
 
 def test_deep_cha_uses_basis_open_as_stop_reference():
-    sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15))
+    sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15,30))
     assert sig.passed is True
     assert sig.entry_kind == "PULLBACK"
     assert sig.details["early_cha"] is True
