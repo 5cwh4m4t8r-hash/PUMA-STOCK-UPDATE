@@ -45,8 +45,9 @@ class StrategySettings:
     gabojago_enabled: bool = True
     gabojago_daily_volume_ratio: float = 3.0
     gabojago_min_stop_gap_pct: float = 0.5
-    # 1차 차 조기진입: 영 상승폭의 하단 50% 영역(B < 현재가 <= B + (H-B)*0.5)만 차 후보로 본다.
-    gabojago_cha_max_ratio: float = 0.50
+    # 1차 차 조기진입: 영 고점에서 65% 이상 되돌린 깊은 눌림만 차 후보로 본다.
+    # 가격 기준으로는 B < 현재가 <= B + (H-B)*0.35.
+    gabojago_cha_max_ratio: float = 0.35
     # 진행 중 현재봉을 차로 조기판정할 때, 영 구간 평균 초당 거래량 대비
     # 현재봉 초당 거래량이 이 배수 이하여야 거래량 둔화로 인정한다.
     gabojago_cha_volume_pace_ratio: float = 1.00
