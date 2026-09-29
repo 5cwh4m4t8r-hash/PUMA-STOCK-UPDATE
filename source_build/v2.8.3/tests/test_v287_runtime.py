@@ -68,3 +68,34 @@ def test_runtime_write_is_valid_json_and_leaves_no_tmp(monkeypatch, tmp_path):
     raw = json.loads((tmp_path / "runtime.json").read_text(encoding="utf-8"))
     assert isinstance(raw, dict)
     assert not (tmp_path / "runtime.json.tmp").exists()
+
+
+def test_runtime_preserves_nxt_limit_reprice_state(monkeypatch, tmp_path):
+    _patch_paths(monkeypatch, tmp_path)
+    storage.save_runtime({
+        "managed_qty": {"338220": 65},
+        "managed_meta": {},
+        "pending_orders": {
+            "338220": {
+                "side": "BUY",
+                "qty": 65,
+                "target_qty": 65,
+                "ord_no": "0000123",
+                "created_at": "2026-09-30T08:10:01",
+                "account_qty_before": 0,
+                "exchange": "NXT",
+                "order_type": "limit",
+                "limit_price": 10310,
+                "first_limit_price": 10290,
+                "reprice_count": 2,
+            }
+        },
+    })
+
+    pending = storage.load_runtime()["pending_orders"]["338220"]
+    assert pending["target_qty"] == 65
+    assert pending["exchange"] == "NXT"
+    assert pending["order_type"] == "limit"
+    assert pending["limit_price"] == 10310
+    assert pending["first_limit_price"] == 10290
+    assert pending["reprice_count"] == 2
