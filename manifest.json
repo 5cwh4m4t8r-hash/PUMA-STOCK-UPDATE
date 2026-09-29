@@ -2,5 +2,5 @@
     "version":  "2.9.58",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.58_UPDATE.zip",
     "notes":  "v2.9.58: final intraday liquidation moved to 15:00. Remaining Gaboja position is forced to exit from 15:00 instead of 15:20, giving a 30-minute buffer before the 15:30 KRX close. NXT 08:00 lead scan, 09:00 KRX+NXT comparison, one-stock compound seed, -4% daily lock, +4% 25% partial profit and trend tracking remain unchanged.",
-    "sha256":  "33fcf70eab9541cb626151ba2957047baaa37a8db184ddf63067cf528db067f0"
+    "sha256":  "bc28daa5860a63e10519560415c200a77a844f79e91021eb94c3109fca307dc1"
 }
