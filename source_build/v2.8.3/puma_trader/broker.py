@@ -423,23 +423,60 @@ class KiwoomRestBroker(BaseBroker):
         return rows
 
     def get_account_positions(self) -> list[dict]:
-        # kt00018 공식 예제: qry_tp 1=합산, dmst_stex_tp KRX/NXT
-        # 국내 현물 기본 KRX 동기화를 기준으로 한다.
-        body = {"qry_tp": "1", "dmst_stex_tp": "KRX"}
-        rows: list[dict] = []
-        cont_yn = ""
-        next_key = ""
-        for page in range(10):
-            data, cont_yn, next_key = self._post_page(
-                "/api/dostk/acnt", "kt00018", body, cont_yn, next_key
-            )
-            part = data.get("acnt_evlt_remn_indv_tot", [])
-            if isinstance(part, list):
-                rows.extend(x for x in part if isinstance(x, dict))
-            if cont_yn != "Y":
-                break
-            time.sleep(0.21)
-        return rows
+        """Read holdings from both KRX and NXT so 08:00 NXT fills are never missed.
+
+        The same fungible holding can be reported through more than one venue view;
+        de-duplicate by normalized stock code and keep the row with the larger
+        remaining quantity instead of summing it.
+        """
+        merged: dict[str, dict] = {}
+
+        def norm_code(row: dict) -> str:
+            raw = str(row.get("stk_cd") or "").strip()
+            if raw.startswith("A"):
+                raw = raw[1:]
+            if "_" in raw:
+                raw = raw.split("_", 1)[0]
+            digits = "".join(ch for ch in raw if ch.isdigit())
+            return digits[-6:] if len(digits) >= 6 else raw
+
+        def qty_of(row: dict) -> int:
+            try:
+                return abs(int(float(str(row.get("rmnd_qty") or "0").replace(",", ""))))
+            except Exception:
+                return 0
+
+        for exchange in ("KRX", "NXT"):
+            body = {"qry_tp": "1", "dmst_stex_tp": exchange}
+            cont_yn = ""
+            next_key = ""
+            seen_keys = set()
+            for page in range(10):
+                data, cont_yn, next_key = self._post_page(
+                    "/api/dostk/acnt", "kt00018", body, cont_yn, next_key
+                )
+                part = data.get("acnt_evlt_remn_indv_tot", [])
+                if isinstance(part, list):
+                    for raw in part:
+                        if not isinstance(raw, dict):
+                            continue
+                        code = norm_code(raw)
+                        if not code:
+                            continue
+                        item = dict(raw)
+                        item["_puma_exchange"] = exchange
+                        if code not in merged or qty_of(item) > qty_of(merged[code]):
+                            merged[code] = item
+                has_more = cont_yn == "Y" and bool(next_key) and next_key not in seen_keys
+                if next_key:
+                    seen_keys.add(next_key)
+                if not has_more:
+                    break
+                time.sleep(0.21)
+            # Keep account synchronization responsive while still covering both venues.
+            time.sleep(0.05)
+
+        return list(merged.values())
 
     def place_order(self, side: str, code: str, qty: int, order_type: str = "market", price: int = 0, cond_price: int = 0):
         if qty <= 0:
