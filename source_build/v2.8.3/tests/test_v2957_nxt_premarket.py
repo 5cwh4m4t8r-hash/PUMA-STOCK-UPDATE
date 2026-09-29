@@ -41,10 +41,10 @@ def test_0800_session_is_live_and_uses_08xx_bars():
         _row("20260929080000", 100, 102, 99, 101, 1000),
         _row("20260929080500", 101, 106, 100.5, 105.5, 1200),
         _row("20260929081000", 105.5, 113, 105, 112.5, 1800),
-        _row("20260929081500", 111.0, 111.3, 104.5, 105.5, 700),
+        _row("20260929081500", 111.0, 111.3, 104.5, 105.5, 100),
     ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 8, 15),
+        rows, [], now=datetime(2026, 9, 29, 8, 15, 30),
         scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
     assert sig.basis_open == 100
@@ -60,10 +60,10 @@ def test_hill_shaped_young_can_trigger_without_single_volume_impulse():
         _row("20260929080000", 100, 102, 99, 101, 1000),
         _row("20260929080500", 101, 106, 100.5, 105, 900),
         _row("20260929081000", 105, 110, 104.5, 109.5, 800),
-        _row("20260929081500", 109, 109.2, 103.5, 104.5, 700),
+        _row("20260929081500", 109, 109.2, 103.5, 104.5, 60),
     ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 8, 15),
+        rows, [], now=datetime(2026, 9, 29, 8, 15, 30),
         scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
     assert sig.passed is True
