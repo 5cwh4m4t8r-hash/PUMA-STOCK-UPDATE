@@ -30,6 +30,12 @@ def load_strategy() -> StrategySettings:
             settings.trade_start = "09:00"
             changed = True
 
+        # v2.9.59: NXT is now a live trading session, not discovery-only.
+        # Migrate the previous 09:00 default so existing installs start trading at 08:00.
+        if str(getattr(settings, "trade_start", "")) == "09:00":
+            settings.trade_start = "08:00"
+            changed = True
+
         # v2.9.58: final intraday liquidation moves from 15:20 to 15:00.
         # Only the previous defaults are migrated; custom non-default times are kept.
         if str(getattr(settings, "gabojago_trend_force_exit_time", "")) == "15:20":
