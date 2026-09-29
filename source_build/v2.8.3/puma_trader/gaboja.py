@@ -253,15 +253,18 @@ def evaluate_gaboja(
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
+    cha_max_ratio: float = 0.50,
 ) -> GabojaSignal:
     """가보자 단타 자동진입.
 
     1) NXT 프리마켓 08:00부터 후보 검색과 실제 자동매매를 함께 시작한다.
        09:00 이후에는 08시부터 이어진 NXT 흐름과 KRX 신규 후보를 같은 PUMA 기준으로 비교한다.
     2) '영'은 장대양봉 한 봉에 고정하지 않는다. 단일 임펄스 또는 여러 5분봉이 이어진 상승 언덕 전체를
-       영 구간으로 인정하고, 그 뒤 거래량이 줄어든 차(눌림) 또는 영 고점 몸통 재돌파에서 진입한다.
-    3) 차 눌림 진입은 당일 기준봉 시가 손절.
-       전고 몸통돌파 진입은 직전 차 눌림 저점 손절.
+       영 구간으로 인정한다.
+    3) 1차 차는 미래봉을 기다려 확정하지 않는다. B=기준봉 시가, H=영 고점, R=H-B일 때
+       B < 현재가 <= B + R*cha_max_ratio(기본 0.50)인 깊은 눌림 영역에 현재 5분봉이 들어오면
+       그 봉 자체를 실시간 차 후보로 보고 조기진입한다. B 이탈은 차 실패다.
+    4) 조기 차 진입의 최초 손절은 B(기준봉 시가). 전고 몸통 재돌파 진입은 직전 차 저점 손절.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -354,13 +357,16 @@ def evaluate_gaboja(
     current = session[-1]
     current_price = float(current["close"])
 
-    # 기준봉 시가까지 눌리는 것은 '차'가 아니다. 영 상승폭의 15% 또는 시가의 0.2% 중
-    # 큰 값을 최소 안전거리로 둔다.
-    #
+    # 실시간 1차 차 영역:
+    #   B = 기준봉 시가, H = 영 고점, R = H-B
+    #   B < 현재가 <= B + R*0.50  (기본값)
+    # 즉 고점 근처의 얕은 눌림은 차로 보지 않고, 영 상승폭의 절반 아래까지 깊게 눌린
+    # 현재 봉만 1차 차 후보로 본다. 현재 봉을 그대로 사용하므로 미래 봉 확인이 필요 없다.
+    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.50)))
+
     # 영은 '장대양봉 한 봉'으로 고정하지 않는다.
     #  - single: 기존처럼 한 봉이 전고를 힘있게 돌파한 경우
-    #  - hill: 최근 구조의 저점에서 여러 봉이 이어져 상승 언덕을 만들고 마지막 봉이 구간 고점을 만든 경우
-    # 두 형태 모두 같은 차 눌림/몸통 재돌파 규칙으로 연결한다.
+    #  - hill: 최근 구조의 저점에서 여러 봉이 이어져 상승 언덕을 만든 경우
     pairs = []
     for i in range(1, len(session) - 1):
         bar = session[i]
@@ -416,38 +422,45 @@ def evaluate_gaboja(
         else:
             continue
 
-        safety = max((young_high - basis_open) * 0.15, basis_open * 0.002)
-        if young_high <= basis_open or safety <= 0:
+        rise = young_high - basis_open
+        if rise <= 0:
             continue
+        cha_ceiling = basis_open + rise * cha_ratio
 
-        for j in range(i + 1, min(len(session), i + 5)):
+        # 영 이후 첫 '깊은 차'를 찾는다. 고정 봉 개수 제한을 두지 않는다.
+        # 기준봉 시가를 한 번이라도 깨면 그 영에 대한 차 시나리오는 실패로 종료한다.
+        for j in range(i + 1, len(session)):
             pb = session[j]
-            pb_mid = (float(pb["high"]) + float(pb["low"])) / 2.0
-            pullback = (
-                float(pb["low"]) < young_high
-                and float(pb["close"]) < young_high
-                and float(pb["low"]) >= basis_open + safety
-                and float(pb["volume"]) < young_volume
-                and float(pb["close"]) >= pb_mid
-            )
-            if pullback:
+            pb_low = float(pb["low"])
+            pb_close = float(pb["close"])
+            if pb_low <= basis_open or pb_close <= basis_open:
+                break
+
+            # 현재 가격(close)은 진행 중인 5분봉에서는 실시간 현재가다.
+            # 50%선 위의 얕은 눌림은 차가 아니며, 영역 안에 실제로 들어온 순간부터 차 후보.
+            deep_zone = basis_open < pb_close <= cha_ceiling
+            lower_volume = float(pb["volume"]) < young_volume
+            if deep_zone and lower_volume:
+                depth_pct = ((young_high - pb_close) / rise) * 100.0
                 pairs.append((
-                    young_start, i, j, young_high,
-                    float(pb["low"]), safety, young_volume, young_kind,
+                    young_start, i, j, young_high, pb_low,
+                    cha_ceiling, young_volume, young_kind, depth_pct,
                 ))
                 break
 
     if not pairs:
-        return GabojaSignal(False, reason="영 상승구간 이후 유효한 차(저거래량 눌림) 대기",
+        return GabojaSignal(False, reason="영 이후 50%선 아래 1차 차 영역 진입 대기",
                             current_price=current_price, basis_open=basis_open,
                             day_volume_ratio=day_ratio,
-                            details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start})
+                            details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
+                                     "cha_max_ratio": cha_ratio})
 
-    young_start, i, j, young1_high, pullback_low, safety, young_volume, young_kind = pairs[-1]
+    young_start, i, j, young1_high, pullback_low, cha_ceiling, young_volume, young_kind, cha_depth_pct = pairs[-1]
     latest = len(session) - 1
     pb = session[j]
 
-    # 눌림 진입: 바로 현재 봉이 '차'이고, 거래량 감소 + 시가 손절선과 거리 유지 + 상단부 마감.
+    # 조기 차 진입: 현재 진행 중인 5분봉 자체가 깊은 차 영역에 들어온 순간 진입한다.
+    # 다음 봉/재돌파를 기다리지 않아 미래정보 없이 가장 빠른 1차 차를 노린다.
     pullback_entry = latest == j
 
     # 전고돌파 진입: 꼬리만 찌르는 것은 제외.
@@ -468,7 +481,10 @@ def evaluate_gaboja(
         if kind == "BODY_REBREAK":
             reason = f"가보자 {label} 진입 · 직전 차 저점 {pullback_low:,.0f} 이탈 손절"
         else:
-            reason = f"가보자 {label} 진입 · 기준봉 시가 {basis_open:,.0f} 이탈 손절"
+            reason = (
+                f"가보자 1차 차 조기진입 · 현재봉 50%선 이하 "
+                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · 기준봉 시가 {basis_open:,.0f} 이탈 손절"
+            )
     elif not time_ok:
         reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
     else:
@@ -495,7 +511,10 @@ def evaluate_gaboja(
             "pullback_index": j,
             "young1_high": young1_high,
             "pullback_low": pullback_low,
-            "stop_safety": safety,
+            "cha_ceiling": cha_ceiling,
+            "cha_max_ratio": cha_ratio,
+            "cha_depth_pct": cha_depth_pct,
+            "early_cha": pullback_entry,
             "pullback_volume": float(pb["volume"]),
             "young1_volume": young_volume,
             "body_rebreak": body_rebreak,
