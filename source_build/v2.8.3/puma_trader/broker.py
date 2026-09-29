@@ -32,6 +32,12 @@ class BaseBroker:
     def place_order(self, side: str, code: str, qty: int, order_type: str = "market", price: int = 0, cond_price: int = 0) -> dict:
         raise NotImplementedError
 
+    def get_best_quote(self, code: str, exchange: str = "KRX") -> dict:
+        return {}
+
+    def cancel_order_on(self, code: str, orig_ord_no: str, exchange: str, qty: int = 0) -> dict:
+        raise NotImplementedError
+
     def get_account_positions(self) -> list[dict]:
         return []
 
@@ -260,6 +266,76 @@ class KiwoomRestBroker(BaseBroker):
         elif ex == "SOR":
             chart_code = f"{base}_AL"
         return self.get_minute_candles(chart_code, timeframe, max_pages=max_pages, base_dt=base_dt)
+
+    @staticmethod
+    def _venue_code(code: str, exchange: str) -> str:
+        base = str(code or "").strip()
+        if "_" in base:
+            base = base.split("_", 1)[0]
+        ex = str(exchange or "KRX").upper()
+        if ex == "NXT":
+            return f"{base}_NX"
+        if ex == "SOR":
+            return f"{base}_AL"
+        return base
+
+    @staticmethod
+    def _abs_int(raw) -> int:
+        try:
+            return abs(int(float(str(raw or "0").replace(",", "").strip())))
+        except Exception:
+            return 0
+
+    def get_best_quote(self, code: str, exchange: str = "KRX") -> dict:
+        """Return the venue's best ask/bid from official ka10004 quote book."""
+        ex = str(exchange or "KRX").upper()
+        if ex not in ("KRX", "NXT", "SOR"):
+            raise BrokerError(f"지원하지 않는 호가 거래소: {exchange}")
+        quote_code = self._venue_code(code, ex)
+        data = self._post("/api/dostk/mrkcond", "ka10004", {"stk_cd": quote_code})
+        return {
+            "exchange": ex,
+            "code": str(code or "").split("_", 1)[0],
+            "quote_code": quote_code,
+            "best_ask": self._abs_int(data.get("sel_fpr_bid")),
+            "best_ask_qty": self._abs_int(data.get("sel_fpr_req")),
+            "best_bid": self._abs_int(data.get("buy_fpr_bid")),
+            "best_bid_qty": self._abs_int(data.get("buy_fpr_req")),
+            "quote_time": str(data.get("bid_req_base_tm") or ""),
+        }
+
+    def place_limit_on(self, side: str, code: str, qty: int, price: int, exchange: str):
+        ex = str(exchange or "").upper()
+        if ex not in ("KRX", "NXT", "SOR"):
+            raise BrokerError(f"지원하지 않는 주문 거래소: {exchange}")
+        if int(price or 0) <= 0:
+            raise BrokerError("지정가 주문가격이 없습니다.")
+        original = self.order_exchange
+        try:
+            self.order_exchange = ex
+            return self.place_order(side, code, qty, "limit", price=int(price))
+        finally:
+            self.order_exchange = original
+
+    def buy_limit_on(self, code: str, qty: int, price: int, exchange: str):
+        return self.place_limit_on("BUY", code, qty, price, exchange)
+
+    def sell_limit_on(self, code: str, qty: int, price: int, exchange: str):
+        return self.place_limit_on("SELL", code, qty, price, exchange)
+
+    def cancel_order_on(self, code: str, orig_ord_no: str, exchange: str, qty: int = 0):
+        ex = str(exchange or "").upper()
+        if ex not in ("KRX", "NXT", "SOR"):
+            raise BrokerError(f"지원하지 않는 주문 거래소: {exchange}")
+        if not str(orig_ord_no or "").strip():
+            raise BrokerError("취소할 원주문번호가 없습니다.")
+        body = {
+            "dmst_stex_tp": ex,
+            "orig_ord_no": str(orig_ord_no).strip(),
+            "stk_cd": str(code or "").split("_", 1)[0],
+            "cncl_qty": str(max(0, int(qty or 0))),
+        }
+        return self._post("/api/dostk/ordr", "kt10003", body)
 
     def get_stock_info(self, code: str) -> dict:
         return self._post("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})
