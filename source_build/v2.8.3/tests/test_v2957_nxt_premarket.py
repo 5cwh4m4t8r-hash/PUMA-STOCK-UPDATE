@@ -16,13 +16,14 @@ def _row(ts, op, hi, lo, cl, vol=1000):
     }
 
 
-def test_defaults_search_0800_but_trade_0900():
+def test_defaults_search_and_trade_from_0800():
     settings = StrategySettings()
     assert settings.scan_start == "08:00"
-    assert settings.trade_start == "09:00"
+    assert settings.trade_start == "08:00"
+    assert settings.nxt_premarket_end == "08:50"
 
 
-def test_premarket_snapshot_is_metadata_only():
+def test_premarket_snapshot_keeps_08xx_context():
     rows = [
         _row("20260929080000", 100, 106, 99, 105, 1000),
         _row("20260929080500", 105, 110, 104, 108, 2000),
@@ -34,29 +35,111 @@ def test_premarket_snapshot_is_metadata_only():
     assert snap["premarket_close"] == 108
     assert round(snap["premarket_change_pct"], 2) == 8.00
 
+
+def test_0800_session_is_live_and_uses_08xx_bars():
+    rows = [
+        _row("20260929080000", 100, 102, 99, 101, 1000),
+        _row("20260929080500", 101, 106, 100.5, 105.5, 1200),
+        _row("20260929081000", 105.5, 113, 105, 112.5, 1800),
+        _row("20260929081500", 112.0, 112.3, 109.5, 111.5, 700),
+    ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 8, 10),
-        scan_start="08:00", trade_start="09:00", apply_secondary_filter=False,
+        rows, [], now=datetime(2026, 9, 29, 8, 15),
+        scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
-    assert sig.passed is False
-    assert "09:00" in sig.reason
+    assert sig.basis_open == 100
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
     assert sig.details["premarket_available"] is True
 
 
-def test_0900_session_excludes_08xx_bars():
+def test_hill_shaped_young_can_trigger_without_single_volume_impulse():
+    # 거래량이 봉마다 줄어 단일 장대양봉 impulse 조건은 충족하지 않지만,
+    # 여러 봉이 이어져 상승 언덕 전체를 영으로 만드는 사례.
     rows = [
-        _row("20260929080000", 500, 550, 490, 540, 9000),
-        _row("20260929080500", 540, 560, 530, 550, 8000),
-        _row("20260929090000", 1000, 1020, 995, 1010, 1000),
-        _row("20260929090500", 1010, 1030, 1005, 1020, 1200),
-        _row("20260929091000", 1020, 1040, 1015, 1030, 1300),
-        _row("20260929091500", 1030, 1045, 1025, 1035, 900),
+        _row("20260929080000", 100, 102, 99, 101, 1000),
+        _row("20260929080500", 101, 106, 100.5, 105, 900),
+        _row("20260929081000", 105, 110, 104.5, 109.5, 800),
+        _row("20260929081500", 109, 109.2, 107, 108.5, 700),
     ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 9, 16),
-        scan_start="08:00", trade_start="09:00", apply_secondary_filter=False,
+        rows, [], now=datetime(2026, 9, 29, 8, 15),
+        scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
-    assert sig.basis_open == 1000
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.details["young_kind"] == "hill"
+    assert sig.details["young_start_index"] == 0
+    assert sig.young1_high == 110
+
+
+def test_0900_keeps_0800_young_context():
+    rows = [
+        _row("20260929080000", 100, 102, 99, 101, 1000),
+        _row("20260929080500", 101, 106, 100.5, 105, 900),
+        _row("20260929081000", 105, 110, 104.5, 109.5, 800),
+        _row("20260929081500", 109, 109.2, 107, 108.5, 700),
+        _row("20260929090000", 108.5, 111.5, 108.2, 111.2, 900),
+    ]
+    sig = evaluate_gaboja(
+        rows, [], now=datetime(2026, 9, 29, 9, 0),
+        scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
+    )
+    assert sig.basis_open == 100
+    assert sig.details["premarket_available"] is True
+
+
+def test_nxt_chart_suffix_and_sor_integrated_suffix():
+    broker = KiwoomRestBroker("key", "secret", real=True)
+    seen = []
+
+    def fake_minute(code, timeframe, max_pages=1, base_dt=None):
+        seen.append((code, timeframe, max_pages, base_dt))
+        return []
+
+    broker.get_minute_candles = fake_minute
+    broker.get_minute_candles_for_exchange("338220", 5, "NXT")
+    broker.get_minute_candles_for_exchange("338220", 5, "SOR")
+
+    assert seen[0][0] == "338220_NX"
+    assert seen[1][0] == "338220_AL"
+
+
+def test_nxt_market_order_override_restores_configured_exchange():
+    broker = KiwoomRestBroker("key", "secret", real=True, order_exchange="KRX")
+    seen = []
+
+    def fake_place(side, code, qty, order_type="market", price=0, cond_price=0):
+        seen.append((side, code, qty, broker.order_exchange))
+        return {"ord_no": "TEST"}
+
+    broker.place_order = fake_place
+    broker.buy_market_on("338220", 10, "NXT")
+
+    assert seen == [("BUY", "338220", 10, "NXT")]
+    assert broker.order_exchange == "KRX"
+
+
+def test_account_sync_queries_both_krx_and_nxt_and_deduplicates():
+    broker = KiwoomRestBroker("key", "secret", real=True)
+    seen = []
+
+    def fake_post_page(path, api_id, body, cont_yn="", next_key=""):
+        seen.append(body["dmst_stex_tp"])
+        qty = "10" if body["dmst_stex_tp"] == "KRX" else "12"
+        return {
+            "acnt_evlt_remn_indv_tot": [
+                {"stk_cd": "338220", "stk_nm": "뷰노", "rmnd_qty": qty, "pur_pric": "6000", "cur_prc": "6500"}
+            ]
+        }, "N", ""
+
+    broker._post_page = fake_post_page
+    rows = broker.get_account_positions()
+
+    assert seen == ["KRX", "NXT"]
+    assert len(rows) == 1
+    assert rows[0]["rmnd_qty"] == "12"
+    assert rows[0]["_puma_exchange"] == "NXT"
 
 
 def test_nxt_candidate_api_uses_supported_nxt_exchange_and_merges_sources():
