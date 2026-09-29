@@ -47,6 +47,11 @@ class StrategySettings:
     gabojago_min_stop_gap_pct: float = 0.5
     # 1차 차 조기진입: 영 상승폭의 하단 50% 영역(B < 현재가 <= B + (H-B)*0.5)만 차 후보로 본다.
     gabojago_cha_max_ratio: float = 0.50
+    # 진행 중 현재봉을 차로 조기판정할 때, 영 구간 평균 초당 거래량 대비
+    # 현재봉 초당 거래량이 이 배수 이하여야 거래량 둔화로 인정한다.
+    gabojago_cha_volume_pace_ratio: float = 1.00
+    # 봉 시작 직후 노이즈를 피하기 위한 최소 실시간 관찰시간(초).
+    gabojago_cha_min_live_seconds: int = 20
     gabojago_partial_profit_pct: float = 4.0
     # 추세추적: +4%에서 일부만 확보하고 나머지는 높아지는 차 저점을 따라간다.
     gabojago_trend_tracking_enabled: bool = True
