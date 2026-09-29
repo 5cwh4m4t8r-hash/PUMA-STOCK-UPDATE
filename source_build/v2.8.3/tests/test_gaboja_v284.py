@@ -42,7 +42,7 @@ def _minute(body_break=True):
         _d("20260923090000", 106, 107, 105.8, 106.5, 600),
         _d("20260923090500", 106.5, 109, 106.4, 108.8, 700),
         _d("20260923091000", 108.8, 113, 108.7, 112.5, 1400),  # 영1
-        _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 500), # 50%선 아래 깊은 차
+        _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 100), # 진행봉 30초 기준 거래량속도 둔화
     ]
     if body_break:
         rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 800))
@@ -50,7 +50,7 @@ def _minute(body_break=True):
 
 
 def test_gaboja_pullback_entry():
-    sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15))
+    sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15,30))
     assert sig.passed is True
     assert sig.entry_kind == "PULLBACK"
     assert sig.basis_open == 106
@@ -87,6 +87,42 @@ def test_deep_cha_uses_basis_open_as_stop_reference():
     assert sig.details["early_cha"] is True
     assert sig.details["cha_ceiling"] == 109.5
     assert sig.current_price == 109.0
+
+
+def test_live_cha_rejects_raw_low_volume_when_per_second_pace_is_fast():
+    rows = _minute(False)
+    # 영1은 1400/300 = 4.67주/s. 현재봉은 총량 500으로 더 작아 보여도
+    # 시작 30초 시점에는 16.67주/s라서 '거래량 둔화 차'가 아니다.
+    rows[-1] = _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 500)
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026,9,23,9,15,30),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is False
+
+
+def test_live_cha_accepts_current_bar_without_waiting_for_close():
+    rows = _minute(False)
+    rows[-1] = _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 100)
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026,9,23,9,15,30),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.details["early_cha"] is True
+    assert sig.details["pullback_elapsed_sec"] == 30.0
+    assert sig.details["pullback_volume_pace"] < sig.details["young_volume_pace"]
+
+
+def test_live_cha_waits_for_minimum_observation_seconds():
+    rows = _minute(False)
+    rows[-1] = _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 5)
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026,9,23,9,15,10),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is False
 
 def test_pullback_cannot_touch_basis_open():
     rows = _minute(False)
