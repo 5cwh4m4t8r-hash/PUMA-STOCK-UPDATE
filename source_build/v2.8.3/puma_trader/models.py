@@ -45,6 +45,8 @@ class StrategySettings:
     gabojago_enabled: bool = True
     gabojago_daily_volume_ratio: float = 3.0
     gabojago_min_stop_gap_pct: float = 0.5
+    # 1차 차 조기진입: 영 상승폭의 하단 50% 영역(B < 현재가 <= B + (H-B)*0.5)만 차 후보로 본다.
+    gabojago_cha_max_ratio: float = 0.50
     gabojago_partial_profit_pct: float = 4.0
     # 추세추적: +4%에서 일부만 확보하고 나머지는 높아지는 차 저점을 따라간다.
     gabojago_trend_tracking_enabled: bool = True
