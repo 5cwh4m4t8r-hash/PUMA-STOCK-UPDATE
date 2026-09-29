@@ -5,9 +5,11 @@ from typing import Optional
 @dataclass
 class StrategySettings:
     timeframe_min: int = 5
-    # 08:00부터 NXT 프리마켓 후보를 수집하되 실제 자동매수는 09:00 이후만 허용한다.
+    # NXT 프리마켓 08:00부터 검색과 실제 자동매매를 함께 시작한다.
+    # 08:50~09:00 거래 공백에는 신규주문을 보내지 않고, 09:00부터 정규장 흐름을 이어 본다.
     scan_start: str = "08:00"
-    trade_start: str = "09:00"
+    trade_start: str = "08:00"
+    nxt_premarket_end: str = "08:50"
     scan_end: str = "10:00"
     min_change_pct: float = 0.5
     max_change_pct: float = 12.0
