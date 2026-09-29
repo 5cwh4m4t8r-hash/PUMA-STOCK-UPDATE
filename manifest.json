@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.62",
+    "version":  "2.9.63",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.63_UPDATE.zip",
     "notes":  "v2.9.63: NXT 08:00-08:50 live execution no longer uses market orders. PUMA reads the official ka10004 NXT quote book, submits BUY at the best ask and SELL at the best bid as explicit limit orders, and can cancel/reprice unfilled remainders up to three times at two-second intervals. BUY chasing is capped at 0.50% above the first submitted ask; if exceeded, the remaining BUY is cancelled. Partial fills are synchronized before any re-order so PUMA only resubmits the true remaining quantity. The 65% live-Cha rule and all existing risk/exit rules remain unchanged.",
-    "sha256":  "7cdb8937f37fbc00d598b9ecaf161c6242ef086181c4d90c3cc781fc979c77ad"
+    "sha256":  "7449302bc513a42218f08f4fe2bd9a8c51da31ed81611b20bf51f94c0516df8f"
 }
