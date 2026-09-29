@@ -314,9 +314,10 @@ class TradeEngine:
             item = account.get(code)
             if not item:
                 continue
-            requested = max(1, int(pending.get("qty", 0) or 0))
-            if item["qty"] >= requested:
-                self.managed_qty[code] = requested
+            target_qty = max(1, int(pending.get("target_qty", pending.get("qty", 0)) or 0))
+            base_qty = max(0, int(pending.get("account_qty_before", 0) or 0))
+            if item["qty"] >= base_qty + target_qty:
+                self.managed_qty[code] = target_qty
                 self.managed_meta[code] = {
                     "stop_price": float(pending.get("stop_price", 0) or 0),
                     "entry_kind": str(pending.get("entry_kind", "")),
@@ -374,7 +375,8 @@ class TradeEngine:
             before = int(pending.get("account_qty_before", self.account_qty.get(code, 0)) or 0)
             sold_qty = int(pending.get("qty", 0) or 0)
             now_qty = int(self.account_qty.get(code, 0) or 0)
-            if now_qty <= max(0, before - sold_qty):
+            desired_remaining = max(0, int(pending.get("remaining_qty", max(0, before - sold_qty)) or 0))
+            if now_qty <= desired_remaining:
                 self.pending_orders.pop(code, None)
                 self._record_realized_delta(float(pending.get("seed_pnl_delta", 0) or 0))
                 full_exit = bool(pending.get("full_exit", True))
@@ -413,8 +415,9 @@ class TradeEngine:
             item = account.get(code)
             if not item:
                 continue
-            requested = max(1, int(pending.get("qty", 0) or 0))
-            qty = min(requested, item["qty"])
+            target_qty = max(1, int(pending.get("target_qty", pending.get("qty", 0)) or 0))
+            base_qty = max(0, int(pending.get("account_qty_before", 0) or 0))
+            qty = min(target_qty, max(0, item["qty"] - base_qty))
             entry = item["entry"] or item["current"]
             current = item["current"] or entry
             self.positions[code] = Position(
@@ -504,10 +507,11 @@ class TradeEngine:
     def _manage_nxt_limit_pending(self, code: str, name: str, current: float):
         """Reprice an unfilled NXT premarket limit order against the best quote.
 
-        Only completely unfilled orders are repriced. If an account sync shows
-        a partial fill, PUMA stops repricing to avoid accidental over-ordering.
-        Buy chasing is capped from the first submitted ask; sells are allowed to
-        follow the best bid because they are position-risk exits.
+        The old remainder is cancelled before every reprice, then the account is
+        synchronized and only the truly unfilled remainder is resubmitted. This
+        avoids over-ordering even when a partial fill races with cancellation.
+        Buy chasing is capped from the first submitted ask; sells may keep
+        following the best bid because they are position-risk exits.
         """
         pending = self.pending_orders.get(code)
         if not pending:
@@ -523,13 +527,6 @@ class TradeEngine:
 
         side = str(pending.get("side", "")).upper()
         before = int(pending.get("account_qty_before", 0) or 0)
-        now_qty = int(self.account_qty.get(code, 0) or 0)
-        if (side == "BUY" and now_qty > before) or (side == "SELL" and now_qty < before):
-            return {
-                "code": code, "name": self.positions.get(code).name if code in self.positions else name,
-                "status": f"{side}_PARTIAL_PENDING", "price": current,
-                "signal": "NXT 지정가 부분체결 확인 · 과주문 방지를 위해 재정정 대기",
-            }
 
         wait_sec = max(1.0, float(getattr(self.settings, "nxt_limit_reprice_sec", 2.0) or 2.0))
         if self._pending_age_seconds(pending) < wait_sec:
@@ -593,15 +590,26 @@ class TradeEngine:
             }
 
         now_qty = int(self.account_qty.get(code, 0) or 0)
-        if (side == "BUY" and now_qty > before) or (side == "SELL" and now_qty < before):
+        if side == "BUY":
+            base_qty = int(latest.get("account_qty_before", before) or 0)
+            target_qty = max(1, int(latest.get("target_qty", latest.get("qty", 0)) or 0))
+            filled_qty = max(0, now_qty - base_qty)
+            qty = max(0, target_qty - filled_qty)
+        else:
+            desired_remaining = max(0, int(latest.get("remaining_qty", 0) or 0))
+            qty = max(0, now_qty - desired_remaining)
+            latest["account_qty_before"] = now_qty
+
+        if qty <= 0:
+            self.sync_account(force=True)
             return {
                 "code": code, "name": self.positions.get(code).name if code in self.positions else name,
-                "status": f"{side}_PARTIAL_PENDING", "price": current,
-                "signal": "NXT 취소 중 부분체결 확인 · 재주문 중지",
+                "status": f"{side}_FILLED", "price": current,
+                "signal": "NXT 지정가 목표수량 체결 확인",
             }
 
-        qty = max(1, int(latest.get("qty", 0) or 0))
         resp = dict(limit_order(code, qty, new_price, "NXT") or {})
+        latest["qty"] = qty
         self.daily_order_count += 1
         latest["ord_no"] = str(resp.get("ord_no", ""))
         latest["limit_price"] = new_price
@@ -648,6 +656,7 @@ class TradeEngine:
                 "stop_price": float(stop_price or 0),
                 "entry_kind": str(entry_kind or ""),
                 "seed_budget": float(budget),
+                "target_qty": qty,
                 "account_qty_before": int(self.account_qty.get(code, 0) or 0),
                 "exchange": str(resp.get("_puma_exchange", "") or ""),
                 "order_type": str(resp.get("_puma_order_type", "market") or "market"),
