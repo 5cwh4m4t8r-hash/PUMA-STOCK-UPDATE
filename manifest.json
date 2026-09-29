@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.58",
+    "version":  "2.9.59",
     "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.59_UPDATE.zip",
     "notes":  "v2.9.59: live Gaboja trading now starts at 08:00 on NXT. PUMA scans NXT strength and can place NXT orders from 08:00 to 08:50, pauses new orders during the 08:50-09:00 venue gap, then resumes at 09:00 with KRX plus saved NXT candidates. NXT-specific _NX minute charts and SOR _AL continuity are used, and Young can be a rising multi-bar hill as well as a single impulse candle. One-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
-    "sha256":  "2232cbe40bd051e5e620092093019c49608bd7092d6723aa69ef23715339ea73"
+    "sha256":  "db4a370b38626efc29d56693e14a0a3644492211e2dc72e6fa42e77b2837addd"
 }
