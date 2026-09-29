@@ -238,15 +238,38 @@ class KiwoomRestBroker(BaseBroker):
             pass
         return rows
 
+    def get_minute_candles_for_exchange(
+        self,
+        code: str,
+        timeframe: int,
+        exchange: str,
+        max_pages: int = 1,
+        base_dt: str | None = None,
+    ):
+        """Request venue-specific minute bars using Kiwoom's documented code suffix.
+
+        KRX: 039490, NXT: 039490_NX, SOR(integrated): 039490_AL.
+        """
+        base = str(code or "").strip()
+        if "_" in base:
+            base = base.split("_", 1)[0]
+        ex = str(exchange or "KRX").upper()
+        chart_code = base
+        if ex == "NXT":
+            chart_code = f"{base}_NX"
+        elif ex == "SOR":
+            chart_code = f"{base}_AL"
+        return self.get_minute_candles(chart_code, timeframe, max_pages=max_pages, base_dt=base_dt)
+
     def get_stock_info(self, code: str) -> dict:
         return self._post("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})
 
     def get_nxt_premarket_candidates(self, limit: int = 30) -> list[dict]:
-        """Supply strong NXT premarket candidates without creating buy signals.
+        """Supply strong NXT premarket candidates for the 08:00 live Gaboja pool.
 
         Kiwoom ranking endpoints ka10027 and ka10023 explicitly support
-        stex_tp=2 (NXT). The merged result is only a discovery pool; every
-        actual order still has to pass PUMA/Gaboja after 09:00.
+        stex_tp=2 (NXT). Candidate discovery never bypasses PUMA/Gaboja;
+        an actual NXT order is sent only after the same live filters pass.
         """
         if not self.real:
             return []
@@ -454,3 +477,25 @@ class KiwoomRestBroker(BaseBroker):
 
     def sell_market(self, code: str, qty: int):
         return self.place_order("SELL", code, qty, "market")
+
+    def buy_market_on(self, code: str, qty: int, exchange: str):
+        ex = str(exchange or "").upper()
+        if ex not in ("KRX", "NXT", "SOR"):
+            raise BrokerError(f"지원하지 않는 주문 거래소: {exchange}")
+        original = self.order_exchange
+        try:
+            self.order_exchange = ex
+            return self.place_order("BUY", code, qty, "market")
+        finally:
+            self.order_exchange = original
+
+    def sell_market_on(self, code: str, qty: int, exchange: str):
+        ex = str(exchange or "").upper()
+        if ex not in ("KRX", "NXT", "SOR"):
+            raise BrokerError(f"지원하지 않는 주문 거래소: {exchange}")
+        original = self.order_exchange
+        try:
+            self.order_exchange = ex
+            return self.place_order("SELL", code, qty, "market")
+        finally:
+            self.order_exchange = original
