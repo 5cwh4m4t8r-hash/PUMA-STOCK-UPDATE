@@ -445,19 +445,176 @@ class TradeEngine:
             return "NXT"
         return ""
 
-    def _buy_market_order(self, code: str, qty: int):
+    def _buy_session_order(self, code: str, qty: int):
         exchange = self._session_order_exchange()
+        if exchange == "NXT" and self.broker.__class__.__name__ != "SimBroker":
+            quote_getter = getattr(self.broker, "get_best_quote", None)
+            limit_order = getattr(self.broker, "buy_limit_on", None)
+            if not callable(quote_getter) or not callable(limit_order):
+                raise RuntimeError("NXT 프리마켓 자동 지정가 주문 기능이 없습니다.")
+            quote = quote_getter(code, "NXT") or {}
+            price = int(quote.get("best_ask", 0) or 0)
+            if price <= 0:
+                raise RuntimeError("NXT 최우선 매도호가를 조회하지 못했습니다.")
+            resp = dict(limit_order(code, qty, price, "NXT") or {})
+            resp["_puma_exchange"] = "NXT"
+            resp["_puma_order_type"] = "limit"
+            resp["_puma_limit_price"] = price
+            return resp
+
         routed = getattr(self.broker, "buy_market_on", None)
         if exchange and callable(routed):
             return routed(code, qty, exchange)
         return self.broker.buy_market(code, qty)
 
-    def _sell_market_order(self, code: str, qty: int):
+    def _sell_session_order(self, code: str, qty: int):
         exchange = self._session_order_exchange()
+        if exchange == "NXT" and self.broker.__class__.__name__ != "SimBroker":
+            quote_getter = getattr(self.broker, "get_best_quote", None)
+            limit_order = getattr(self.broker, "sell_limit_on", None)
+            if not callable(quote_getter) or not callable(limit_order):
+                raise RuntimeError("NXT 프리마켓 자동 지정가 주문 기능이 없습니다.")
+            quote = quote_getter(code, "NXT") or {}
+            price = int(quote.get("best_bid", 0) or 0)
+            if price <= 0:
+                raise RuntimeError("NXT 최우선 매수호가를 조회하지 못했습니다.")
+            resp = dict(limit_order(code, qty, price, "NXT") or {})
+            resp["_puma_exchange"] = "NXT"
+            resp["_puma_order_type"] = "limit"
+            resp["_puma_limit_price"] = price
+            return resp
+
         routed = getattr(self.broker, "sell_market_on", None)
         if exchange and callable(routed):
             return routed(code, qty, exchange)
         return self.broker.sell_market(code, qty)
+
+    @staticmethod
+    def _pending_age_seconds(pending: dict) -> float:
+        raw = pending.get("created_at")
+        if isinstance(raw, datetime):
+            stamp = raw
+        else:
+            try:
+                stamp = datetime.fromisoformat(str(raw or ""))
+            except Exception:
+                return 0.0
+        return max(0.0, (datetime.now() - stamp).total_seconds())
+
+    def _manage_nxt_limit_pending(self, code: str, name: str, current: float):
+        """Reprice an unfilled NXT premarket limit order against the best quote.
+
+        Only completely unfilled orders are repriced. If an account sync shows
+        a partial fill, PUMA stops repricing to avoid accidental over-ordering.
+        Buy chasing is capped from the first submitted ask; sells are allowed to
+        follow the best bid because they are position-risk exits.
+        """
+        pending = self.pending_orders.get(code)
+        if not pending:
+            return None
+        if str(pending.get("exchange", "")).upper() != "NXT" or str(pending.get("order_type", "")).lower() != "limit":
+            return None
+
+        hm = datetime.now().strftime("%H:%M")
+        start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
+        end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
+        if not (start <= hm < end):
+            return None
+
+        side = str(pending.get("side", "")).upper()
+        before = int(pending.get("account_qty_before", 0) or 0)
+        now_qty = int(self.account_qty.get(code, 0) or 0)
+        if (side == "BUY" and now_qty > before) or (side == "SELL" and now_qty < before):
+            return {
+                "code": code, "name": self.positions.get(code).name if code in self.positions else name,
+                "status": f"{side}_PARTIAL_PENDING", "price": current,
+                "signal": "NXT 지정가 부분체결 확인 · 과주문 방지를 위해 재정정 대기",
+            }
+
+        wait_sec = max(1.0, float(getattr(self.settings, "nxt_limit_reprice_sec", 2.0) or 2.0))
+        if self._pending_age_seconds(pending) < wait_sec:
+            return None
+
+        max_reprices = max(0, int(getattr(self.settings, "nxt_limit_max_reprices", 3) or 0))
+        count = max(0, int(pending.get("reprice_count", 0) or 0))
+        if count >= max_reprices:
+            return {
+                "code": code, "name": self.positions.get(code).name if code in self.positions else name,
+                "status": f"{side}_PENDING", "price": current,
+                "signal": f"NXT 지정가 유지 · 재정정 {count}/{max_reprices} 완료",
+            }
+
+        quote_getter = getattr(self.broker, "get_best_quote", None)
+        cancel = getattr(self.broker, "cancel_order_on", None)
+        limit_order = getattr(self.broker, "buy_limit_on" if side == "BUY" else "sell_limit_on", None)
+        if not callable(quote_getter) or not callable(cancel) or not callable(limit_order):
+            return None
+
+        quote = quote_getter(code, "NXT") or {}
+        new_price = int(quote.get("best_ask" if side == "BUY" else "best_bid", 0) or 0)
+        old_price = int(pending.get("limit_price", 0) or 0)
+        if new_price <= 0 or new_price == old_price:
+            pending["created_at"] = datetime.now()
+            self._persist_runtime()
+            return None
+
+        first_price = int(pending.get("first_limit_price", old_price) or old_price or new_price)
+        if side == "BUY":
+            chase_pct = max(0.0, float(getattr(self.settings, "nxt_limit_buy_chase_pct", 0.50) or 0.50))
+            ceiling = first_price * (1.0 + chase_pct / 100.0)
+            if first_price > 0 and new_price > ceiling:
+                cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
+                self.pending_orders.pop(code, None)
+                self.sync_account(force=True)
+                held = int(self.account_qty.get(code, 0) or 0)
+                if held <= before:
+                    self.managed_qty.pop(code, None)
+                    self.managed_meta.pop(code, None)
+                    self.positions.pop(code, None)
+                    self.cooldowns[code] = datetime.now() + timedelta(minutes=1)
+                else:
+                    self.managed_qty[code] = held
+                self._persist_runtime()
+                return {
+                    "code": code, "name": name, "status": "BUY_CANCELLED_CHASE",
+                    "price": current,
+                    "signal": f"NXT 추격매수 중단 · 최우선매도 {new_price:,.0f} > 허용 {ceiling:,.0f}",
+                }
+
+        # Cancel the old remainder first, then synchronize once to avoid duplicating
+        # shares if a fill raced with the cancel request.
+        cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
+        self.sync_account(force=True)
+        latest = self.pending_orders.get(code)
+        if latest is None:
+            return {
+                "code": code, "name": name, "status": f"{side}_FILLED",
+                "price": current, "signal": "NXT 지정가 체결 확인",
+            }
+
+        now_qty = int(self.account_qty.get(code, 0) or 0)
+        if (side == "BUY" and now_qty > before) or (side == "SELL" and now_qty < before):
+            return {
+                "code": code, "name": self.positions.get(code).name if code in self.positions else name,
+                "status": f"{side}_PARTIAL_PENDING", "price": current,
+                "signal": "NXT 취소 중 부분체결 확인 · 재주문 중지",
+            }
+
+        qty = max(1, int(latest.get("qty", 0) or 0))
+        resp = dict(limit_order(code, qty, new_price, "NXT") or {})
+        self.daily_order_count += 1
+        latest["ord_no"] = str(resp.get("ord_no", ""))
+        latest["limit_price"] = new_price
+        latest["first_limit_price"] = first_price
+        latest["reprice_count"] = count + 1
+        latest["created_at"] = datetime.now()
+        self._persist_runtime()
+        return {
+            "code": code, "name": name, "status": f"{side}_REPRICED",
+            "price": current,
+            "signal": f"NXT 최우선 {'매도' if side == 'BUY' else '매수'}호가 {new_price:,.0f}원으로 재정정 {count + 1}/{max_reprices}",
+            "order": resp,
+        }
 
     def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = "", require_enabled: bool = False):
         if require_enabled and not self.enabled:
@@ -469,7 +626,7 @@ class TradeEngine:
                 "code": code, "name": name, "status": "WAIT", "price": current,
                 "signal": f"현재 복리 시드 {budget:,.0f}원보다 주가가 높아 자동매수 불가",
             }
-        resp = self._buy_market_order(code, qty)
+        resp = self._buy_session_order(code, qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
             # 앱이 재시작되어도 체결된 종목을 PUMA 포지션으로 복구할 수 있도록 주문수량을 먼저 기록.
@@ -491,6 +648,12 @@ class TradeEngine:
                 "stop_price": float(stop_price or 0),
                 "entry_kind": str(entry_kind or ""),
                 "seed_budget": float(budget),
+                "account_qty_before": int(self.account_qty.get(code, 0) or 0),
+                "exchange": str(resp.get("_puma_exchange", "") or ""),
+                "order_type": str(resp.get("_puma_order_type", "market") or "market"),
+                "limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "first_limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "reprice_count": 0,
             }
             self._persist_runtime()
             return {"code": code, "name": name, "status": "BUY_SENT", "price": current, "signal": reason, "order": resp}
@@ -506,7 +669,7 @@ class TradeEngine:
     def _submit_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
         if require_enabled and not self.enabled:
             return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
-        resp = self._sell_market_order(code, pos.qty)
+        resp = self._sell_session_order(code, pos.qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
             self.pending_orders[code] = {
@@ -521,6 +684,11 @@ class TradeEngine:
                 "entry_kind": str(getattr(pos, "entry_kind", "") or ""),
                 "partial_taken_after": bool(getattr(pos, "partial_taken", False)),
                 "seed_pnl_delta": (float(current) - float(pos.entry_price)) * int(pos.qty),
+                "exchange": str(resp.get("_puma_exchange", "") or ""),
+                "order_type": str(resp.get("_puma_order_type", "market") or "market"),
+                "limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "first_limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "reprice_count": 0,
             }
             self._persist_runtime()
             return {"code": code, "name": pos.name, "status": "SELL_SENT", "price": current, "signal": reason, "order": resp}
@@ -543,7 +711,7 @@ class TradeEngine:
             return self._submit_sell(code, pos, current, reason + " · 1주라 전량", require_enabled=require_enabled)
 
         remaining = int(pos.qty) - sell_qty
-        resp = self._sell_market_order(code, sell_qty)
+        resp = self._sell_session_order(code, sell_qty)
         self.daily_order_count += 1
 
         if self.broker.__class__.__name__ != "SimBroker":
@@ -563,6 +731,11 @@ class TradeEngine:
                 "remainder_down_trigger_bar_after": "",
                 "remainder_down_wait_bar_after": "",
                 "seed_pnl_delta": (float(current) - float(pos.entry_price)) * int(sell_qty),
+                "exchange": str(resp.get("_puma_exchange", "") or ""),
+                "order_type": str(resp.get("_puma_order_type", "market") or "market"),
+                "limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "first_limit_price": int(resp.get("_puma_limit_price", 0) or 0),
+                "reprice_count": 0,
             }
             self._persist_runtime()
             return {
@@ -637,13 +810,22 @@ class TradeEngine:
 
         pending = self.pending_orders.get(code)
         if pending:
-            return {
-                "code": code,
-                "name": self.positions.get(code).name if code in self.positions else name,
-                "status": f"{pending.get('side')}_PENDING",
-                "price": current,
-                "signal": f"주문 확인 중 · {pending.get('ord_no', '')}",
-            }
+            managed = self._manage_nxt_limit_pending(code, name, current)
+            if managed is not None:
+                return managed
+            pending = self.pending_orders.get(code)
+            if pending:
+                return {
+                    "code": code,
+                    "name": self.positions.get(code).name if code in self.positions else name,
+                    "status": f"{pending.get('side')}_PENDING",
+                    "price": current,
+                    "signal": (
+                        f"NXT 지정가 주문 확인 중 · {pending.get('limit_price', 0):,.0f}원 · {pending.get('ord_no', '')}"
+                        if str(pending.get("exchange", "")).upper() == "NXT"
+                        else f"주문 확인 중 · {pending.get('ord_no', '')}"
+                    ),
+                }
 
         # NXT 프리마켓 종료(08:50)와 KRX 정규장 시작(09:00) 사이에는
         # 신규 주문/자동청산을 보내지 않는다. 보유종목은 09:00부터 즉시 다시 관리한다.
