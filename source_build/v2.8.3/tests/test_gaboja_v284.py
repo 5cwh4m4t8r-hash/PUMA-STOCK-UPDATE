@@ -42,7 +42,7 @@ def _minute(body_break=True):
         _d("20260923090000", 106, 107, 105.8, 106.5, 600),
         _d("20260923090500", 106.5, 109, 106.4, 108.8, 700),
         _d("20260923091000", 108.8, 113, 108.7, 112.5, 1400),  # 영1
-        _d("20260923091500", 112.0, 112.3, 110.0, 111.6, 500), # 차
+        _d("20260923091500", 111.0, 111.2, 108.0, 109.0, 500), # 50%선 아래 깊은 차
     ]
     if body_break:
         rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 800))
@@ -69,6 +69,24 @@ def test_tail_only_break_is_rejected():
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,20))
     assert sig.passed is False
 
+
+
+
+def test_shallow_pullback_above_midpoint_is_not_cha():
+    rows = _minute(False)
+    rows[-1] = _d("20260923091500", 112.0, 112.2, 110.0, 111.0, 400)
+    sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15))
+    assert sig.passed is False
+    assert "50%선" in sig.reason
+
+
+def test_deep_cha_uses_basis_open_as_stop_reference():
+    sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15))
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.details["early_cha"] is True
+    assert sig.details["cha_ceiling"] == 109.5
+    assert sig.current_price == 109.0
 
 def test_pullback_cannot_touch_basis_open():
     rows = _minute(False)
