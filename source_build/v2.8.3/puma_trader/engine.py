@@ -432,6 +432,33 @@ class TradeEngine:
             "managed_positions": len(self.positions),
         }
 
+    def _session_order_exchange(self) -> str:
+        """Return an automatic venue override for the currently open session.
+
+        08:00~08:50 is NXT-only for PUMA live auto trading. From 09:00 onward
+        the user's configured KRX/NXT/SOR order venue is used again.
+        """
+        hm = datetime.now().strftime("%H:%M")
+        start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
+        nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
+        if start <= hm < nxt_end:
+            return "NXT"
+        return ""
+
+    def _buy_market_order(self, code: str, qty: int):
+        exchange = self._session_order_exchange()
+        routed = getattr(self.broker, "buy_market_on", None)
+        if exchange and callable(routed):
+            return routed(code, qty, exchange)
+        return self.broker.buy_market(code, qty)
+
+    def _sell_market_order(self, code: str, qty: int):
+        exchange = self._session_order_exchange()
+        routed = getattr(self.broker, "sell_market_on", None)
+        if exchange and callable(routed):
+            return routed(code, qty, exchange)
+        return self.broker.sell_market(code, qty)
+
     def _submit_buy(self, code: str, name: str, current: float, reason: str, *, stop_price: float = 0.0, entry_kind: str = "", require_enabled: bool = False):
         if require_enabled and not self.enabled:
             return {"code": code, "name": name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 신규주문 차단"}
@@ -442,7 +469,7 @@ class TradeEngine:
                 "code": code, "name": name, "status": "WAIT", "price": current,
                 "signal": f"현재 복리 시드 {budget:,.0f}원보다 주가가 높아 자동매수 불가",
             }
-        resp = self.broker.buy_market(code, qty)
+        resp = self._buy_market_order(code, qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
             # 앱이 재시작되어도 체결된 종목을 PUMA 포지션으로 복구할 수 있도록 주문수량을 먼저 기록.
@@ -479,7 +506,7 @@ class TradeEngine:
     def _submit_sell(self, code: str, pos: Position, current: float, reason: str, *, require_enabled: bool = False):
         if require_enabled and not self.enabled:
             return {"code": code, "name": pos.name, "status": "STOPPED", "price": current, "signal": "자동매매 중지 · 자동주문 차단"}
-        resp = self.broker.sell_market(code, pos.qty)
+        resp = self._sell_market_order(code, pos.qty)
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
             self.pending_orders[code] = {
@@ -516,7 +543,7 @@ class TradeEngine:
             return self._submit_sell(code, pos, current, reason + " · 1주라 전량", require_enabled=require_enabled)
 
         remaining = int(pos.qty) - sell_qty
-        resp = self.broker.sell_market(code, sell_qty)
+        resp = self._sell_market_order(code, sell_qty)
         self.daily_order_count += 1
 
         if self.broker.__class__.__name__ != "SimBroker":
@@ -566,12 +593,34 @@ class TradeEngine:
             "price": current, "signal": reason, "order": resp,
         }
 
-    def process(self, code, name, require_buy_filter: bool = True, allow_buy: bool = True):
+    def process(
+        self,
+        code,
+        name,
+        require_buy_filter: bool = True,
+        allow_buy: bool = True,
+        market_context: str = "",
+    ):
         self._roll_daily_counter()
         if self.broker.__class__.__name__ != "SimBroker":
             self.sync_account(force=False)
 
-        candles = self.broker.get_minute_candles(code, self.settings.timeframe_min)
+        hm_now = datetime.now().strftime("%H:%M")
+        nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
+        chart_exchange = ""
+        exchange_getter = getattr(self.broker, "get_minute_candles_for_exchange", None)
+        if callable(exchange_getter) and self.broker.__class__.__name__ != "SimBroker":
+            if str(getattr(self.settings, "trade_start", "08:00") or "08:00") <= hm_now < nxt_end:
+                # NXT premarket bars require the documented _NX chart code.
+                chart_exchange = "NXT"
+            elif str(market_context or "").upper() == "NXT" and hm_now >= "09:00":
+                # Keep the 08:00 NXT hill connected to the regular session with SOR/integrated bars.
+                chart_exchange = "SOR"
+
+        if chart_exchange:
+            candles = exchange_getter(code, self.settings.timeframe_min, chart_exchange)
+        else:
+            candles = self.broker.get_minute_candles(code, self.settings.timeframe_min)
         if not candles:
             return {"code": code, "name": name, "status": "NO DATA", "price": 0, "signal": "데이터 없음"}
 
@@ -594,6 +643,17 @@ class TradeEngine:
                 "status": f"{pending.get('side')}_PENDING",
                 "price": current,
                 "signal": f"주문 확인 중 · {pending.get('ord_no', '')}",
+            }
+
+        # NXT 프리마켓 종료(08:50)와 KRX 정규장 시작(09:00) 사이에는
+        # 신규 주문/자동청산을 보내지 않는다. 보유종목은 09:00부터 즉시 다시 관리한다.
+        if nxt_end <= hm_now < "09:00":
+            return {
+                "code": code,
+                "name": self.positions.get(code).name if code in self.positions else name,
+                "status": "HOLD" if code in self.positions else "WAIT",
+                "price": current,
+                "signal": f"NXT {nxt_end} 종료 · KRX 09:00 재개 대기",
             }
 
         if code in self.positions:
@@ -685,7 +745,7 @@ class TradeEngine:
             candles,
             daily_rows,
             scan_start=self.settings.scan_start,
-            trade_start=str(getattr(self.settings, "trade_start", "09:00") or "09:00"),
+            trade_start=str(getattr(self.settings, "trade_start", "08:00") or "08:00"),
             scan_end=self.settings.scan_end,
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
