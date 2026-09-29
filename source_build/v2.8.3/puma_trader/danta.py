@@ -35,8 +35,13 @@ def _hm(raw) -> str:
     return ""
 
 
-def market_open_volume_ratio(candles_raw: List[dict], lookback_days: int = 5) -> dict:
-    """09:00 이후 현재까지 누적 거래량을 최근 N일 같은 장초 구간과 비교."""
+def market_open_volume_ratio(
+    candles_raw: List[dict],
+    lookback_days: int = 5,
+    *,
+    session_start: str = "09:00",
+) -> dict:
+    """session_start 이후 현재까지 누적 거래량을 최근 N일 같은 장초 구간과 비교."""
     candles = normalize_candles(candles_raw or [])
     if not candles:
         return {
@@ -48,7 +53,7 @@ def market_open_volume_ratio(candles_raw: List[dict], lookback_days: int = 5) ->
     today = [
         c for c in candles
         if _date_key(c.get("date")) == latest_day
-        and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")
+        and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= session_start)
     ]
     if not today:
         return {
@@ -73,7 +78,7 @@ def market_open_volume_ratio(candles_raw: List[dict], lookback_days: int = 5) ->
         session = [
             c for c in candles
             if _date_key(c.get("date")) == day
-            and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= "09:00")
+            and (_hm(c.get("date")) == "" or _hm(c.get("date")) >= session_start)
         ]
         if not session:
             continue
@@ -194,8 +199,8 @@ def analyze_danta(
     daily = normalize_candles(daily_rows or [])
 
     # 장초 힘은 '현재까지 누적 vs 과거 하루 전체'가 아니라
-    # 09:00부터 현재까지 동일한 경과 5분봉 수의 최근 5일 평균과 비교한다.
-    morning = market_open_volume_ratio(candles, 5)
+    # 실제 검색 시작시각부터 현재까지 동일한 경과 5분봉 수의 최근 5일 평균과 비교한다.
+    morning = market_open_volume_ratio(candles, 5, session_start=scan_start)
     day_volume_ratio = float(morning.get("ratio", 0.0) or 0.0)
     session_open = float(morning.get("open_price", 0.0) or 0.0)
     price_from_open_pct = float(morning.get("price_from_open_pct", 0.0) or 0.0)
@@ -288,7 +293,7 @@ def analyze_danta(
         "EMA 5·20·60": "정배열 확인" if ema_stack else "정배열 미확인",
         "현재 5분봉 거래량": f"최근20봉 평균의 {volume_ratio_5m:.2f}배",
         "장초반 누적 거래량": (
-            f"09:00~현재 / 최근{int(morning.get('days', 0))}일 같은구간 평균 "
+            f"{scan_start}~현재 / 최근{int(morning.get('days', 0))}일 같은구간 평균 "
             f"{day_volume_ratio:.2f}배 · {'힘 강함(300%+)' if morning_volume_burst else '300% 미달'}"
             if morning.get("reference_volume", 0) else "같은 시간대 비교 데이터 부족"
         ),
