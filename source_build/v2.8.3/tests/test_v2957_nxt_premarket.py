@@ -3,6 +3,7 @@ from datetime import datetime
 from puma_trader.broker import KiwoomRestBroker
 from puma_trader.gaboja import _premarket_snapshot, evaluate_gaboja
 from puma_trader.models import StrategySettings
+from puma_trader.engine import TradeEngine
 
 
 def _row(ts, op, hi, lo, cl, vol=1000):
@@ -103,6 +104,94 @@ def test_nxt_chart_suffix_and_sor_integrated_suffix():
 
     assert seen[0][0] == "338220_NX"
     assert seen[1][0] == "338220_AL"
+
+
+def test_nxt_best_quote_uses_ka10004_and_nx_suffix():
+    broker = KiwoomRestBroker("key", "secret", real=True)
+    seen = []
+
+    def fake_post(path, api_id, body):
+        seen.append((path, api_id, dict(body)))
+        return {
+            "sel_fpr_bid": "-10310",
+            "sel_fpr_req": "120",
+            "buy_fpr_bid": "+10290",
+            "buy_fpr_req": "150",
+            "bid_req_base_tm": "081530",
+        }
+
+    broker._post = fake_post
+    quote = broker.get_best_quote("338220", "NXT")
+
+    assert seen == [("/api/dostk/mrkcond", "ka10004", {"stk_cd": "338220_NX"})]
+    assert quote["best_ask"] == 10310
+    assert quote["best_bid"] == 10290
+    assert quote["best_ask_qty"] == 120
+    assert quote["best_bid_qty"] == 150
+
+
+def test_nxt_limit_order_and_cancel_restore_exchange():
+    broker = KiwoomRestBroker("key", "secret", real=True, order_exchange="KRX")
+    seen = []
+
+    def fake_post(path, api_id, body):
+        seen.append((path, api_id, dict(body), broker.order_exchange))
+        return {"ord_no": "0000123", "return_code": 0}
+
+    broker._post = fake_post
+    broker.buy_limit_on("338220", 10, 10310, "NXT")
+    assert seen[0][1] == "kt10000"
+    assert seen[0][2]["dmst_stex_tp"] == "NXT"
+    assert seen[0][2]["trde_tp"] == "0"
+    assert seen[0][2]["ord_uv"] == "10310"
+    assert broker.order_exchange == "KRX"
+
+    broker.cancel_order_on("338220", "0000123", "NXT", 0)
+    assert seen[1][1] == "kt10003"
+    assert seen[1][2]["dmst_stex_tp"] == "NXT"
+    assert seen[1][2]["orig_ord_no"] == "0000123"
+    assert seen[1][2]["cncl_qty"] == "0"
+
+
+class _NxtLimitBroker:
+    is_live = True
+
+    def __init__(self):
+        self.orders = []
+
+    def get_best_quote(self, code, exchange):
+        return {"best_ask": 10310, "best_bid": 10290}
+
+    def buy_limit_on(self, code, qty, price, exchange):
+        self.orders.append(("BUY_LIMIT", code, qty, price, exchange))
+        return {"ord_no": "B1"}
+
+    def sell_limit_on(self, code, qty, price, exchange):
+        self.orders.append(("SELL_LIMIT", code, qty, price, exchange))
+        return {"ord_no": "S1"}
+
+    def buy_market(self, code, qty):
+        raise AssertionError("NXT premarket must not send market BUY")
+
+    def sell_market(self, code, qty):
+        raise AssertionError("NXT premarket must not send market SELL")
+
+
+def test_engine_nxt_session_uses_best_ask_bid_limits_not_market_orders():
+    broker = _NxtLimitBroker()
+    engine = TradeEngine(broker, StrategySettings())
+    engine._session_order_exchange = lambda: "NXT"
+
+    buy = engine._buy_session_order("338220", 10)
+    sell = engine._sell_session_order("338220", 7)
+
+    assert broker.orders == [
+        ("BUY_LIMIT", "338220", 10, 10310, "NXT"),
+        ("SELL_LIMIT", "338220", 7, 10290, "NXT"),
+    ]
+    assert buy["_puma_order_type"] == "limit"
+    assert buy["_puma_limit_price"] == 10310
+    assert sell["_puma_limit_price"] == 10290
 
 
 def test_nxt_market_order_override_restores_configured_exchange():
