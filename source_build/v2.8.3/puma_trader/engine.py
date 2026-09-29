@@ -750,6 +750,8 @@ class TradeEngine:
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
             cha_max_ratio=float(getattr(self.settings, "gabojago_cha_max_ratio", 0.50) or 0.50),
+            cha_volume_pace_ratio=float(getattr(self.settings, "gabojago_cha_volume_pace_ratio", 1.00) or 1.00),
+            cha_min_live_seconds=int(getattr(self.settings, "gabojago_cha_min_live_seconds", 20) or 20),
         )
 
         if self.daily_loss_locked:
