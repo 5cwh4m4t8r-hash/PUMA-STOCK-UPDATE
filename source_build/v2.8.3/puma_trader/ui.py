@@ -669,13 +669,17 @@ class AutoScanThread(QThread):
     resultReady = Signal(object)
     failed = Signal(object)
 
-    def __init__(self, engine, code: str, name: str, require_buy_filter: bool, parent=None, *, allow_buy: bool = True):
+    def __init__(
+        self, engine, code: str, name: str, require_buy_filter: bool, parent=None, *,
+        allow_buy: bool = True, market_context: str = "",
+    ):
         super().__init__(parent)
         self.engine = engine
         self.code = str(code)
         self.name = str(name)
         self.require_buy_filter = bool(require_buy_filter)
         self.allow_buy = bool(allow_buy)
+        self.market_context = str(market_context or "")
 
     def run(self):
         try:
@@ -684,6 +688,7 @@ class AutoScanThread(QThread):
                 self.name,
                 require_buy_filter=self.require_buy_filter,
                 allow_buy=self.allow_buy,
+                market_context=self.market_context,
             )
             self.resultReady.emit(result)
         except Exception as exc:
@@ -2211,7 +2216,7 @@ class MainWindow(QMainWindow):
             if manual_count:
                 parts.append("수동조건")
         if code in getattr(self, "nxt_premarket_candidates", {}):
-            parts.append("NXT선행")
+            parts.append("NXT실전")
         if code in self.engine.positions:
             parts.append("보유")
         if code in self.engine.pending_orders:
@@ -5070,8 +5075,8 @@ class MainWindow(QMainWindow):
 
         hm = datetime.now().strftime("%H:%M")
         scan_start = str(getattr(self.settings, "scan_start", "08:00") or "08:00")
-        trade_start = str(getattr(self.settings, "trade_start", "09:00") or "09:00")
-        if not (scan_start <= hm < trade_start):
+        nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
+        if not (scan_start <= hm < nxt_end):
             return
 
         worker = self.nxt_premarket_thread
@@ -5113,11 +5118,11 @@ class MainWindow(QMainWindow):
         self.nxt_premarket_candidates = current
         for code, item in current.items():
             name = str(item.get("name") or self.name_cache.get(code) or code)
-            row = self._ensure_market_row(code, name, "NXT선행")
+            row = self._ensure_market_row(code, name, "NXT실전")
             price = float(item.get("price", 0) or 0)
             if price > 0:
                 self.market_table.item(row, 3).setText(f"{price:,.0f}")
-            self.market_table.item(row, 4).setText("NXT선행")
+            self.market_table.item(row, 4).setText("NXT실전")
             self.market_table.item(row, 5).setText(
                 f"08시 후보 · 등락 {float(item.get('change_pct', 0) or 0):+.2f}% · "
                 f"상승순위 {int(item.get('rise_rank', 9999)) if int(item.get('rise_rank', 9999)) < 9999 else '-'} · "
@@ -5125,7 +5130,7 @@ class MainWindow(QMainWindow):
             )
 
         if set(current) != previous:
-            self.log("NXT", "PRE", "-", f"08:00 선행후보 갱신 · {len(current)}종목 · 09:00 전 주문 없음")
+            self.log("NXT", "PRE", "-", f"08:00 NXT 후보 갱신 · {len(current)}종목 · 가보자 실시간 진입 허용")
         if self.engine.enabled:
             QTimer.singleShot(0, self.scan_one)
 
@@ -5164,50 +5169,65 @@ class MainWindow(QMainWindow):
                     merged.setdefault(c, {"code": c, "name": self.name_cache.get(c, c), "hero": False, "puma_score": 10_000})
                 return list(merged.values())
 
-            # 09:00 이후 비교 풀 = 기존 KRX 7개 검색기 합집합 + 08시 NXT 선행후보.
-            # NXT였다는 이유만으로 가산점을 주지 않고, 실제 PUMA 재평가 점수를 최우선한다.
-            for code, item in self.condition_candidates.items():
-                if code in self.session_excluded_codes:
-                    continue
-                if self._candidate_in_danta_feed(item):
-                    scores = dict(item.get("scores") or {})
-                    merged[code] = {
-                        "code": code,
-                        "name": item.get("name", code),
-                        "hero": True,
-                        # puma_score is kept as the legacy background-score alias for
-                        # UI/tests; live_puma_score below is the current-market recheck.
-                        "puma_score": int(scores.get("danta", 0) or 0),
-                        "danta_score": int(scores.get("danta", 0) or 0),
-                        "live_puma_score": item.get("live_puma_score"),
-                        "source_count": int(item.get("source_count", 0) or 0),
-                        "nxt_premarket": False,
-                        "premarket_change_pct": 0.0,
-                        "nxt_rank": 9999,
-                    }
+            # 세션별 신규 후보 풀:
+            # 08:00~08:50 = NXT 후보만 실시간 매매
+            # 08:50~09:00 = 신규주문 공백
+            # 09:00 이후 = KRX 조건검색 후보 + 08시 NXT 후보 통합비교
+            hm = datetime.now().strftime("%H:%M")
+            scan_start = str(getattr(self.settings, "scan_start", "08:00") or "08:00")
+            nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
+            regular_start = "09:00"
+            if nxt_end <= hm < regular_start:
+                return []
 
-            for code, item in self.nxt_premarket_candidates.items():
-                if code in self.session_excluded_codes:
-                    continue
-                target = merged.setdefault(code, {
-                    "code": code,
-                    "name": item.get("name", self.name_cache.get(code, code)),
-                    "hero": True,
-                    "danta_score": 0,
-                    "live_puma_score": item.get("live_puma_score"),
-                    "source_count": 0,
-                    "nxt_premarket": True,
-                    "premarket_change_pct": float(item.get("change_pct", 0) or 0),
-                    "nxt_rank": min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999))),
-                })
-                target["nxt_premarket"] = True
-                target["premarket_change_pct"] = float(item.get("change_pct", 0) or 0)
-                target["nxt_rank"] = min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999)))
-                if target.get("live_puma_score") is None:
-                    target["live_puma_score"] = item.get("live_puma_score")
+            include_nxt = (scan_start <= hm < nxt_end) or hm >= regular_start
+            include_krx = hm >= regular_start
+
+            # NXT였다는 이유만으로 가산점을 주지 않고 실제 PUMA 재평가 점수를 우선한다.
+            if include_krx:
+                for code, item in self.condition_candidates.items():
+                    if code in self.session_excluded_codes:
+                        continue
+                    if self._candidate_in_danta_feed(item):
+                        scores = dict(item.get("scores") or {})
+                        merged[code] = {
+                            "code": code,
+                            "name": item.get("name", code),
+                            "hero": True,
+                            # puma_score is kept as the legacy background-score alias for
+                            # UI/tests; live_puma_score below is the current-market recheck.
+                            "puma_score": int(scores.get("danta", 0) or 0),
+                            "danta_score": int(scores.get("danta", 0) or 0),
+                            "live_puma_score": item.get("live_puma_score"),
+                            "source_count": int(item.get("source_count", 0) or 0),
+                            "nxt_premarket": False,
+                            "premarket_change_pct": 0.0,
+                            "nxt_rank": 9999,
+                        }
+
+            if include_nxt:
+                for code, item in self.nxt_premarket_candidates.items():
+                    if code in self.session_excluded_codes:
+                        continue
+                    target = merged.setdefault(code, {
+                        "code": code,
+                        "name": item.get("name", self.name_cache.get(code, code)),
+                        "hero": True,
+                        "danta_score": 0,
+                        "live_puma_score": item.get("live_puma_score"),
+                        "source_count": 0,
+                        "nxt_premarket": True,
+                        "premarket_change_pct": float(item.get("change_pct", 0) or 0),
+                        "nxt_rank": min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999))),
+                    })
+                    target["nxt_premarket"] = True
+                    target["premarket_change_pct"] = float(item.get("change_pct", 0) or 0)
+                    target["nxt_rank"] = min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999)))
+                    if target.get("live_puma_score") is None:
+                        target["live_puma_score"] = item.get("live_puma_score")
 
             # 아직 현재장 PUMA 점수를 못 받은 후보는 먼저 1회 probe한다.
-            # 모두 같은 09:00 이후 기준으로 점수가 생긴 뒤에는 live PUMA → 단타점수 →
+            # 모두 같은 현재 세션 기준으로 점수가 생긴 뒤에는 live PUMA → 단타점수 →
             # NXT 선행강도 순으로 비교한다.
             return sorted(
                 merged.values(),
@@ -5310,7 +5330,7 @@ class MainWindow(QMainWindow):
         )
         self.log(
             "SYSTEM", "AUTO", "0",
-            f"08:00 NXT 선행검색 → 09:00 KRX+NXT 통합비교 → 가보자 최우선 1종목 자동매매 시작 · KRX 후보 {candidate_count}종목"
+            f"08:00 NXT 실시간 검색·매매 → 08:50 주문 공백 → 09:00 KRX+NXT 통합비교 → 가보자 최우선 1종목 · KRX 후보 {candidate_count}종목"
         )
         self.scan_one()
 
@@ -5327,11 +5347,9 @@ class MainWindow(QMainWindow):
             self.log("SYSTEM", "STOP", "0", "자동매매 중지")
 
     def scan_one(self):
-        # 08:00~09:00는 NXT 선행 후보만 모은다. 주문 엔진은 09:00 전에는 호출하지 않는다.
+        # 08:00~08:50에는 NXT 후보를 갱신하면서 같은 가보자 기준으로 실제 매매한다.
+        # 08:50~09:00 신규주문 공백은 _active_targets()/engine이 함께 막는다.
         self._maybe_scan_nxt_premarket()
-        trade_start = str(getattr(self.settings, "trade_start", "09:00") or "09:00")
-        if self.focus_auto_danta_pool and datetime.now().strftime("%H:%M") < trade_start:
-            return
 
         # REST 조회/주문은 GUI event loop에서 절대 직접 실행하지 않는다.
         # 1.8초 타이머가 다시 울려도 이전 scan이 끝나지 않았다면 겹쳐 실행하지 않는다.
@@ -5344,7 +5362,7 @@ class MainWindow(QMainWindow):
             return
 
         # 새 후보는 먼저 score-only probe를 한 번 거쳐 같은 시각대의 PUMA 점수를 만든다.
-        # 첫 조회에서 바로 주문하지 않아 NXT 선행후보와 09시 KRX 후보를 비교할 기회를 보장한다.
+        # 첫 조회에서 바로 주문하지 않아 NXT 선행후보와 현재 세션 후보를 비교할 기회를 보장한다.
         unscored = [x for x in targets if x.get("live_puma_score") is None]
         probe_only = bool(unscored)
         if probe_only:
@@ -5359,9 +5377,11 @@ class MainWindow(QMainWindow):
         # 후보 공급원이 NXT든 KRX든 실제 진입은 같은 PUMA 2차 선별 + 가보자 조건을 통과해야 한다.
         require_filter = True
 
+        market_context = "NXT" if bool(item.get("nxt_premarket")) else ""
         worker = AutoScanThread(
             self.engine, code, name, require_filter, self,
             allow_buy=not probe_only,
+            market_context=market_context,
         )
         self.auto_scan_thread = worker
         worker.resultReady.connect(self._on_auto_scan_result)
