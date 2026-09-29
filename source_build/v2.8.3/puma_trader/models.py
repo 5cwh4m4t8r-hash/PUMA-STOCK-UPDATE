@@ -10,6 +10,11 @@ class StrategySettings:
     scan_start: str = "08:00"
     trade_start: str = "08:00"
     nxt_premarket_end: str = "08:50"
+    # NXT 08:00~08:50은 시장가 대신 최우선 상대호가 지정가를 사용한다.
+    nxt_limit_reprice_sec: float = 2.0
+    nxt_limit_max_reprices: int = 3
+    # 매수 호가가 최초 지정가보다 이 이상 상승하면 추격을 중단하고 주문을 취소한다.
+    nxt_limit_buy_chase_pct: float = 0.50
     scan_end: str = "10:00"
     min_change_pct: float = 0.5
     max_change_pct: float = 12.0
