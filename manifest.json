@@ -1,6 +1,6 @@
 ﻿{
     "version":  "2.9.59",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.59_UPDATE.zip",
-    "notes":  "v2.9.59: live Gaboja trading now starts at 08:00 on NXT. PUMA scans NXT strength and can place NXT orders from 08:00 to 08:50, pauses new orders during the 08:50-09:00 venue gap, then resumes at 09:00 with KRX plus saved NXT candidates. NXT-specific _NX minute charts and SOR _AL continuity are used, and Young can be a rising multi-bar hill as well as a single impulse candle. One-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
-    "sha256":  "29f6011ad8565c153c34617fc2ebc67ee0bb7327e5cbfa2a0616ae274c9ebf89"
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.60_UPDATE.zip",
+    "notes":  "v2.9.60: first-Cha live entry added. After a valid Young rise, PUMA treats only the deep zone above the basis open and at or below 50% of the Young rise as the first Cha. The current in-progress 5-minute bar can trigger entry immediately without waiting for a future confirmation bar; shallow pullbacks above the midpoint are rejected. Early-Cha stop is the basis open. 08:00 NXT live trading, one-stock compound seed, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
+    "sha256":  "759b091a1bfd7900c300bcf4054ea09676f9c6370883e074871bafd5c0f4a978"
 }
