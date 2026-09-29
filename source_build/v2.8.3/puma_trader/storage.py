@@ -45,6 +45,16 @@ def load_strategy() -> StrategySettings:
             settings.force_exit_time = "15:00"
             changed = True
 
+        # v2.9.62: first-Cha entry is now a 65% retracement from Young high.
+        # The stored field is the remaining fraction above B, so old default 0.50 -> 0.35.
+        try:
+            if abs(float(raw.get("gabojago_cha_max_ratio", 0.50)) - 0.50) < 1e-9:
+                settings.gabojago_cha_max_ratio = 0.35
+                changed = True
+        except Exception:
+            settings.gabojago_cha_max_ratio = 0.35
+            changed = True
+
         if changed:
             save_strategy(settings)
         return settings
