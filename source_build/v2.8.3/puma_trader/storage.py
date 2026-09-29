@@ -152,6 +152,12 @@ def load_runtime() -> dict:
                 "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
                 "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
                 "seed_budget": float(item.get("seed_budget", 0) or 0),
+                "target_qty": max(0, int(item.get("target_qty", item.get("qty", 0)) or 0)),
+                "exchange": str(item.get("exchange", "")),
+                "order_type": str(item.get("order_type", "")),
+                "limit_price": max(0, int(item.get("limit_price", 0) or 0)),
+                "first_limit_price": max(0, int(item.get("first_limit_price", item.get("limit_price", 0)) or 0)),
+                "reprice_count": max(0, int(item.get("reprice_count", 0) or 0)),
             }
         return {
             "daily_order_date": str(raw.get("daily_order_date", "")),
@@ -208,6 +214,12 @@ def save_runtime(data: dict):
             "remainder_down_wait_bar_after": str(item.get("remainder_down_wait_bar_after", "")),
             "seed_pnl_delta": float(item.get("seed_pnl_delta", 0) or 0),
             "seed_budget": float(item.get("seed_budget", 0) or 0),
+            "target_qty": max(0, int(item.get("target_qty", item.get("qty", 0)) or 0)),
+            "exchange": str(item.get("exchange", "")),
+            "order_type": str(item.get("order_type", "")),
+            "limit_price": max(0, int(item.get("limit_price", 0) or 0)),
+            "first_limit_price": max(0, int(item.get("first_limit_price", item.get("limit_price", 0)) or 0)),
+            "reprice_count": max(0, int(item.get("reprice_count", 0) or 0)),
         }
     safe = {
         "daily_order_date": str(data.get("daily_order_date", "")),
