@@ -34,6 +34,34 @@ def _hm(raw) -> str:
     return ""
 
 
+def _bar_elapsed_seconds(raw, now: datetime, timeframe_min: int = 5) -> float:
+    """Elapsed seconds inside the live candle bucket.
+
+    Historical/completed bars return a full timeframe. The active bar uses only
+    elapsed wall-clock time so raw cumulative volume is never compared directly
+    with a completed Young bar.
+    """
+    full = float(max(1, int(timeframe_min or 5)) * 60)
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if len(digits) < 12:
+        return full
+    try:
+        stamp = datetime.strptime(digits[:12], "%Y%m%d%H%M")
+    except Exception:
+        return full
+    if stamp.date() != now.date():
+        return full
+    delta = (now - stamp).total_seconds()
+    if delta < 0 or delta >= full:
+        return full
+    return max(0.0, float(delta))
+
+
+def _volume_pace(volume: float, elapsed_seconds: float) -> float:
+    sec = max(1.0, float(elapsed_seconds or 0.0))
+    return max(0.0, float(volume or 0.0)) / sec
+
+
 def _premarket_snapshot(
     candles_raw: List[dict],
     day: str,
@@ -254,6 +282,8 @@ def evaluate_gaboja(
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
     cha_max_ratio: float = 0.50,
+    cha_volume_pace_ratio: float = 1.00,
+    cha_min_live_seconds: int = 20,
 ) -> GabojaSignal:
     """가보자 단타 자동진입.
 
@@ -263,8 +293,10 @@ def evaluate_gaboja(
        영 구간으로 인정한다.
     3) 1차 차는 미래봉을 기다려 확정하지 않는다. B=기준봉 시가, H=영 고점, R=H-B일 때
        B < 현재가 <= B + R*cha_max_ratio(기본 0.50)인 깊은 눌림 영역에 현재 5분봉이 들어오면
-       그 봉 자체를 실시간 차 후보로 보고 조기진입한다. B 이탈은 차 실패다.
-    4) 조기 차 진입의 최초 손절은 B(기준봉 시가). 전고 몸통 재돌파 진입은 직전 차 저점 손절.
+       그 봉 자체를 실시간 차 후보로 본다. 동시에 현재봉의 '초당 거래량'이 완료된 영 구간 평균
+       초당 거래량보다 둔화됐는지 확인한다. 미래봉은 사용하지 않는다.
+    4) 진행봉은 기본 20초 이상 관찰한 뒤 차로 조기진입하며 B 이탈은 차 실패다.
+       조기 차 진입의 최초 손절은 B(기준봉 시가). 전고 몸통 재돌파 진입은 직전 차 저점 손절.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -363,6 +395,9 @@ def evaluate_gaboja(
     # 즉 고점 근처의 얕은 눌림은 차로 보지 않고, 영 상승폭의 절반 아래까지 깊게 눌린
     # 현재 봉만 1차 차 후보로 본다. 현재 봉을 그대로 사용하므로 미래 봉 확인이 필요 없다.
     cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.50)))
+    cha_pace_ratio = min(2.0, max(0.10, float(cha_volume_pace_ratio or 1.00)))
+    cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
+    latest_index = len(session) - 1
 
     # 영은 '장대양봉 한 봉'으로 고정하지 않는다.
     #  - single: 기존처럼 한 봉이 전고를 힘있게 돌파한 경우
@@ -414,10 +449,14 @@ def evaluate_gaboja(
             young_start = i
             young_high = float(bar["high"])
             young_volume = float(bar["volume"])
+            young_volume_total = float(bar["volume"])
+            young_bar_count = 1
             young_kind = "single"
         elif hill_shape:
             young_high = hill_high
             young_volume = max(float(x["volume"]) for x in hill)
+            young_volume_total = sum(float(x["volume"]) for x in hill)
+            young_bar_count = max(1, len(hill))
             young_kind = "hill"
         else:
             continue
@@ -426,6 +465,12 @@ def evaluate_gaboja(
         if rise <= 0:
             continue
         cha_ceiling = basis_open + rise * cha_ratio
+
+        # 완료된 영 구간의 평균 '초당 거래량'을 기준으로 삼는다.
+        young_pace = _volume_pace(
+            young_volume_total,
+            float(young_bar_count * 5 * 60),
+        )
 
         # 영 이후 첫 '깊은 차'를 찾는다. 고정 봉 개수 제한을 두지 않는다.
         # 기준봉 시가를 한 번이라도 깨면 그 영에 대한 차 시나리오는 실패로 종료한다.
@@ -437,14 +482,26 @@ def evaluate_gaboja(
                 break
 
             # 현재 가격(close)은 진행 중인 5분봉에서는 실시간 현재가다.
-            # 50%선 위의 얕은 눌림은 차가 아니며, 영역 안에 실제로 들어온 순간부터 차 후보.
+            # 50%선 위의 얕은 눌림은 차가 아니다.
             deep_zone = basis_open < pb_close <= cha_ceiling
-            lower_volume = float(pb["volume"]) < young_volume
-            if deep_zone and lower_volume:
+
+            is_live_bar = j == latest_index
+            if is_live_bar:
+                elapsed = _bar_elapsed_seconds(pb.get("date"), now, 5)
+                live_ready = elapsed >= float(cha_live_min_sec)
+            else:
+                elapsed = 5.0 * 60.0
+                live_ready = True
+
+            pb_pace = _volume_pace(float(pb["volume"]), elapsed if elapsed > 0 else 1.0)
+            lower_volume_pace = young_pace > 0 and pb_pace <= young_pace * cha_pace_ratio
+
+            if deep_zone and live_ready and lower_volume_pace:
                 depth_pct = ((young_high - pb_close) / rise) * 100.0
                 pairs.append((
                     young_start, i, j, young_high, pb_low,
                     cha_ceiling, young_volume, young_kind, depth_pct,
+                    young_pace, pb_pace, elapsed, lower_volume_pace,
                 ))
                 break
 
@@ -453,9 +510,15 @@ def evaluate_gaboja(
                             current_price=current_price, basis_open=basis_open,
                             day_volume_ratio=day_ratio,
                             details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
-                                     "cha_max_ratio": cha_ratio})
+                                     "cha_max_ratio": cha_ratio,
+                                     "cha_volume_pace_ratio": cha_pace_ratio,
+                                     "cha_min_live_seconds": cha_live_min_sec})
 
-    young_start, i, j, young1_high, pullback_low, cha_ceiling, young_volume, young_kind, cha_depth_pct = pairs[-1]
+    (
+        young_start, i, j, young1_high, pullback_low, cha_ceiling,
+        young_volume, young_kind, cha_depth_pct, young_pace,
+        pullback_pace, pullback_elapsed_sec, lower_volume_pace,
+    ) = pairs[-1]
     latest = len(session) - 1
     pb = session[j]
 
@@ -482,8 +545,10 @@ def evaluate_gaboja(
             reason = f"가보자 {label} 진입 · 직전 차 저점 {pullback_low:,.0f} 이탈 손절"
         else:
             reason = (
-                f"가보자 1차 차 조기진입 · 현재봉 50%선 이하 "
-                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · 기준봉 시가 {basis_open:,.0f} 이탈 손절"
+                f"가보자 1차 차 실시간 조기진입 · 현재봉 50%선 이하 "
+                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
+                f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
+                f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
             )
     elif not time_ok:
         reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
@@ -515,6 +580,12 @@ def evaluate_gaboja(
             "cha_max_ratio": cha_ratio,
             "cha_depth_pct": cha_depth_pct,
             "early_cha": pullback_entry,
+            "cha_volume_pace_ratio": cha_pace_ratio,
+            "cha_min_live_seconds": cha_live_min_sec,
+            "pullback_elapsed_sec": pullback_elapsed_sec,
+            "pullback_volume_pace": pullback_pace,
+            "young_volume_pace": young_pace,
+            "lower_volume_pace": lower_volume_pace,
             "pullback_volume": float(pb["volume"]),
             "young1_volume": young_volume,
             "body_rebreak": body_rebreak,
