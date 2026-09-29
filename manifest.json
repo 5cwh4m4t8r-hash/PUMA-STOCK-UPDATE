@@ -1,6 +1,6 @@
 ﻿{
     "version":  "2.9.58",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.58_UPDATE.zip",
-    "notes":  "v2.9.58: final intraday liquidation moved to 15:00. Remaining Gaboja position is forced to exit from 15:00 instead of 15:20, giving a 30-minute buffer before the 15:30 KRX close. NXT 08:00 lead scan, 09:00 KRX+NXT comparison, one-stock compound seed, -4% daily lock, +4% 25% partial profit and trend tracking remain unchanged.",
-    "sha256":  "bc28daa5860a63e10519560415c200a77a844f79e91021eb94c3109fca307dc1"
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.59_UPDATE.zip",
+    "notes":  "v2.9.59: live Gaboja trading now starts at 08:00 on NXT. PUMA scans NXT strength and can place NXT orders from 08:00 to 08:50, pauses new orders during the 08:50-09:00 venue gap, then resumes at 09:00 with KRX plus saved NXT candidates. NXT-specific _NX minute charts and SOR _AL continuity are used, and Young can be a rising multi-bar hill as well as a single impulse candle. One-stock compound seed, -4% daily lock, +4% 25% partial profit, trend tracking and 15:00 final liquidation remain unchanged.",
+    "sha256":  "2232cbe40bd051e5e620092093019c49608bd7092d6723aa69ef23715339ea73"
 }
