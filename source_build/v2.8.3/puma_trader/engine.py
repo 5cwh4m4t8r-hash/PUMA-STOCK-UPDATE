@@ -749,6 +749,7 @@ class TradeEngine:
             scan_end=self.settings.scan_end,
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
+            cha_max_ratio=float(getattr(self.settings, "gabojago_cha_max_ratio", 0.50) or 0.50),
         )
 
         if self.daily_loss_locked:
@@ -763,9 +764,12 @@ class TradeEngine:
             }
 
         if self.enabled and allow_buy and sig.passed and self.can_open(code) and current > 0:
-            # 가보자 최초 손절선은 진입 방식과 무관하게 확인된 '차 저점'.
-            # 이후 추세가 이어지면 새 차 저점으로 손절선을 단계적으로 올린다.
-            stop_price = float(sig.pullback_low or sig.basis_open or 0)
+            # 1차 차 조기진입은 아직 '최종 차 저점'이 확정되지 않았으므로 B(기준봉 시가)를 즉시 손절선으로 쓴다.
+            # 재돌파 진입은 확인된 직전 차 저점을 쓰고, 이후 새 차가 높아질 때만 손절선을 올린다.
+            if str(sig.entry_kind or "") == "PULLBACK":
+                stop_price = float(sig.basis_open or 0)
+            else:
+                stop_price = float(sig.pullback_low or sig.basis_open or 0)
             return self._submit_buy(
                 code, name, current, sig.reason,
                 stop_price=stop_price,
