@@ -163,7 +163,8 @@ INDEX_HTML = r"""<!doctype html>
         <div class="k">가보자 고정 매매 규칙</div>
         <div class="fixed-rule-line">현재 복리 시드 전액 · 최우선 1종목만 진입</div>
         <div class="fixed-rule-line">08:00 NXT부터 영차 검색·매매 · 08:50~09:00 신규주문 공백</div>
-        <div class="fixed-rule-line">차 저점 이탈 손절 · +4% 도달 시 25%만 익절</div>
+        <div class="fixed-rule-line">1차 차 = 영 상승폭 50%선 아래~기준봉 시가 위 · 현재봉에서 조기진입</div>
+        <div class="fixed-rule-line">조기 차는 기준봉 시가 이탈 손절 · +4% 도달 시 25%만 익절</div>
         <div class="fixed-rule-line">잔량 75% 추세추적 · 새 차 저점마다 손절선 상향 · 15:00 최종청산</div>
       </div>
       <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
