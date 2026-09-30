@@ -563,6 +563,8 @@ def evaluate_gaboja(
         latest > j
         and float(current["close"]) > float(current["open"])
         and float(current["close"]) > pb_body_high
+        # 2영은 꼬리만 전고를 찌르는 봉이 아니라 몸통 종가가 1영 전고 위로 올라와야 한다.
+        and float(current["close"]) > young1_high
         and float(current["close"]) > float(session[latest - 1]["close"])
         and float(current["low"]) > structural_floor
         and recovered_basis
