@@ -42,15 +42,16 @@ def test_0800_session_is_live_and_uses_08xx_bars():
         _row("20260929080000", 100, 102, 99, 101, 1000),
         _row("20260929080500", 101, 106, 100.5, 105.5, 1200),
         _row("20260929081000", 105.5, 113, 105, 112.5, 1800),
-        _row("20260929081500", 110.5, 110.8, 103.8, 104.5, 100),
+        _row("20260929081500", 110.5, 110.8, 103.8, 104.5, 100),  # 차
+        _row("20260929082000", 104.5, 115, 104.2, 114.0, 900),   # 2영
     ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 8, 15, 30),
+        rows, [], now=datetime(2026, 9, 29, 8, 20, 30),
         scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
     assert sig.basis_open == 100
     assert sig.passed is True
-    assert sig.entry_kind == "PULLBACK"
+    assert sig.entry_kind == "YOUNG2"
     assert sig.details["premarket_available"] is True
 
 
@@ -61,14 +62,15 @@ def test_hill_shaped_young_can_trigger_without_single_volume_impulse():
         _row("20260929080000", 100, 102, 99, 101, 1000),
         _row("20260929080500", 101, 106, 100.5, 105, 900),
         _row("20260929081000", 105, 110, 104.5, 109.5, 800),
-        _row("20260929081500", 108.5, 108.8, 102.8, 103.4, 60),
+        _row("20260929081500", 108.5, 108.8, 102.8, 103.4, 60),  # 차
+        _row("20260929082000", 103.4, 112, 103.2, 111.2, 700),  # 2영
     ]
     sig = evaluate_gaboja(
-        rows, [], now=datetime(2026, 9, 29, 8, 15, 30),
+        rows, [], now=datetime(2026, 9, 29, 8, 20, 30),
         scan_start="08:00", trade_start="08:00", apply_secondary_filter=False,
     )
     assert sig.passed is True
-    assert sig.entry_kind == "PULLBACK"
+    assert sig.entry_kind == "YOUNG2"
     assert sig.details["young_kind"] == "hill"
     assert sig.details["young_start_index"] == 0
     assert sig.young1_high == 110
