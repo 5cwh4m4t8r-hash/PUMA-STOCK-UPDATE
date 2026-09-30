@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.63",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.63_UPDATE.zip",
-    "notes":  "v2.9.63: NXT 08:00-08:50 live execution no longer uses market orders. PUMA reads the official ka10004 NXT quote book, submits BUY at the best ask and SELL at the best bid as explicit limit orders, and can cancel/reprice unfilled remainders up to three times at two-second intervals. BUY chasing is capped at 0.50% above the first submitted ask; if exceeded, the remaining BUY is cancelled. Partial fills are synchronized before any re-order so PUMA only resubmits the true remaining quantity. The 65% live-Cha rule and all existing risk/exit rules remain unchanged.",
-    "sha256":  "7449302bc513a42218f08f4fe2bd9a8c51da31ed81611b20bf51f94c0516df8f"
+    "version":  "2.9.64",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.64_UPDATE.zip",
+    "notes":  "v2.9.64 FINAL: Gaboja now recognizes the first 5-minute bar as Young1 even when bearish, keeps the 65% deep-Cha plus volume-slowdown rule, waits through Cha without buying, and enters only when Young2 strength returns. After +4% profit it realizes 50% (changed from 25%) and manages the remaining 50% with rising Cha stops, a new third-wave exit, and the existing 15:00 safety exit. KRX candidates receive a bounded same-theme co-strength bonus using Kiwoom ka90001 theme membership, while the normal PUMA score and one-stock concentration remain primary. v2.9.63 NXT best-quote limit/reprice safeguards remain unchanged.",
+    "sha256":  "14e32a2f4e09eab7332aaf22fcd9a5de7e51b7f6fb16c6b0e04c427a090201bc"
 }
