@@ -65,6 +65,7 @@ from .strategy import evaluate_buy
 from .bowl import BowlSettings, analyze_bowl
 from .danta import analyze_danta, analyze_danta_for_date, available_minute_dates, slice_series_for_date
 from .classification import classify_scores, bucket_scores, source_display_buckets
+from .theme_strength import normalize_theme_rows, apply_theme_strength
 from .watermelon_proxy import build_puma_watermelon
 from .probability import estimate_from_flags, strategy_flags
 from .entry_signal import evaluate_core_entry
@@ -353,7 +354,7 @@ class CandidateClassifier(QThread):
                 broker.session.close()
 
     def _run_analysis(self, broker):
-        payload = {"classification": "분석실패", "detail": "-", "danta": 0, "swing": 0, "bowl": 0, "name": ""}
+        payload = {"classification": "분석실패", "detail": "-", "danta": 0, "swing": 0, "bowl": 0, "name": "", "themes": []}
         info = {}
         try:
             check_cancelled()
@@ -362,6 +363,13 @@ class CandidateClassifier(QThread):
                 payload["name"] = str(info.get("stk_nm") or info.get("name") or "").strip()
             except Exception:
                 pass
+            try:
+                theme_getter = getattr(broker, "get_stock_themes", None)
+                if theme_getter:
+                    payload["themes"] = normalize_theme_rows(theme_getter(self.code, "3"))
+            except Exception:
+                # 테마 API 실패는 단타 판단을 막지 않는다. 테마 가점만 0으로 둔다.
+                payload["themes"] = []
             minute = broker.get_minute_candles(self.code, 5)
             getter = getattr(broker, "get_daily_candles", None)
             daily = getter(self.code, max_pages=2) if getter else []
@@ -391,6 +399,7 @@ class CandidateClassifier(QThread):
             payload = {
                 "prepared": prepared,
                 "name": payload["name"],
+                "themes": list(payload.get("themes") or []),
                 "classification": label,
                 "detail": detail,
                 "danta": danta.score,
@@ -3652,6 +3661,8 @@ class MainWindow(QMainWindow):
             "bowl": int(data.get("bowl", 0) or 0),
         }
         item = self.condition_candidates.get(code, {})
+        if item is not None:
+            item["themes"] = list(data.get("themes") or [])
         if self._candidate_in_danta_feed(item):
             label = "단타"
             detail = (
@@ -5200,6 +5211,7 @@ class MainWindow(QMainWindow):
                             "danta_score": int(scores.get("danta", 0) or 0),
                             "live_puma_score": item.get("live_puma_score"),
                             "source_count": int(item.get("source_count", 0) or 0),
+                            "themes": list(item.get("themes") or []),
                             "nxt_premarket": False,
                             "premarket_change_pct": 0.0,
                             "nxt_rank": 9999,
@@ -5216,6 +5228,7 @@ class MainWindow(QMainWindow):
                         "danta_score": 0,
                         "live_puma_score": item.get("live_puma_score"),
                         "source_count": 0,
+                        "themes": [],
                         "nxt_premarket": True,
                         "premarket_change_pct": float(item.get("change_pct", 0) or 0),
                         "nxt_rank": min(int(item.get("rise_rank", 9999)), int(item.get("volume_rank", 9999))),
@@ -5227,13 +5240,16 @@ class MainWindow(QMainWindow):
                         target["live_puma_score"] = item.get("live_puma_score")
 
             # 아직 현재장 PUMA 점수를 못 받은 후보는 먼저 1회 probe한다.
-            # 모두 같은 현재 세션 기준으로 점수가 생긴 뒤에는 live PUMA → 단타점수 →
-            # NXT 선행강도 순으로 비교한다.
+            # 이후에는 live PUMA가 1순위이고, 같은 테마에서 거래량/강도 기준을 통과한
+            # 후보가 동시에 붙는 경우 테마 동반강세 가점을 tie-break로 반영한다.
+            ranked = apply_theme_strength(merged.values())
             return sorted(
-                merged.values(),
+                ranked,
                 key=lambda x: (
                     0 if x.get("live_puma_score") is None else 1,
                     -int(x.get("live_puma_score") or 0),
+                    -int(x.get("theme_bonus", 0) or 0),
+                    -int(x.get("theme_peer_count", 0) or 0),
                     -int(x.get("danta_score", 0) or 0),
                     -float(x.get("premarket_change_pct", 0) or 0),
                     int(x.get("nxt_rank", 9999) or 9999),
