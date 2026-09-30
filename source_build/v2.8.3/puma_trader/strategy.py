@@ -133,7 +133,7 @@ def evaluate_sell(
         # +4% 최초 도달의 일부익절은 엔진에서 처리한다.
         if not partial_taken:
             if pnl >= partial_target:
-                ratio = float(getattr(settings, "gabojago_partial_sell_ratio", 0.25) or 0.25)
+                ratio = float(getattr(settings, "gabojago_partial_sell_ratio", 0.50) or 0.50)
                 pct = max(1, int(round(ratio * 100)))
                 return False, f"가보자 +{partial_target:.1f}% {pct}% 익절 대기 · 추세추적"
         elif trend_tracking:
