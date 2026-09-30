@@ -97,6 +97,90 @@ def _gaboja_trend_stop_from_rows(
     return best
 
 
+def _gaboja_stage3_exit_from_rows(
+    rows,
+    *,
+    current_bar_key: str,
+    timeframe: int,
+    entry_price: float,
+    opened_at: str = "",
+) -> tuple[bool, float]:
+    """Detect the next completed/live thrust after a post-entry pullback ("3").
+
+    2영 진입 뒤 최소 한 번의 1~3봉 눌림이 있고, 현재 봉이 그 눌림 전 고점을
+    다시 넘으며 몸통을 회복할 때 3파동으로 본다. 미래 봉은 보지 않는다.
+    """
+    candles = normalize_candles(rows or [])
+    if len(candles) < 4:
+        return False, 0.0
+
+    entry_stamp = ""
+    try:
+        dt = datetime.fromisoformat(str(opened_at or ""))
+        entry_stamp = dt.strftime("%Y%m%d%H%M")
+    except Exception:
+        entry_stamp = ""
+
+    if entry_stamp:
+        post = []
+        for row in candles:
+            digits = "".join(ch for ch in str(row.get("date") or "") if ch.isdigit())
+            if len(digits) >= 12 and digits[:12] >= entry_stamp:
+                post.append(row)
+        if len(post) >= 3:
+            candles = post
+        else:
+            candles = candles[-8:]
+    else:
+        candles = candles[-8:]
+
+    if len(candles) < 3:
+        return False, 0.0
+
+    current = candles[-1]
+    current_close = float(current["close"])
+    current_high = float(current["high"])
+    if current_close <= float(entry_price or 0):
+        return False, 0.0
+
+    # 2영 이후 바로 한 봉 더 오르는 것은 아직 3으로 보지 않는다.
+    # 중간에 실제 눌림(음봉 또는 전봉 대비 종가 하락)이 있어야 한다.
+    end = len(candles) - 1
+    for span in (1, 2, 3):
+        pb_start = end - span
+        if pb_start < 1:
+            continue
+        pullback = candles[pb_start:end]
+        before = candles[max(0, pb_start - 4):pb_start]
+        if not before or not pullback:
+            continue
+
+        has_retreat = False
+        prev_close = float(before[-1]["close"])
+        for bar in pullback:
+            if float(bar["close"]) < float(bar["open"]) or float(bar["close"]) < prev_close:
+                has_retreat = True
+            prev_close = float(bar["close"])
+        if not has_retreat:
+            continue
+
+        pre_high = max(float(x["high"]) for x in before)
+        pull_body_high = max(max(float(x["open"]), float(x["close"])) for x in pullback)
+        pull_low = min(float(x["low"]) for x in pullback)
+        if pull_low <= 0:
+            continue
+
+        # 3: 눌림 뒤 재상승이 이전 파동 고점을 다시 갱신.
+        if (
+            current_close > float(current["open"])
+            and current_high > pre_high
+            and current_close > pull_body_high
+        ):
+            return True, current_high
+
+    return False, 0.0
+
+
 class TradeEngine:
     def __init__(self, broker, settings: StrategySettings):
         self.broker = broker
@@ -368,7 +452,7 @@ class TradeEngine:
                 remainder_down_wait_bar=str(meta.get("remainder_down_wait_bar", getattr(old, "remainder_down_wait_bar", "")) or ""),
             )
 
-        # 매도 주문 확인. +4% 1차 익절은 절반만 줄이고, 손절/트레일링/종가청산은 전량 정리한다.
+        # 매도 주문 확인. +4% 1차 익절은 50%를 줄이고, 손절/3파동/종가청산은 잔량 전량 정리한다.
         for code, pending in list(self.pending_orders.items()):
             if pending.get("side") != "SELL":
                 continue
@@ -884,9 +968,9 @@ class TradeEngine:
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
                 return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산", require_enabled=True)
 
-            # 가보자 추세추적: +4% 최초 도달 시 25%만 확보하고 75%는 차 저점 추적.
+            # 가보자 추세추적: +4% 최초 도달 시 50% 확보, 나머지 50%는 차 저점/3파동 추적.
             partial_target = float(getattr(self.settings, "gabojago_partial_profit_pct", self.settings.take_profit_pct) or self.settings.take_profit_pct)
-            partial_ratio = float(getattr(self.settings, "gabojago_partial_sell_ratio", 0.25) or 0.25)
+            partial_ratio = float(getattr(self.settings, "gabojago_partial_sell_ratio", 0.50) or 0.50)
             if self.enabled and not bool(getattr(pos, "partial_taken", False)) and pnl >= partial_target:
                 pct = max(1, int(round(partial_ratio * 100)))
                 return self._submit_partial_sell(
@@ -894,6 +978,21 @@ class TradeEngine:
                     f"가보자 +{partial_target:.1f}% 1차 {pct}% 익절 · 잔량 추세추적 · {pnl:+.2f}%",
                     require_enabled=True,
                     sell_ratio=partial_ratio,
+                )
+
+            # 2영 매수 뒤 눌림을 거쳐 다음 재상승 파동(3)이 확인되면 잔량 전량 매도.
+            stage3, stage3_high = _gaboja_stage3_exit_from_rows(
+                candles,
+                current_bar_key=bar_key,
+                timeframe=self.settings.timeframe_min,
+                entry_price=float(pos.entry_price or 0),
+                opened_at=str(getattr(pos, "opened_at", "") or ""),
+            )
+            if self.enabled and stage3:
+                return self._submit_sell(
+                    code, pos, current,
+                    f"가보자 3파동 매도 · 재상승 고점 {stage3_high:,.0f} 확인",
+                    require_enabled=True,
                 )
 
             state_before = (
@@ -957,12 +1056,9 @@ class TradeEngine:
             }
 
         if self.enabled and allow_buy and sig.passed and self.can_open(code) and current > 0:
-            # 1차 차 조기진입은 아직 '최종 차 저점'이 확정되지 않았으므로 B(기준봉 시가)를 즉시 손절선으로 쓴다.
-            # 재돌파 진입은 확인된 직전 차 저점을 쓰고, 이후 새 차가 높아질 때만 손절선을 올린다.
-            if str(sig.entry_kind or "") == "PULLBACK":
-                stop_price = float(sig.basis_open or 0)
-            else:
-                stop_price = float(sig.pullback_low or sig.basis_open or 0)
+            # v2.9.64부터 차 자체에서는 매수하지 않는다. 2영 확인 뒤 진입하므로
+            # 최초 손절선은 이미 확인된 직전 차 저점이며 이후 높은 차가 생길 때만 올린다.
+            stop_price = float(sig.pullback_low or sig.basis_open or 0)
             return self._submit_buy(
                 code, name, current, sig.reason,
                 stop_price=stop_price,

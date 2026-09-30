@@ -340,6 +340,26 @@ class KiwoomRestBroker(BaseBroker):
     def get_stock_info(self, code: str) -> dict:
         return self._post("/api/dostk/stkinfo", "ka10001", {"stk_cd": code})
 
+    def get_stock_themes(self, code: str, stex_tp: str = "3") -> list[dict]:
+        """Return Kiwoom theme groups containing this stock (ka90001).
+
+        Used only as a candidate-ranking bonus. Theme membership never bypasses
+        the normal PUMA strength filter or Gaboja entry pattern.
+        """
+        base = str(code or "").strip()
+        if "_" in base:
+            base = base.split("_", 1)[0]
+        data = self._post("/api/dostk/thme", "ka90001", {
+            "qry_tp": "2",
+            "date_tp": "1",
+            "flu_pl_amt_tp": "3",
+            "stex_tp": str(stex_tp or "3"),
+            "stk_cd": base,
+            "thema_nm": "",
+        })
+        rows = data.get("thema_grp", [])
+        return list(rows) if isinstance(rows, list) else []
+
     def get_nxt_premarket_candidates(self, limit: int = 30) -> list[dict]:
         """Supply strong NXT premarket candidates for the 08:00 live Gaboja pool.
 

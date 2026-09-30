@@ -81,7 +81,7 @@ def test_trend_mode_holds_after_partial_until_stop_or_1500():
     assert "15:00 전량청산" in reason
 
 
-def test_plus_four_partial_sell_is_25_percent_and_keeps_75_percent():
+def test_plus_four_partial_sell_is_50_percent_and_keeps_50_percent():
     settings = StrategySettings()
     engine = TradeEngine(SimBroker(), settings)
     pos = Position(
@@ -97,11 +97,11 @@ def test_plus_four_partial_sell_is_25_percent_and_keeps_75_percent():
 
     result = engine._submit_partial_sell(
         "042370", pos, 104,
-        "가보자 +4.0% 1차 25% 익절",
+        "가보자 +4.0% 1차 50% 익절",
         sell_ratio=settings.gabojago_partial_sell_ratio,
     )
     assert result["status"] == "PARTIAL_SELL"
-    assert pos.qty == 15
+    assert pos.qty == 10
     assert pos.partial_taken is True
     assert pos.partial_price == 104
 
@@ -109,5 +109,5 @@ def test_plus_four_partial_sell_is_25_percent_and_keeps_75_percent():
 def test_gaboja_defaults_enable_trend_tracking():
     settings = StrategySettings()
     assert settings.gabojago_trend_tracking_enabled is True
-    assert settings.gabojago_partial_sell_ratio == 0.25
+    assert settings.gabojago_partial_sell_ratio == 0.50
     assert settings.gabojago_trend_force_exit_time == "15:00"
