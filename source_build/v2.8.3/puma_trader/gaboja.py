@@ -289,14 +289,12 @@ def evaluate_gaboja(
 
     1) NXT 프리마켓 08:00부터 후보 검색과 실제 자동매매를 함께 시작한다.
        09:00 이후에는 08시부터 이어진 NXT 흐름과 KRX 신규 후보를 같은 PUMA 기준으로 비교한다.
-    2) '영'은 장대양봉 한 봉에 고정하지 않는다. 단일 임펄스 또는 여러 5분봉이 이어진 상승 언덕 전체를
-       영 구간으로 인정한다.
-    3) 1차 차는 미래봉을 기다려 확정하지 않는다. B=기준봉 시가, H=영 고점, R=H-B일 때
-       B < 현재가 <= B + R*cha_max_ratio(기본 0.35 = 고점 대비 65% 되돌림)인 깊은 눌림 영역에 현재 5분봉이 들어오면
-       그 봉 자체를 실시간 차 후보로 본다. 동시에 현재봉의 '초당 거래량'이 완료된 영 구간 평균
-       초당 거래량보다 둔화됐는지 확인한다. 미래봉은 사용하지 않는다.
-    4) 진행봉은 기본 20초 이상 관찰한 뒤 차로 조기진입하며 B 이탈은 차 실패다.
-       조기 차 진입의 최초 손절은 B(기준봉 시가). 전고 몸통 재돌파 진입은 직전 차 저점 손절.
+    2) 1영은 장대양봉 한 봉에 고정하지 않는다. 특히 장 시작 첫 5분봉은 음봉이어도
+       거래량/변동폭이 살아 있으면 1영 구조의 시작봉으로 인정한다.
+    3) 차는 기존 65% 깊은 되돌림 + 거래량 진행속도 둔화 규칙을 그대로 쓴다.
+       단, 차 자체에서는 매수하지 않는다.
+    4) 차 이후 다시 양봉 몸통과 거래량 진행속도가 살아나는 2영을 실시간 확인했을 때만 진입한다.
+       전고 몸통 재돌파는 강한 2영으로 인정하며, 최초 손절은 확인된 차 저점이다.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -374,7 +372,7 @@ def evaluate_gaboja(
             day_volume_ratio=day_ratio,
             details={**d, **premarket, "trade_start": trade_start},
         )
-    if len(session) < 4:
+    if len(session) < 3:
         return GabojaSignal(
             False,
             reason="가보자 5분봉 구조 형성 대기",
@@ -399,92 +397,102 @@ def evaluate_gaboja(
     cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
     latest_index = len(session) - 1
 
-    # 영은 '장대양봉 한 봉'으로 고정하지 않는다.
-    #  - single: 기존처럼 한 봉이 전고를 힘있게 돌파한 경우
-    #  - hill: 최근 구조의 저점에서 여러 봉이 이어져 상승 언덕을 만든 경우
+    # 1영은 첫 5분봉부터 볼 수 있다. 첫 봉은 음봉이어도 후보가 이미
+    # 장초 거래량/PUMA 힘 필터를 통과했다면 구조의 시작봉으로 인정한다.
     pairs = []
-    for i in range(1, len(session) - 1):
+    for i in range(0, len(session) - 1):
         bar = session[i]
-        prior = session[max(0, i - 3):i]
-        if not prior:
-            continue
-
-        prior_high = max(float(x["high"]) for x in prior)
-        prior_vol = mean(float(x["volume"]) for x in prior)
-        single_impulse = (
-            float(bar["close"]) > float(bar["open"])
-            and float(bar["high"]) > prior_high
-            and float(bar["volume"]) >= prior_vol
+        opening_young = (
+            i == 0
+            and float(bar["volume"]) > 0
+            and float(bar["high"]) > float(bar["low"])
         )
 
-        # 언덕형 영: 최근 최대 7봉 안에서 가장 낮은 저점을 시작점으로 잡아
-        # 상승 진행과 구간 고점 갱신을 확인한다. 특정 '몇 번째 봉'을 영으로 고정하지 않는다.
-        lookback_start = max(0, i - 6)
-        lookback = session[lookback_start:i + 1]
-        rel_start = min(
-            range(len(lookback)),
-            key=lambda k: float(lookback[k]["low"]),
-        )
-        young_start = lookback_start + rel_start
-        hill = session[young_start:i + 1]
-        bullish = sum(1 for x in hill if float(x["close"]) >= float(x["open"]))
-        progress = sum(
-            1 for k in range(1, len(hill))
-            if float(hill[k]["close"]) >= float(hill[k - 1]["close"])
-        )
-        hill_high = max(float(x["high"]) for x in hill)
-        hill_open = float(hill[0]["open"])
-        before_hill = session[max(0, young_start - 3):young_start]
-        before_high = max((float(x["high"]) for x in before_hill), default=basis_open)
-        hill_shape = (
-            len(hill) >= 2
-            and float(bar["high"]) >= hill_high
-            and float(bar["close"]) > hill_open
-            and hill_high > max(basis_open, before_high)
-            and bullish >= max(2, (len(hill) + 1) // 2)
-            and progress >= max(1, (len(hill) - 1) // 2)
-        )
-
-        if single_impulse:
-            young_start = i
+        if opening_young:
+            young_start = 0
             young_high = float(bar["high"])
             young_volume = float(bar["volume"])
             young_volume_total = float(bar["volume"])
             young_bar_count = 1
-            young_kind = "single"
-        elif hill_shape:
-            young_high = hill_high
-            young_volume = max(float(x["volume"]) for x in hill)
-            young_volume_total = sum(float(x["volume"]) for x in hill)
-            young_bar_count = max(1, len(hill))
-            young_kind = "hill"
+            young_kind = "opening_bearish" if float(bar["close"]) < float(bar["open"]) else "opening"
+            # 첫 봉 음봉은 당일 시가 아래에서 끝날 수 있으므로 구조 바닥은 첫 봉 저가로 둔다.
+            # 실제 2영 매수는 다시 당일 시가를 회복해야 한다.
+            structural_floor = min(basis_open, float(bar["low"]))
         else:
-            continue
+            prior = session[max(0, i - 3):i]
+            if not prior:
+                continue
 
-        rise = young_high - basis_open
+            prior_high = max(float(x["high"]) for x in prior)
+            prior_vol = mean(float(x["volume"]) for x in prior)
+            single_impulse = (
+                float(bar["close"]) > float(bar["open"])
+                and float(bar["high"]) > prior_high
+                and float(bar["volume"]) >= prior_vol
+            )
+
+            # 언덕형 1영: 최근 최대 7봉 안에서 저점부터 이어진 상승 언덕 전체를 인정한다.
+            lookback_start = max(0, i - 6)
+            lookback = session[lookback_start:i + 1]
+            rel_start = min(
+                range(len(lookback)),
+                key=lambda k: float(lookback[k]["low"]),
+            )
+            young_start = lookback_start + rel_start
+            hill = session[young_start:i + 1]
+            bullish = sum(1 for x in hill if float(x["close"]) >= float(x["open"]))
+            progress = sum(
+                1 for k in range(1, len(hill))
+                if float(hill[k]["close"]) >= float(hill[k - 1]["close"])
+            )
+            hill_high = max(float(x["high"]) for x in hill)
+            hill_open = float(hill[0]["open"])
+            before_hill = session[max(0, young_start - 3):young_start]
+            before_high = max((float(x["high"]) for x in before_hill), default=basis_open)
+            hill_shape = (
+                len(hill) >= 2
+                and float(bar["high"]) >= hill_high
+                and float(bar["close"]) > hill_open
+                and hill_high > max(basis_open, before_high)
+                and bullish >= max(2, (len(hill) + 1) // 2)
+                and progress >= max(1, (len(hill) - 1) // 2)
+            )
+
+            if single_impulse:
+                young_start = i
+                young_high = float(bar["high"])
+                young_volume = float(bar["volume"])
+                young_volume_total = float(bar["volume"])
+                young_bar_count = 1
+                young_kind = "single"
+            elif hill_shape:
+                young_high = hill_high
+                young_volume = max(float(x["volume"]) for x in hill)
+                young_volume_total = sum(float(x["volume"]) for x in hill)
+                young_bar_count = max(1, len(hill))
+                young_kind = "hill"
+            else:
+                continue
+            structural_floor = basis_open
+
+        rise = young_high - structural_floor
         if rise <= 0:
             continue
-        cha_ceiling = basis_open + rise * cha_ratio
-
-        # 완료된 영 구간의 평균 '초당 거래량'을 기준으로 삼는다.
+        cha_ceiling = structural_floor + rise * cha_ratio
         young_pace = _volume_pace(
             young_volume_total,
             float(young_bar_count * 5 * 60),
         )
 
-        # 영 이후 첫 '깊은 차'를 찾는다. 고정 봉 개수 제한을 두지 않는다.
-        # 기준봉 시가를 한 번이라도 깨면 그 영에 대한 차 시나리오는 실패로 종료한다.
+        # 1영 이후 첫 65% 깊은 차를 찾는다. 차는 '진입 준비'일 뿐 매수 신호가 아니다.
         for j in range(i + 1, len(session)):
             pb = session[j]
             pb_low = float(pb["low"])
             pb_close = float(pb["close"])
-            if pb_low <= basis_open or pb_close <= basis_open:
+            if pb_low <= structural_floor or pb_close <= structural_floor:
                 break
 
-            # 현재 가격(close)은 진행 중인 5분봉에서는 실시간 현재가다.
-            # 50%선 위의 얕은 눌림은 차가 아니다.
-            deep_zone = basis_open < pb_close <= cha_ceiling
-
+            deep_zone = structural_floor < pb_close <= cha_ceiling
             is_live_bar = j == latest_index
             if is_live_bar:
                 elapsed = _bar_elapsed_seconds(pb.get("date"), now, 5)
@@ -502,58 +510,80 @@ def evaluate_gaboja(
                     young_start, i, j, young_high, pb_low,
                     cha_ceiling, young_volume, young_kind, depth_pct,
                     young_pace, pb_pace, elapsed, lower_volume_pace,
+                    structural_floor,
                 ))
                 break
 
     if not pairs:
-        return GabojaSignal(False, reason="영 이후 65% 이상 되돌린 1차 차 영역 진입 대기",
-                            current_price=current_price, basis_open=basis_open,
-                            day_volume_ratio=day_ratio,
-                            details={**d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
-                                     "cha_max_ratio": cha_ratio,
-                                     "cha_volume_pace_ratio": cha_pace_ratio,
-                                     "cha_min_live_seconds": cha_live_min_sec})
+        return GabojaSignal(
+            False,
+            reason="1영 이후 65% 이상 되돌린 차 확인 대기",
+            current_price=current_price,
+            basis_open=basis_open,
+            day_volume_ratio=day_ratio,
+            details={
+                **d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
+                "cha_max_ratio": cha_ratio,
+                "cha_volume_pace_ratio": cha_pace_ratio,
+                "cha_min_live_seconds": cha_live_min_sec,
+            },
+        )
 
     (
         young_start, i, j, young1_high, pullback_low, cha_ceiling,
         young_volume, young_kind, cha_depth_pct, young_pace,
         pullback_pace, pullback_elapsed_sec, lower_volume_pace,
+        structural_floor,
     ) = pairs[-1]
     latest = len(session) - 1
     pb = session[j]
 
-    # 조기 차 진입: 현재 진행 중인 5분봉 자체가 깊은 차 영역에 들어온 순간 진입한다.
-    # 다음 봉/재돌파를 기다리지 않아 미래정보 없이 가장 빠른 1차 차를 노린다.
-    pullback_entry = latest == j
-
-    # 전고돌파 진입: 꼬리만 찌르는 것은 제외.
-    # 양봉 몸통의 아래쪽 <= 영1 전고 < 몸통 위쪽이어야 실제 몸통 관통으로 인정.
+    # 차에서는 사지 않는다. 다음 봉부터 힘이 다시 붙는 2영을 확인한다.
     body_low = min(float(current["open"]), float(current["close"]))
     body_high = max(float(current["open"]), float(current["close"]))
     body_rebreak = (
         latest > j
         and float(current["close"]) > float(current["open"])
         and body_low <= young1_high < body_high
-        and float(current["low"]) > basis_open
+        and float(current["low"]) > structural_floor
     )
 
-    passed = bool(time_ok and (pullback_entry or body_rebreak))
-    kind = "PULLBACK" if pullback_entry else ("BODY_REBREAK" if body_rebreak else "")
+    current_elapsed = _bar_elapsed_seconds(current.get("date"), now, 5)
+    current_pace = _volume_pace(
+        float(current["volume"]),
+        current_elapsed if current_elapsed > 0 else 1.0,
+    )
+    pb_body_high = max(float(pb["open"]), float(pb["close"]))
+    recovered_basis = (
+        float(current["close"]) > basis_open
+        if young_kind == "opening_bearish"
+        else True
+    )
+    young2 = (
+        latest > j
+        and float(current["close"]) > float(current["open"])
+        and float(current["close"]) > pb_body_high
+        and float(current["close"]) > float(session[latest - 1]["close"])
+        and float(current["low"]) > structural_floor
+        and recovered_basis
+        and (current_pace >= pullback_pace or body_rebreak)
+    )
+
+    passed = bool(time_ok and (young2 or body_rebreak))
+    kind = "YOUNG2" if passed else ""
     if passed:
-        label = "차 눌림" if kind == "PULLBACK" else "전고 몸통돌파"
-        if kind == "BODY_REBREAK":
-            reason = f"가보자 {label} 진입 · 직전 차 저점 {pullback_low:,.0f} 이탈 손절"
-        else:
-            reason = (
-                f"가보자 1차 차 실시간 조기진입 · 현재봉 65% 되돌림선 이하 "
-                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
-                f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
-                f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
-            )
+        strength = " · 1영 전고 몸통돌파" if body_rebreak else ""
+        opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
+        reason = (
+            f"가보자 1영→차→2영 매수{opening_note}{strength} · "
+            f"차 저점 {pullback_low:,.0f} 이탈 손절"
+        )
     elif not time_ok:
         reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
+    elif latest == j:
+        reason = "65% 차 확인 · 차에서는 매수하지 않고 2영 전환 대기"
     else:
-        reason = "차 확인 완료 · 전고 몸통돌파 대기"
+        reason = "1영→차 확인 · 2영 상승 전환 대기"
 
     return GabojaSignal(
         passed=passed,
@@ -573,18 +603,24 @@ def evaluate_gaboja(
             "young_start_index": young_start,
             "young_end_index": i,
             "young_kind": young_kind,
+            "opening_bearish_young": young_kind == "opening_bearish",
+            "structural_floor": structural_floor,
             "pullback_index": j,
+            "young2_index": latest if passed else -1,
+            "young2_price": current_price if passed else 0.0,
             "young1_high": young1_high,
             "pullback_low": pullback_low,
             "cha_ceiling": cha_ceiling,
             "cha_max_ratio": cha_ratio,
             "cha_depth_pct": cha_depth_pct,
-            "early_cha": pullback_entry,
+            "early_cha": False,
+            "cha_ready": True,
             "cha_volume_pace_ratio": cha_pace_ratio,
             "cha_min_live_seconds": cha_live_min_sec,
             "pullback_elapsed_sec": pullback_elapsed_sec,
             "pullback_volume_pace": pullback_pace,
             "young_volume_pace": young_pace,
+            "young2_volume_pace": current_pace,
             "lower_volume_pace": lower_volume_pace,
             "pullback_volume": float(pb["volume"]),
             "young1_volume": young_volume,
