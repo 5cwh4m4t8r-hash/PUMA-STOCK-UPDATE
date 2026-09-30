@@ -59,9 +59,9 @@ class StrategySettings:
     # 봉 시작 직후 노이즈를 피하기 위한 최소 실시간 관찰시간(초).
     gabojago_cha_min_live_seconds: int = 20
     gabojago_partial_profit_pct: float = 4.0
-    # 추세추적: +4%에서 일부만 확보하고 나머지는 높아지는 차 저점을 따라간다.
+    # 추세추적: +4%에서 50%를 확보하고 나머지 50%는 높아지는 차 저점/3파동 매도를 따라간다.
     gabojago_trend_tracking_enabled: bool = True
-    gabojago_partial_sell_ratio: float = 0.25
+    gabojago_partial_sell_ratio: float = 0.50
     gabojago_trend_force_exit_time: str = "15:00"
     gabojago_remainder_band_pct: float = 2.0  # 추세추적 OFF일 때만 쓰는 레거시 값
     gabojago_force_exit_time: str = "13:00"  # 레거시 모드 전용
@@ -95,7 +95,15 @@ class StrategySettings:
     @classmethod
     def from_dict(cls, data):
         allowed = cls.__dataclass_fields__.keys()
-        return cls(**{k: v for k, v in data.items() if k in allowed})
+        payload = {k: v for k, v in data.items() if k in allowed}
+        # v2.9.64: 기존 사용자 설정에 저장된 25% 1차 익절값을 새 최종 규칙 50%로 마이그레이션.
+        try:
+            old_ratio = float(payload.get("gabojago_partial_sell_ratio", 0.50) or 0.50)
+            if abs(old_ratio - 0.25) < 1e-9:
+                payload["gabojago_partial_sell_ratio"] = 0.50
+        except (TypeError, ValueError):
+            payload["gabojago_partial_sell_ratio"] = 0.50
+        return cls(**payload)
 
 
 @dataclass
