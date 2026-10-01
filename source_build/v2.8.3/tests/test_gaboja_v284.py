@@ -168,8 +168,9 @@ def test_high_volume_deep_drop_is_not_bought_at_cha_but_enters_on_body_recovery_
     assert recovered.entry_kind == "YOUNG2"
     assert recovered.young1_high == 113
     assert recovered.pullback_low == 107.8
-    assert recovered.details["recovery_breakout"] is True
-    assert recovered.details["recovery_pullback_index"] == 3
+    assert recovered.details["second_young"] is True
+    assert recovered.details["pullback_index"] == 3
+    assert recovered.details["volume_required_for_structure"] is False
 
 
 def test_high_volume_recovery_requires_bullish_body_not_wick_only():

@@ -468,19 +468,21 @@ def evaluate_gaboja(
                 and progress >= max(1, (len(hill) - 1) // 2)
             )
 
-            if single_impulse:
+            # 여러 봉이 이어진 상승 언덕이면 hill을 우선 보존한다.
+            # hill이 아닌 단일 가격 돌파만 single로 분류한다.
+            if hill_shape:
+                young_high = hill_high
+                young_volume = max(float(x["volume"]) for x in hill)
+                young_volume_total = sum(float(x["volume"]) for x in hill)
+                young_bar_count = max(1, len(hill))
+                young_kind = "hill"
+            elif single_impulse:
                 young_start = i
                 young_high = float(bar["high"])
                 young_volume = float(bar["volume"])
                 young_volume_total = float(bar["volume"])
                 young_bar_count = 1
                 young_kind = "single"
-            elif hill_shape:
-                young_high = hill_high
-                young_volume = max(float(x["volume"]) for x in hill)
-                young_volume_total = sum(float(x["volume"]) for x in hill)
-                young_bar_count = max(1, len(hill))
-                young_kind = "hill"
             else:
                 continue
             structural_floor = basis_open
