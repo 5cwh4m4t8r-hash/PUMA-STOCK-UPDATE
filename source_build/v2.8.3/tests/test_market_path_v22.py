@@ -31,6 +31,8 @@ def test_box_duration_is_chart_driven_not_fixed_60_112():
     assert b["top_touches"] >= 3
     assert b["bottom_touches"] >= 3
     assert b["alternations"] >= 3
+    assert b["top_basis"] == "양봉몸통"
+    assert b["bottom_basis"] == "음봉몸통"
 
 
 def test_clear_trend_is_not_box():
@@ -40,3 +42,15 @@ def test_clear_trend_is_not_box():
         p += 1.2
         rows.append(bar(i,p-0.3,p+0.8,p-0.8,p,1000))
     assert find_box_before(rows,len(rows)-1,SwingSettings()) is None
+
+
+def test_wick_only_repeated_hits_do_not_make_concrete():
+    rows=[]
+    # Bodies stay near the center while only wicks repeatedly hit 110/90.
+    for i in range(48):
+        close = 100.4 if i % 2 == 0 else 99.6
+        op = 99.8 if i % 2 == 0 else 100.2
+        high = 110.0 if i % 6 in (0, 1) else 102.0
+        low = 90.0 if i % 6 in (3, 4) else 98.0
+        rows.append(bar(i, op, high, low, close, 1000))
+    assert find_box_before(rows, len(rows)-1, SwingSettings()) is None
