@@ -293,8 +293,10 @@ def evaluate_gaboja(
        거래량/변동폭이 살아 있으면 1영 구조의 시작봉으로 인정한다.
     3) 차는 기존 65% 깊은 되돌림 + 거래량 진행속도 둔화 규칙을 그대로 쓴다.
        진행 중인 차가 조건을 충족하는 순간 바로 매수한다.
-    4) 차 타점을 놓친 경우에만 이후 전고 몸통 재돌파를 보조 진입으로 허용한다.
-       차 진입의 최초 손절은 기준봉 시가, 재돌파 진입은 확인된 차 저점이다.
+    4) 두 번째 경로는 '고거래량 하락 후 회복'이다. 65% 이상 깊게 밀렸는데
+       거래량 진행속도가 줄지 않는 동안에는 절대 차 매수를 하지 않고 관찰만 한다.
+       이후 힘이 실제로 회복되어 전고를 양봉 몸통으로 돌파하는 봉에서만 진입한다.
+       차 진입의 최초 손절은 기준봉 시가, 전고돌파 진입은 확인된 눌림 저점이다.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -400,6 +402,7 @@ def evaluate_gaboja(
     # 1영은 첫 5분봉부터 볼 수 있다. 첫 봉은 음봉이어도 후보가 이미
     # 장초 거래량/PUMA 힘 필터를 통과했다면 구조의 시작봉으로 인정한다.
     pairs = []
+    recovery_setups = []
     for i in range(0, len(session) - 1):
         bar = session[i]
         opening_young = (
@@ -484,7 +487,14 @@ def evaluate_gaboja(
             float(young_bar_count * 5 * 60),
         )
 
-        # 1영 이후 첫 65% 깊은 차를 찾는다. 조건을 만족한 현재 차 봉 자체가 매수 신호다.
+        # 1영 이후 첫 65% 깊은 차를 찾는다.
+        # 거래량 진행속도가 줄면 기존 차 매수 경로, 줄지 않으면 '고거래량 하락'
+        # 회복 감시 경로로 전환한다. 고거래량 하락 중에는 절대 매수하지 않는다.
+        hot_pullback_idx = -1
+        hot_pullback_low = 0.0
+        hot_pullback_pace = 0.0
+        hot_pullback_depth = 0.0
+
         for j in range(i + 1, len(session)):
             pb = session[j]
             pb_low = float(pb["low"])
@@ -514,10 +524,87 @@ def evaluate_gaboja(
                 ))
                 break
 
+            if deep_zone and live_ready and not lower_volume_pace:
+                # 거래량이 안 죽은 채 깊게 밀리면 차 매수 금지.
+                # 이후 전고 몸통돌파가 확인될 때까지 회복 후보로만 유지한다.
+                if hot_pullback_idx < 0:
+                    hot_pullback_idx = j
+                    hot_pullback_low = pb_low
+                    hot_pullback_pace = pb_pace
+                    hot_pullback_depth = ((young_high - pb_close) / rise) * 100.0
+                else:
+                    hot_pullback_low = min(hot_pullback_low, pb_low)
+                    hot_pullback_pace = max(hot_pullback_pace, pb_pace)
+                    hot_pullback_depth = max(
+                        hot_pullback_depth,
+                        ((young_high - pb_close) / rise) * 100.0,
+                    )
+
+        # 고거래량 하락형은 차에서 사지 않는다. 눌림이 끝난 뒤 현재봉이
+        # 양봉 몸통으로 1영 전고를 실제 돌파할 때만 별도 회복 진입 신호를 만든다.
+        if hot_pullback_idx >= 0 and latest_index > hot_pullback_idx:
+            current_bar = session[latest_index]
+            current_body_low = min(float(current_bar["open"]), float(current_bar["close"]))
+            current_body_high = max(float(current_bar["open"]), float(current_bar["close"]))
+            recovery_body_break = bool(
+                float(current_bar["close"]) > float(current_bar["open"])
+                and current_body_low <= young_high < current_body_high
+                and float(current_bar["low"]) > structural_floor
+            )
+            if recovery_body_break:
+                recovery_setups.append((
+                    young_start, i, hot_pullback_idx, young_high, hot_pullback_low,
+                    cha_ceiling, young_volume, young_kind, hot_pullback_depth,
+                    young_pace, hot_pullback_pace, structural_floor,
+                ))
+
     if not pairs:
+        if recovery_setups:
+            (
+                recovery_young_start, recovery_i, recovery_j, recovery_high, recovery_low,
+                recovery_cha_ceiling, recovery_young_volume, recovery_young_kind,
+                recovery_depth_pct, recovery_young_pace, recovery_pullback_pace,
+                recovery_floor,
+            ) = recovery_setups[-1]
+            recovery_passed = bool(time_ok)
+            opening_note = " · 첫봉 음봉 1영 인정" if recovery_young_kind == "opening_bearish" else ""
+            reason = (
+                f"가보자 고거래량 하락→전고 몸통돌파 회복진입{opening_note} · "
+                f"차에서는 매수 보류 · 전고 {recovery_high:,.0f} 몸통돌파 확인 · "
+                f"직전 눌림저점 {recovery_low:,.0f} 이탈 손절"
+                if recovery_passed else
+                f"고거래량 하락 후 전고 몸통돌파 확인 · 검색시간 외({scan_start}~{scan_end})"
+            )
+            return GabojaSignal(
+                passed=recovery_passed,
+                entry_kind="RECOVERY_BREAKOUT" if recovery_passed else "",
+                reason=reason,
+                current_price=current_price,
+                basis_open=basis_open,
+                young1_high=recovery_high,
+                pullback_low=recovery_low,
+                day_volume_ratio=day_ratio,
+                details={
+                    **d, **premarket,
+                    "time_ok": time_ok,
+                    "trade_start": trade_start,
+                    "cha_max_ratio": cha_ratio,
+                    "cha_volume_pace_ratio": cha_pace_ratio,
+                    "cha_min_live_seconds": cha_live_min_sec,
+                    "recovery_breakout": True,
+                    "recovery_pullback_index": recovery_j,
+                    "recovery_pullback_low": recovery_low,
+                    "recovery_depth_pct": recovery_depth_pct,
+                    "recovery_pullback_volume_pace": recovery_pullback_pace,
+                    "young_volume_pace": recovery_young_pace,
+                    "young1_index": recovery_i,
+                    "young1_start_index": recovery_young_start,
+                },
+            )
+
         return GabojaSignal(
             False,
-            reason="1영 이후 65% 이상 되돌린 차 확인 대기",
+            reason="1영 이후 65% 이상 되돌린 차 또는 고거래량 회복형 대기",
             current_price=current_price,
             basis_open=basis_open,
             day_volume_ratio=day_ratio,
@@ -526,6 +613,7 @@ def evaluate_gaboja(
                 "cha_max_ratio": cha_ratio,
                 "cha_volume_pace_ratio": cha_pace_ratio,
                 "cha_min_live_seconds": cha_live_min_sec,
+                "recovery_breakout": False,
             },
         )
 
