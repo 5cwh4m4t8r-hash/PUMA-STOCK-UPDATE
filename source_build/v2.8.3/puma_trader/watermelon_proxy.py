@@ -137,7 +137,7 @@ def build_puma_watermelon(
     *,
     acc_flags: list[bool] | None = None,
 ) -> dict:
-    """PUMA watermelon approximation v5.
+    """PUMA watermelon approximation v6.
 
     Important:
       The proprietary Stock Dante watermelon formula is not public.
@@ -146,9 +146,11 @@ def build_puma_watermelon(
       with EMA112/224 and Ichimoku cloud, prior accumulation, and arrow confluence.
 
     Goal:
-      Mark only a true bottom-turn area. The required bottom MA stack is
-      EMA20 < EMA5 < EMA60 < EMA112 < EMA224 < EMA448 (bottom to top),
-      plus observable volume/accumulation evidence.
+      Keep the original EMA224-near / pre-Bowl3 preparation context, but only
+      allow watermelon when the user-defined bottom MA structure is present:
+      top-to-bottom EMA448 > EMA224 > EMA112 > EMA20 > EMA5 > EMA60,
+      OR when EMA60 is making a golden cross above EMA112.
+      Volume/accumulation evidence is still required.
 
     Uses only current/past bars. No future-bar confirmation is used.
     """
@@ -264,17 +266,28 @@ def build_puma_watermelon(
             else:
                 ema20_recovery = float(e20[i]) >= float(e20[i - 3]) * 0.995
 
-        # User-defined bottom stack, read from the LOWEST line upward:
-        # 20 < 5 < 60 < 112 < 224 < 448.
-        bottom_ma_order = bool(
+        # User-defined watermelon MA structure, TOP -> BOTTOM:
+        # 448 > 224 > 112 > 20 > 5 > 60.
+        watermelon_ma_stack = bool(
             e5[i] is not None
             and e20[i] is not None
             and e60[i] is not None
             and e112[i] is not None
             and e224[i] is not None
             and e448[i] is not None
-            and float(e20[i]) < float(e5[i]) < float(e60[i])
-            < float(e112[i]) < float(e224[i]) < float(e448[i])
+            and float(e448[i]) > float(e224[i]) > float(e112[i])
+            > float(e20[i]) > float(e5[i]) > float(e60[i])
+        )
+
+        # Alternative trigger requested by the user: EMA60 golden-crosses EMA112.
+        golden_60_112 = bool(
+            i > 0
+            and e60[i - 1] is not None
+            and e112[i - 1] is not None
+            and e60[i] is not None
+            and e112[i] is not None
+            and float(e60[i - 1]) <= float(e112[i - 1])
+            and float(e60[i]) > float(e112[i])
         )
 
         # Large-money footprint proxy: abnormal volume/absorption plus interaction
@@ -377,8 +390,10 @@ def build_puma_watermelon(
             score += 10; tags.append("반등봉/종가회복")
         if ema20_recovery:
             score += 5; tags.append("단기선 회복")
-        if bottom_ma_order:
-            score += 20; tags.append("바닥이평 20<5<60<112<224<448")
+        if watermelon_ma_stack:
+            score += 20; tags.append("수박이평 448>224>112>20>5>60")
+        if golden_60_112:
+            score += 20; tags.append("60EMA→112EMA 골든크로스")
         if impulse or acc_recent:
             score += 10; tags.append("선행 거래량/매집")
         if big_money_footprint:
@@ -395,12 +410,9 @@ def build_puma_watermelon(
         if stage and reclaim and reversal:
             stage = 2
 
-        # 최종 표시는 아래->위 20<5<60<112<224<448 바닥 배열을 핵심 게이트로 쓴다.
-        # 기존의 224 근접/밥3 직전 위치 강제는 제거한다.
-
-        # 수박은 이제 '밥3 직전/224 근접'이 아니라 실제 바닥 반등 초입에만 표시한다.
-        # 핵심 구조는 아래->위 20 < 5 < 60 < 112 < 224 < 448.
-        # 장기 하락/224 아래 체류와 거래량·매집 흔적을 함께 요구해 엉뚱한 중간 자리 표시를 막는다.
+        # 기존 수박 위치 정의는 유지한다:
+        # 장기 224 아래 체류 + 현재가 224 근처 + 밥3 직전 준비구간.
+        # 여기에 MA 구조(448>224>112>20>5>60) 또는 60/112 골든크로스를 추가한다.
         record112_recent = _record112_recent(vols, i, 20)
 
         prior_start = max(223, i - 99)
@@ -413,6 +425,12 @@ def build_puma_watermelon(
             if closes[j] < float(e224[j])
         )
         long_below_224 = bool(len(prior_idx) >= 60 and below224_count >= 60)
+
+        near_224_prebreak = bool(
+            e224[i] is not None
+            and float(e224[i]) > 0
+            and abs(price / float(e224[i]) - 1.0) <= 0.040
+        )
 
         recent_large_money = bool(
             big_money_footprint
@@ -438,19 +456,20 @@ def build_puma_watermelon(
         pre_bowl3 = bool(
             bottom_context
             and long_below_224
-            and bottom_ma_order
+            and near_224_prebreak
+            and (watermelon_ma_stack or golden_60_112)
             and volume_pre_signal
             and not bullish_224_body_break
         )
 
         pre_bowl3_flags[i] = pre_bowl3
 
-        # 수박은 바닥 이평배열 + 거래흔적이 동시에 확인될 때만 표시한다.
+        # 수박은 기존 224근처/밥3직전 + 사용자가 지정한 이평 구조 + 거래흔적이 겹칠 때만 표시한다.
         # 신고거래량과 대형자금흔적을 동시에 요구하지 않는다.
         strict = bool(
             pre_bowl3
             and (reversal or ema20_recovery)
-            and score >= 60
+            and score >= 70
         )
 
         if strict:
