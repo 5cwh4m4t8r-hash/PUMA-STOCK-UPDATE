@@ -61,10 +61,13 @@ function wordQuestion(){
   if(wSess.i>=wSess.p.length)return wordFinish();
   var x=wSess.p[wSess.i], q=document.getElementById("wq");document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
   if(wSess.stage===0){
-    q.innerHTML="<span class='tag'>새 단어</span><div class='big'>"+x[0]+"</div><div class='muted' style='font-size:20px;margin-top:10px'>"+x[1]+"</div><button class='mic' id='wplay'>🔊</button><button class='primary' id='wknow'>알겠어</button><button class='secondary' id='wdont'>아직 모르겠어</button>";
+    q.innerHTML="<span class='tag'>새 단어</span><div class='big'>"+x[0]+"</div><div class='muted' style='margin-top:10px'>먼저 뜻을 떠올려봐.</div><button class='mic' id='wplay'>🔊</button><button class='primary' id='wreveal'>뜻 보기</button>";
     document.getElementById("wplay").onclick=function(){speak(x[0])};
-    document.getElementById("wknow").onclick=function(){wSess.stage=1;wordQuestion()};
-    document.getElementById("wdont").onclick=function(){speak(x[0]);wSess.stage=1;wordQuestion()};
+    document.getElementById("wreveal").onclick=function(){
+      q.innerHTML="<span class='tag'>뜻 확인</span><div class='big'>"+x[0]+"</div><div style='font-size:24px;font-weight:900;margin-top:14px'>"+x[1]+"</div><button class='secondary' id='wplay2'>🔊 발음 다시 듣기</button><button class='primary' id='wquiz'>문제로 확인</button>";
+      document.getElementById("wplay2").onclick=function(){speak(x[0])};
+      document.getElementById("wquiz").onclick=function(){wSess.stage=1;wordQuestion()};
+    };
   } else if(wSess.stage===1){
     var opts=[x[1]], all=W[S.lang]||W["en-US"];
     all.filter(function(y){return y[0]!==x[0]}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y[1])});
@@ -72,7 +75,7 @@ function wordQuestion(){
     q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+x[0]+"</div><div class='muted'>뜻을 골라봐.</div>";
     opts.forEach(function(o){var b=document.createElement("button");b.className="choice";b.textContent=o;b.onclick=function(){var ok=o===x[1];b.classList.add(ok?"ok":"bad");if(ok)wSess.correct++;S.total++;if(ok)S.ok++;S.xp+=ok?5:1;if(!ok){S.bad.unshift({id:"w-"+x[0],t:x[0],k:x[1]});S.bad=S.bad.slice(0,60)}S.wordSeen=S.wordSeen||{};S.wordSeen[x[0]]=(S.wordSeen[x[0]]||0)+1;save();var n=document.createElement("button");n.className="primary";n.textContent=ok?"정답! 다음":"정답은 “"+x[1]+"” · 다음";n.onclick=function(){wSess.stage=2;wordQuestion()};q.appendChild(n)};q.appendChild(b)});
   } else {
-    q.innerHTML="<span class='tag'>한 번 더</span><div class='big'>"+x[1]+"</div><div class='muted'>단어를 보고 떠올린 뒤 눌러봐.</div><button class='secondary' id='reveal'>정답 보기</button>";
+    q.innerHTML="<span class='tag'>한 번 더</span><div class='big'>"+x[1]+"</div><div class='muted'>이 뜻의 단어를 떠올려봐.</div><button class='secondary' id='reveal'>정답 보기</button>";
     document.getElementById("reveal").onclick=function(){q.innerHTML="<span class='tag'>확인</span><div class='big'>"+x[0]+"</div><div class='muted' style='font-size:20px;margin-top:10px'>"+x[1]+"</div><button class='mic' id='wp2'>🔊</button><button class='primary' id='wnext'>다음 단어</button>";document.getElementById("wp2").onclick=function(){speak(x[0])};document.getElementById("wnext").onclick=function(){wSess.i++;wSess.stage=0;wordQuestion()}};
   }
 }
