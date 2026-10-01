@@ -332,6 +332,36 @@ class NoWheelDateEdit(QDateEdit):
         event.ignore()
 
 
+class AccountSummaryThread(QThread):
+    resultReady = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, broker, parent=None):
+        super().__init__(parent)
+        self.broker = broker
+
+    def run(self):
+        broker = reader_broker(self.broker, self.isInterruptionRequested)
+        if broker is not self.broker:
+            broker.last_account_balance_summary = deepcopy(
+                getattr(self.broker, "last_account_balance_summary", {}) or {}
+            )
+            broker.last_account_positions_snapshot = deepcopy(
+                getattr(self.broker, "last_account_positions_snapshot", []) or []
+            )
+        try:
+            getter = getattr(broker, "get_account_overview", None)
+            if not getter:
+                self.failed.emit("계좌요약 조회 기능 없음")
+                return
+            self.resultReady.emit(getter())
+        except Exception as exc:
+            self.failed.emit(str(exc))
+        finally:
+            if broker is not self.broker and hasattr(broker, "session"):
+                broker.session.close()
+
+
 class CandidateClassifier(QThread):
     resultReady = Signal(str, object)
 
@@ -828,6 +858,7 @@ class MainWindow(QMainWindow):
         self.stock_search_universe: list[dict] = []
         self.stock_search_thread: StockUniverseThread | None = None
         self.stock_search_pending_query: str = ""
+        self.account_summary_thread: AccountSummaryThread | None = None
         self.focus_stock_search_selected_code: str = ""
         self.focus_stock_search_selected_name: str = ""
 
@@ -864,6 +895,11 @@ class MainWindow(QMainWindow):
         self._load_watchlist_rows()
         self._set_status("SIMULATION", "모의 엔진 준비 완료")
 
+        self.account_summary_timer = QTimer(self)
+        self.account_summary_timer.setInterval(15_000)
+        self.account_summary_timer.timeout.connect(self._refresh_header_account_summary)
+        self.account_summary_timer.start()
+
     # ---------- UI ----------
     def _build_ui(self):
         root = QWidget()
@@ -874,6 +910,14 @@ class MainWindow(QMainWindow):
         title = QLabel(f"🐆  PUMA STOCK PRO  v{CURRENT_VERSION}")
         title.setFont(QFont("Malgun Gothic", 22, QFont.Bold))
         header.addWidget(title)
+
+        self.header_account_summary = QLabel("계좌 미연결 · 예수금 - · 주문가능 - · 보유 - · 평가 - · 손익 -")
+        self.header_account_summary.setStyleSheet(
+            "background:#101f33;color:#cfe4f7;border:1px solid #29415f;"
+            "border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700"
+        )
+        self.header_account_summary.setToolTip("키움 연결 후 계좌번호·예수금·주문가능금액·보유종목·평가손익이 표시됩니다.")
+        header.addWidget(self.header_account_summary, 1)
         header.addStretch()
         self.mode_label = QLabel("SIMULATION")
         self.mode_label.setStyleSheet("background:#0d6942;padding:8px 14px;border-radius:12px;font-weight:700")
@@ -2219,6 +2263,76 @@ class MainWindow(QMainWindow):
     def _spin(self, lo, hi, val, step=1):
         return NumericComboBox(lo, hi, val, step=step, decimals=0)
 
+    def _refresh_header_account_summary(self, force: bool = False):
+        if self._closing:
+            return
+        if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
+            if getattr(self, "header_account_summary", None) is not None:
+                self.header_account_summary.setText(
+                    "계좌 미연결 · 예수금 - · 주문가능 - · 보유 - · 평가 - · 손익 -"
+                )
+            return
+        worker = getattr(self, "account_summary_thread", None)
+        if worker is not None and worker.isRunning():
+            return
+        worker = AccountSummaryThread(self.broker, self)
+        worker.resultReady.connect(self._on_header_account_summary)
+        worker.failed.connect(self._on_header_account_summary_error)
+        worker.finished.connect(self._on_header_account_summary_finished)
+        worker.finished.connect(worker.deleteLater)
+        self.account_summary_thread = worker
+        worker.start()
+
+    def _on_header_account_summary(self, data):
+        if self._closing or not isinstance(data, dict):
+            return
+        account = str(data.get("account_no") or "-")
+        env = "실전" if str(data.get("environment") or "").upper() == "REAL" else "모의"
+        deposit = int(data.get("deposit", 0) or 0)
+        order_available = int(data.get("order_available", 0) or 0)
+        holding_count = int(data.get("holding_count", 0) or 0)
+        total_evaluation = int(data.get("total_evaluation", 0) or 0)
+        total_profit_loss = int(data.get("total_profit_loss", 0) or 0)
+        total_profit_rate = float(data.get("total_profit_rate", 0) or 0)
+
+        if getattr(self, "header_account_summary", None) is not None:
+            self.header_account_summary.setText(
+                f"{env} 계좌 {account} · 예수금 {deposit:,}원 · 주문가능 {order_available:,}원 · "
+                f"보유 {holding_count}종목 · 평가 {total_evaluation:,}원 · "
+                f"손익 {total_profit_loss:+,}원({total_profit_rate:+.2f}%)"
+            )
+
+            withdrawable = int(data.get("withdrawable", 0) or 0)
+            d2_deposit = int(data.get("d2_deposit", 0) or 0)
+            estimated_assets = int(data.get("estimated_assets", 0) or 0)
+            cash_unsettled = int(data.get("cash_unsettled", 0) or 0)
+            holdings = list(data.get("holdings") or [])
+            holding_text = "\n".join(
+                f"• {x.get('name') or x.get('code')} {int(x.get('qty', 0) or 0):,}주 · "
+                f"{float(x.get('profit_rate', 0) or 0):+.2f}%"
+                for x in holdings[:8]
+            ) or "• 보유종목 없음"
+            extra = f"\n외 {len(holdings)-8}종목" if len(holdings) > 8 else ""
+            self.header_account_summary.setToolTip(
+                f"계좌 {account} ({env})\n"
+                f"예수금 {deposit:,}원 / 주문가능 {order_available:,}원 / 출금가능 {withdrawable:,}원\n"
+                f"D+2 추정예수금 {d2_deposit:,}원 / 추정예탁자산 {estimated_assets:,}원 / 미수금 {cash_unsettled:,}원\n"
+                f"총평가 {total_evaluation:,}원 / 평가손익 {total_profit_loss:+,}원 ({total_profit_rate:+.2f}%)\n"
+                f"보유 {holding_count}종목\n{holding_text}{extra}"
+            )
+
+    def _on_header_account_summary_error(self, message: str):
+        if self._closing:
+            return
+        label = getattr(self, "header_account_summary", None)
+        if label is not None and "계좌 미연결" in label.text():
+            label.setText("계좌 연결됨 · 계좌요약 조회 대기")
+        if label is not None:
+            label.setToolTip(f"계좌요약 조회 실패: {message}")
+
+    def _on_header_account_summary_finished(self):
+        self.account_summary_thread = None
+
     def _set_status(self, mode, text):
         self.mode_label.setText(mode)
         self.conn_label.setText("● " + text)
@@ -2559,6 +2673,7 @@ class MainWindow(QMainWindow):
         self.real_armed = False
         self.live_auto_confirmed_session = False
         self._set_status("SIMULATION", "데모 모드")
+        self._refresh_header_account_summary()
 
     def arm_live(self):
         text, ok = QInputDialog.getText(
@@ -2655,6 +2770,7 @@ class MainWindow(QMainWindow):
                        f"PUMA 관리 {sync.get('managed_positions', 0)}종목 동기화.\n실전주문 잠금은 아직 유지됩니다.")
             else:
                 msg = "키움 모의투자 서버 연결 성공."
+            self._refresh_header_account_summary(force=True)
             if not silent:
                 QMessageBox.information(self, "연결 성공", msg)
         except Exception as exc:
@@ -5513,6 +5629,7 @@ class MainWindow(QMainWindow):
             "PARTIAL_SELL", "PARTIAL_SELL_SENT",
         ):
             self.log(res["name"], res["status"], f"{res['price']:,.0f}", res["signal"])
+            QTimer.singleShot(1500, lambda: self._refresh_header_account_summary(force=True))
         self._refresh_position_rows()
 
     def _on_auto_scan_error(self, exc):
@@ -6215,6 +6332,7 @@ class MainWindow(QMainWindow):
                     },
                 )
                 self._publish_mobile_snapshot()
+                QTimer.singleShot(1500, lambda: self._refresh_header_account_summary(force=True))
                 return
 
             raise ValueError("지원하지 않는 모바일 명령입니다.")
@@ -6230,6 +6348,8 @@ class MainWindow(QMainWindow):
             self.stop_manual_condition_preview()
             self.name_lookup_timer.stop()
             self.mobile_publish_timer.stop()
+            if getattr(self, "account_summary_timer", None) is not None:
+                self.account_summary_timer.stop()
             self.mobile_bridge.stop()
             if getattr(self, "strategy_widget", None) is not None:
                 self.strategy_widget.close()
@@ -6239,7 +6359,7 @@ class MainWindow(QMainWindow):
             self._range_pending = None
         workers = list(self._focus_readers) + [self.focus_analysis_thread, self.danta_analysis_thread,
             self.classification_thread, self._name_worker, self._range_worker, self.auto_scan_thread,
-            self.stock_search_thread]
+            self.stock_search_thread, self.account_summary_thread]
         running = [w for w in workers if w is not None and w.isRunning()]
         for worker in running:
             worker.requestInterruption()
