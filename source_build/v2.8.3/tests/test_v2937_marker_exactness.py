@@ -12,10 +12,16 @@ def strict_bottom_box():
     for i in range(240):
         rows.append(b(i, 120, 121, 119, 120, 1000))
     for k in range(30):
-        c = 90 + ((k % 4) - 1.5) * 0.4
-        h = 97 if k in (1, 9, 17, 25) else c + 1.0
-        l = 84 if k in (5, 13, 21, 29) else c - 1.0
-        rows.append(b(240 + k, c - 0.2, h, l, c, 1000))
+        phase = k % 8
+        if phase in (0, 1):
+            op, c, h, l = 95.0, 96.5, 97.0, 94.5   # 양봉 몸통 저항
+        elif phase in (4, 5):
+            op, c, h, l = 86.5, 85.0, 87.0, 84.0   # 음봉 몸통 지지
+        else:
+            c = 90.0 + ((k % 3) - 1) * 0.3
+            op = c - 0.3 if k % 2 == 0 else c + 0.3
+            h, l = c + 1.0, c - 1.0
+        rows.append(b(240 + k, op, h, l, c, 1000))
     return rows
 
 
