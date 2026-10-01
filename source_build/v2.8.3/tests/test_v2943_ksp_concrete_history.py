@@ -72,7 +72,7 @@ def test_ksp_reference_base_can_show_concrete_before_breakout():
     assert out is not None
     assert out["preview"] is True
     assert out["breakout_idx"] == -1
-    assert out["upper_source"] in ("전고언덕", "양봉종가")
+    assert out["upper_source"] == "양봉몸통저항"
     assert out["high"] < 3200.0
     assert candles[end]["close"] < e224[end]
 
@@ -83,10 +83,11 @@ def _box_wave(start_date, center, low, high, count, volume=1000):
         top = (i % 6) in (0, 1)
         bottom = (i % 6) in (3, 4)
         close = high * 0.985 if top else low * 1.015 if bottom else center
+        op = close * 0.985 if top else close * 1.015 if bottom else close * (0.995 if i % 2 == 0 else 1.005)
         rows.append(
             b(
                 f"{start_date}-{i}",
-                close * 0.995,
+                op,
                 high if top else close * 1.015,
                 low if bottom else close * 0.985,
                 close,
