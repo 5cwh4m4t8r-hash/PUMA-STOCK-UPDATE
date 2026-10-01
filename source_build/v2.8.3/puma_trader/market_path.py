@@ -209,14 +209,27 @@ def _bowl3_context(candles: list[dict], i: int, e224, settings: Any) -> tuple[bo
 
 
 def _spaced_touch_indices(seg: list[dict], level: float, tol: float, side: str) -> list[int]:
+    """Return repeated BODY touches on a box boundary.
+
+    User rule for concrete:
+      - resistance/top = bullish candle BODY top
+      - support/bottom = bearish candle BODY bottom
+    Wicks are deliberately ignored so a single spike cannot manufacture a box.
+    """
     raw = []
     for i, c in enumerate(seg):
-        hit = (
-            float(c["high"]) >= level * (1 - tol)
-            if side == "top"
-            else float(c["low"]) <= level * (1 + tol)
-        )
-        if hit:
+        op = float(c["open"])
+        close = float(c["close"])
+        if side == "top":
+            if close <= op:
+                continue
+            body_edge = max(op, close)
+        else:
+            if close >= op:
+                continue
+            body_edge = min(op, close)
+
+        if level * (1 - tol) <= body_edge <= level * (1 + tol):
             raw.append(i)
 
     out = []
@@ -241,12 +254,29 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
     if n < 12:
         return None
 
-    highs = [float(c["high"]) for c in seg]
-    lows = [float(c["low"]) for c in seg]
     closes = [float(c["close"]) for c in seg]
 
-    low = _quantile(lows, 0.18)
-    high = _quantile(highs, 0.82)
+    tol = float(_s(settings, "box_touch_tolerance_pct", 2.0))/100.0
+    coverage_req = float(_s(settings, "box_min_coverage", 0.68))
+    touch_req = int(_s(settings, "box_min_touches", 3))
+
+    # 공구리는 꼬리 고저점이 아니라 반복해서 막힌 '몸통 박스'다.
+    # 위 저항은 양봉 몸통 윗단, 아래 지지는 음봉 몸통 아랫단만 사용한다.
+    bullish_body_tops = [
+        max(float(c["open"]), float(c["close"]))
+        for c in seg
+        if float(c["close"]) > float(c["open"])
+    ]
+    bearish_body_bottoms = [
+        min(float(c["open"]), float(c["close"]))
+        for c in seg
+        if float(c["close"]) < float(c["open"])
+    ]
+    if len(bullish_body_tops) < touch_req or len(bearish_body_bottoms) < touch_req:
+        return None
+
+    high = _quantile(bullish_body_tops, 0.82)
+    low = _quantile(bearish_body_bottoms, 0.18)
     if low <= 0 or high <= low:
         return None
 
@@ -255,9 +285,6 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
     if width_pct > float(_s(settings, "box_width_pct", 30.0)):
         return None
 
-    tol = float(_s(settings, "box_touch_tolerance_pct", 2.0))/100.0
-    coverage_req = float(_s(settings, "box_min_coverage", 0.68))
-    touch_req = int(_s(settings, "box_min_touches", 3))
     alt_req = int(_s(settings, "box_min_alternations", 3))
     max_drift = float(_s(settings, "box_max_drift_pct", 5.0))
     max_directionality = float(_s(settings, "box_max_directionality", 0.50))
@@ -309,6 +336,8 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
         "period":period,
         "score":score,
         "structure_type":"공구리",
+        "top_basis":"양봉몸통",
+        "bottom_basis":"음봉몸통",
         "breakout_idx":-1,
         "accepted":False,
     }
@@ -493,7 +522,7 @@ def _preview_concrete_before_bowl3(
     e224,
     settings: Any=None,
 ) -> dict | None:
-    """Qualified concrete preview before Bowl-3 / EMA224 breakout."""
+    """Qualified repeated-body box preview before Bowl-3 / EMA224 breakout."""
     if not isinstance(box, dict) or box.get("structure_type") != "공구리":
         return None
     if current_idx <= 0 or current_idx >= len(candles):
@@ -562,48 +591,17 @@ def _preview_concrete_before_bowl3(
     if not (strong_base or near_224 or (near_or_above_112 and volume_impulse)):
         return None
 
-    selected_level = 0.0
-    selected_source = ""
-    anchor_idx = -1
-
-    hill = _fallback_hill(candles[start:end + 1], end - start, settings)
-    if isinstance(hill, dict):
-        hill_level = float(hill.get("high", 0) or 0)
-        hill_touch_local = int(hill.get("last_top_touch_idx", -1))
-        hill_touch = start + hill_touch_local if hill_touch_local >= 0 else -1
-        if (
-            hill_level > low
-            and hill_level < max_allowed_top
-            and start <= hill_touch <= end
-            and hill_touch >= max(start, end - 20)
-        ):
-            selected_level = hill_level
-            selected_source = "전고언덕"
-            anchor_idx = hill_touch
-
-    if selected_level <= 0:
-        bullish_candidates = []
-        recent_start = max(start, end - 40)
-        for j in range(recent_start, end + 1):
-            c = candles[j]
-            op = float(c["open"])
-            close = float(c["close"])
-            if close <= op:
-                continue
-            if close <= low or close >= max_allowed_top:
-                continue
-            bullish_candidates.append((close, j))
-        if bullish_candidates:
-            selected_level, anchor_idx = max(bullish_candidates, key=lambda x: x[0])
-            selected_source = "양봉종가"
-
+    # 공구리 상단/하단은 이미 반복 몸통 충돌로 확정된 박스 경계를 그대로 쓴다.
+    # 전고 언덕이나 한 개 양봉종가로 상단을 다시 바꾸지 않는다.
+    selected_level = float(box.get("high", 0) or 0)
     if selected_level <= low or selected_level >= max_allowed_top:
         return None
 
     out = dict(box)
     out["high"] = float(selected_level)
-    out["upper_source"] = selected_source
-    out["upper_anchor_idx"] = int(anchor_idx)
+    out["upper_source"] = "양봉몸통저항"
+    out["lower_source"] = "음봉몸통지지"
+    out["upper_anchor_idx"] = -1
     out["breakout_idx"] = -1
     out["preview"] = True
     out["accepted"] = False
