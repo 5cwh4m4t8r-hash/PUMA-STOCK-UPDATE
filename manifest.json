@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.68",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.68_UPDATE.zip",
-    "notes":  "v2.9.68 INDICATORS: Watermelon keeps the original EMA224-near and pre-Bowl3 preparation context. Its MA trigger is corrected to the user rule: top-to-bottom EMA448 \u003e EMA224 \u003e EMA112 \u003e EMA20 \u003e EMA5 \u003e EMA60, OR the exact bar where EMA60 golden-crosses above EMA112. Long-below-224 and volume/accumulation evidence remain required. Concrete remains a true repeated body box: upper resistance uses repeated bullish candle body-top contacts, lower support uses repeated bearish candle body-bottom contacts, with multiple alternating touches; wick extremes do not define the box. Auto-trading rules are unchanged from v2.9.66.",
-    "sha256":  "436b4e8557d523c96f578008e18ddb85bbeda1a98f144db458a67c89b0ee5301"
+    "version":  "2.9.69",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.69_UPDATE.zip",
+    "notes":  "v2.9.69 WATERMELON: EMA60-over-EMA112 is no longer recognized only on the single golden-cross candle. After EMA60 crosses above EMA112, the alternative MA condition stays active for the full period that EMA60 remains above EMA112, and turns off when EMA60 falls back to or below EMA112. The existing EMA224-near/pre-Bowl3 location gate, the 448\u003e224\u003e112\u003e20\u003e5\u003e60 alternative stack, and the repeated-body concrete definition remain unchanged. Auto-trading rules are unchanged.",
+    "sha256":  "9453d30718b5318cb9b7e04f61f7fffedf9100fbee4774c5055cf743d3327bf5"
 }
