@@ -18,18 +18,18 @@
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
 <div class="hero"><h1>오늘 10분만 가자.</h1><p>내 수준에 맞는 단어를 문장 속 빈칸으로 익히고, 잊을 때쯤 자동 복습해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">맞춤 어휘 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>빈칸 퀴즈 · 자동 복습</small></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>문장 빈칸 입력 · 자동 복습</small></div>
 <div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
-<div class="card" onclick="show('me')">⚙️<b>설정</b><small>언어·목표</small></div>
+<div class="card" onclick="placementStart()">📊<b>20문제 레벨 진단</b><small>현재 실력부터 맞추기</small></div><div class="card" onclick="show('me')">⚙️<b>설정</b><small>언어·목표</small></div>
 </div></section>
 
 <section id="word" class="screen"><div class="head"><button class="back" onclick="exitWord()">×</button><h2 id="wordNo">1/10</h2><div class="pill" id="wordLevel">Lv 1</div></div><div class="box" id="wq"></div></section><section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
 <section id="lesson" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="lessonNo">1/10</h2></div><div class="box" id="q"></div></section>
 <section id="review" class="screen"><div class="top"><div class="brand">복습</div><div class="pill" id="due">0</div></div><div id="reviewList"></div></section>
 <section id="pron" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>영어 발음</h2></div><div class="box"><span class="tag">MINIMAL PAIRS</span><div class="big">비슷한 소리 비교</div><div id="pairs"></div></div></section>
-<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">현재 실력</div><div class="pill" id="abilityText">실력 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
+<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
 </div>
 
 <div class="nav"><button class="sel" onclick="nav('home',this)"><span>⌂</span>홈</button><button onclick="nav('course',this)"><span>◫</span>코스</button><button onclick="nav('review',this)"><span>↻</span>복습</button><button onclick="nav('me',this)"><span>👤</span>내 학습</button></div>
@@ -159,71 +159,65 @@ function findMeaning(word){
   var x=(W[S.lang]||W["en-US"]).find(function(z){return norm(z[0])===norm(word)});
   return x?x[1]:null;
 }
-function modeFor(m){
-  var st=stateFor(m.word);
-  if(st.strength<1)return "meaning";
-  if(st.strength<2)return "reverse";
-  if(S.lang==="en-US"&&EX[S.lang]&&EX[S.lang][m.word]&&st.strength<4)return "cloze";
-  if(st.strength>=4)return "type";
-  return "reverse";
+
+function modeFor(m){return "cloze_input";}
+function placementStart(){
+  var all=(W[S.lang]||W["en-US"]).map(function(x,i,a){return metaFor(x,i,a.length)});
+  if(!all.length)return;
+  var n=Math.min(20,all.length),step=Math.max(1,Math.floor(all.length/n)),p=[];
+  for(var i=0;i<all.length&&p.length<n;i+=step)p.push(all[i]);
+  wSess={p:p,i:0,correct:0,started:0,hint:false,placement:true};
+  var nav=document.querySelector(".nav");if(nav)nav.style.display="none";
+  show("word");wordQuestion();
 }
 function wordQuestion(){
   if(wSess.i>=wSess.p.length)return wordFinish();
-  var m=wSess.p[wSess.i],mode=modeFor(m),q=document.getElementById("wq");
+  var m=wSess.p[wSess.i],q=document.getElementById("wq"),ex=clozeFor(m);
   wSess.started=Date.now();wSess.hint=false;
   document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
   var lv=document.getElementById("wordLevel");if(lv)lv.textContent="Lv "+Math.round(langAbility());
-  q.innerHTML="";
-  if(mode==="meaning"){
-    q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+m.word+"</div><div class='muted' style='margin-top:10px'>뜻을 하나 고르세요.</div><button class='mic' id='wplay'>🔊</button><div id='wordInput'></div>";
-    document.getElementById("wplay").onclick=function(){speak(m.word)};
-    renderChoiceAnswers(m,mode,meaningOptions(m),m.meaning);
-  }else if(mode==="reverse"){
-    q.innerHTML="<span class='tag'>한국어 → 단어</span><div class='big'>"+m.meaning+"</div><div class='muted' style='margin-top:10px'>알맞은 단어를 고르세요.</div><div id='wordInput'></div>";
-    renderChoiceAnswers(m,mode,wordOptions(m),m.word);
-  }else if(mode==="cloze"){
-    var ex=clozeFor(m);
-    q.innerHTML="<span class='tag'>문맥</span><div class='big'>"+ex.sentence+"</div><div class='muted' style='font-size:17px;margin-top:10px'>"+ex.ko+"</div><div id='wordInput'></div>";
-    renderChoiceAnswers(m,mode,wordOptions(m),m.word);
-  }else{
-    var ex2=clozeFor(m),prompt=ex2.sentence||m.meaning;
-    q.innerHTML="<span class='tag'>직접 입력</span><div class='big'>"+prompt+"</div><div class='muted' style='font-size:17px;margin-top:10px'>"+ex2.ko+"</div><input class='ans' id='wordTyped' autocomplete='off' autocapitalize='none' spellcheck='false' placeholder='정답 입력'><div class='row'><button class='secondary' id='wordHint'>힌트</button><button class='primary' id='wordCheck'>확인</button></div>";
-    document.getElementById("wordHint").onclick=function(){wSess.hint=true;document.getElementById("wordHint").textContent="첫 글자 "+m.word.slice(0,1)+" · "+m.word.length+"글자";speak(m.word)};
-    document.getElementById("wordCheck").onclick=function(){
-      var v=document.getElementById("wordTyped").value;
-      finishWordAnswer(m,mode,norm(v)===norm(m.word),v,m.word,wSess.hint,null);
-    };
-  }
-}
-function renderChoiceAnswers(m,mode,opts,correct){
-  var holder=document.getElementById("wordInput");
-  opts.forEach(function(o){
-    var b=document.createElement("button");b.className="choice";b.textContent=o;
-    b.onclick=function(){
-      if(holder.dataset.done)return;holder.dataset.done="1";
-      Array.from(holder.querySelectorAll(".choice")).forEach(function(z){z.disabled=true;if(z.textContent===correct)z.classList.add("ok")});
-      if(o!==correct)b.classList.add("bad");
-      finishWordAnswer(m,mode,o===correct,o,correct,false,b);
-    };
-    holder.appendChild(b);
+  var prompt=ex.sentence||"___";
+  q.innerHTML="<span class='tag'>빈칸 퀴즈</span><div class='big'>"+prompt+"</div>"+
+    "<div class='muted' style='font-size:17px;margin-top:12px'>"+ex.ko+"</div>"+
+    "<input class='ans' id='wordTyped' autocomplete='off' autocapitalize='none' spellcheck='false' placeholder='빈칸에 들어갈 단어'>"+
+    "<div class='row'><button class='secondary' id='wordHint'>힌트</button><button class='primary' id='wordCheck'>확인</button></div>"+
+    "<button class='secondary' id='wordDont' style='margin-top:10px'>모르겠어요</button>"+
+    "<div class='muted' id='hintText' style='margin-top:9px'></div>";
+  var input=document.getElementById("wordTyped");
+  if(input)input.focus();
+  document.getElementById("wordHint").onclick=function(){
+    wSess.hint=true;
+    var h=document.getElementById("hintText");
+    h.textContent="첫 글자: "+m.word.slice(0,1)+" · "+m.word.length+"글자";
+    speak(m.word);
+  };
+  document.getElementById("wordCheck").onclick=function(){
+    var v=document.getElementById("wordTyped").value;
+    finishWordAnswer(m,"cloze_input",norm(v)===norm(m.word),v,m.word,wSess.hint,null);
+  };
+  document.getElementById("wordDont").onclick=function(){
+    finishWordAnswer(m,"cloze_input",false,"",m.word,true,null);
+  };
+  input.addEventListener("keydown",function(e){
+    if(e.key==="Enter")document.getElementById("wordCheck").click();
   });
 }
 function whyWrong(m,mode,entered,correct){
-  if(mode==="meaning"){
-    var owner=(W[S.lang]||W["en-US"]).find(function(x){return x[1]===entered});
-    if(owner)return "선택한 <b>"+entered+"</b>는 <b>"+owner[0]+"</b>의 뜻입니다. <b>"+m.word+"</b>의 뜻은 <b>"+m.meaning+"</b>입니다.";
-    return "선택한 뜻은 <b>"+m.word+"</b>의 뜻과 다릅니다.";
-  }
+  if(!norm(entered))return "아직 단어가 떠오르지 않았어요. 문장 전체에서 <b>"+correct+"</b>가 어떤 뜻으로 쓰였는지 확인하세요.";
   var picked=findMeaning(entered);
-  if(picked)return "<b>"+entered+"</b>는 ‘"+picked+"’라는 뜻이라 이 문제의 정답과 다릅니다.";
+  if(picked)return "<b>"+entered+"</b>는 ‘"+picked+"’라는 뜻이라 이 문맥의 뜻과 맞지 않습니다.";
   var sc=similar(entered,correct);
-  if(sc>=65)return "정답과 비슷하지만 <b>철자</b>가 다릅니다. 빠진 글자와 순서를 확인하세요.";
-  if(S.lang==="en-US"&&norm(entered)==="seat"&&norm(correct)==="sit")return "<b>seat</b>는 ‘좌석’, <b>sit</b>은 ‘앉다’입니다. 여기에는 동사 <b>sit</b>이 필요합니다.";
-  if(S.lang==="en-US"&&norm(entered)==="sit"&&norm(correct)==="seat")return "<b>sit</b>은 ‘앉다’, <b>seat</b>는 ‘좌석’입니다. 여기에는 명사 <b>seat</b>가 필요합니다.";
-  return "정답 단어를 아직 정확히 기억하지 못한 것으로 판단했습니다.";
+  if(sc>=65)return "단어는 거의 떠올렸지만 <b>철자</b>가 다릅니다. 정답 철자는 <b>"+correct+"</b>입니다.";
+  if(S.lang==="en-US"&&norm(entered)==="seat"&&norm(correct)==="sit")return "<b>seat</b>는 ‘좌석’, <b>sit</b>은 ‘앉다’입니다. 이 문장에는 동사 <b>sit</b>이 필요합니다.";
+  if(S.lang==="en-US"&&norm(entered)==="sit"&&norm(correct)==="seat")return "<b>sit</b>은 ‘앉다’, <b>seat</b>는 ‘좌석’입니다. 이 문장에는 명사 <b>seat</b>가 필요합니다.";
+  return "입력한 단어는 이 문장의 의미와 연결되지 않습니다. 문장 전체 뜻과 정답 단어를 같이 확인하세요.";
 }
 function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
+  if(document.getElementById("answerLocked"))return;
+  var lock=document.createElement("span");lock.id="answerLocked";lock.style.display="none";document.getElementById("wq").appendChild(lock);
   var st=stateFor(m.word),ms=Date.now()-wSess.started,q=document.getElementById("wq");
+  var input=document.getElementById("wordTyped"),check=document.getElementById("wordCheck"),hintBtn=document.getElementById("wordHint"),dont=document.getElementById("wordDont");
+  if(input)input.disabled=true;if(check)check.disabled=true;if(hintBtn)hintBtn.disabled=true;if(dont)dont.disabled=true;
   st.seen++;st.last=Date.now();st.avgMs=st.avgMs?Math.round(st.avgMs*.7+ms*.3):ms;
   if(ok){
     st.right++;st.strength=Math.min(7,st.strength+(hint?0.5:1));
@@ -239,21 +233,22 @@ function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
   }
   if(hint)st.hints++;S.total++;save();
 
+  var ex=clozeFor(m),full=ex.sentence?ex.sentence.replace("____",m.word).replace("___",m.word):m.word;
   var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
   if(ok){
-    fb.innerHTML="<b>정답</b><br>"+m.word+" = "+m.meaning+"<br><span class='muted'>이 단어는 이번 세션에 다시 나오지 않습니다.</span>";
-    q.appendChild(fb);
+    fb.innerHTML="<b>정답</b><br><b>"+m.word+"</b> — "+m.meaning+
+      "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>";
   }else{
-    var ex=clozeFor(m),full=ex.sentence?ex.sentence.replace("____",m.word).replace("___",m.word):"";
-    var answerLine=(mode==="meaning")
-      ? "정답: <b>"+m.meaning+"</b>"
-      : "정답: <b>"+correct+"</b> — "+m.meaning;
-    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+"<br><br>"+answerLine+(full?"<br><span class='muted'>예문: "+full+" · "+ex.ko+"</span>":"")+"<br><span class='muted'>지금 바로 반복하지 않고 10분 뒤 복습 대상으로 보냅니다.</span>";
-    q.appendChild(fb);
+    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+
+      "<br><br>정답: <b>"+m.word+"</b> — "+m.meaning+
+      "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>"+
+      "<br><span class='muted'>이 항목은 지금 바로 반복하지 않고 복습 시점에 다시 냅니다.</span>";
   }
+  q.appendChild(fb);
   var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
 }
 function wordFinish(){
+  if(wSess&&wSess.placement){var ratio=wSess.p.length?wSess.correct/wSess.p.length:0;setAbility(1+ratio*29);S.placement=S.placement||{};S.placement[S.lang]=true;}
   var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
   S.done[t]=(S.done[t]||0)+wSess.p.length;save();
   alert("학습 완료 · "+wSess.correct+"/"+wSess.p.length+" 정답");
