@@ -15,16 +15,16 @@
 <div class="app">
 <section id="home" class="screen on">
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
-<div class="hero"><h1>오늘 10분만 가자.</h1><p>듣고, 말하고, 틀린 건 다시.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="start()">오늘 학습 시작</button></div>
+<div class="hero"><h1>오늘 10분만 가자.</h1><p>단어 5개부터. 뜻을 익힌 뒤 아주 짧게 반복해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">왕초보 단어 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid">
-<div class="card" onclick="show('course')">🧭<b>코스</b><small>상황별 문장</small></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>왕초보 단어</b><small>한 단어씩 아주 쉽게</small></div>
+<div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
 <div class="card" onclick="show('me')">⚙️<b>설정</b><small>언어·목표</small></div>
 </div></section>
 
-<section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
+<section id="word" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="wordNo">1/5</h2></div><div class="box" id="wq"></div></section><section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
 <section id="lesson" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="lessonNo">1/10</h2></div><div class="box" id="q"></div></section>
 <section id="review" class="screen"><div class="top"><div class="brand">복습</div><div class="pill" id="due">0</div></div><div id="reviewList"></div></section>
 <section id="pron" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>영어 발음</h2></div><div class="box"><span class="tag">MINIMAL PAIRS</span><div class="big">비슷한 소리 비교</div><div id="pairs"></div></div></section>
@@ -42,6 +42,45 @@ var D={
 "de-DE":{n:"Deutsch",f:"🇩🇪",u:[["기본",[["Hallo.","안녕하세요."],["Danke.","감사합니다."],["Ich verstehe nicht.","이해하지 못했어요."],["Bitte sprechen Sie langsamer.","천천히 말해 주세요."]]],["이동·좌석",[["Wir können dort sitzen.","우리는 거기에 앉을 수 있어요."],["Ist dieser Platz frei?","이 자리 비어 있나요?"],["Wo ist die Toilette?","화장실이 어디예요?"]]]]},
 "zh-CN":{n:"中文",f:"🇨🇳",u:[["기본",[["你好。","안녕하세요."],["谢谢。","감사합니다."],["我听不懂。","이해하지 못했어요."],["请说慢一点。","천천히 말해 주세요."]]],["이동·좌석",[["我们可以坐在那里。","우리는 거기에 앉을 수 있어요."],["这个座位有人吗？","이 자리 비어 있나요?"],["洗手间在哪里？","화장실이 어디예요?"]]]]}
 };
+
+var W={
+"en-US":[["hello","안녕"],["yes","네"],["no","아니요"],["I","나"],["you","너 / 당신"],["we","우리"],["go","가다"],["come","오다"],["sit","앉다"],["seat","자리 / 좌석"],["eat","먹다"],["drink","마시다"],["water","물"],["food","음식"],["hotel","호텔"],["room","방"],["car","자동차"],["bus","버스"],["train","기차"],["airport","공항"],["ticket","표 / 티켓"],["toilet","화장실"],["here","여기"],["there","거기"],["good","좋은"],["bad","나쁜"],["big","큰"],["small","작은"],["one","하나"],["two","둘"]],
+"ja-JP":[["こんにちは","안녕"],["はい","네"],["いいえ","아니요"],["私","나"],["あなた","너 / 당신"],["行く","가다"],["来る","오다"],["座る","앉다"],["席","자리 / 좌석"],["食べる","먹다"],["飲む","마시다"],["水","물"],["食べ物","음식"],["ホテル","호텔"],["部屋","방"],["車","자동차"],["バス","버스"],["電車","기차"],["空港","공항"],["切符","표 / 티켓"],["トイレ","화장실"],["ここ","여기"],["そこ","거기"],["良い","좋은"],["大きい","큰"],["小さい","작은"]],
+"es-ES":[["hola","안녕"],["sí","네"],["no","아니요"],["yo","나"],["tú","너"],["ir","가다"],["venir","오다"],["sentarse","앉다"],["asiento","자리 / 좌석"],["comer","먹다"],["beber","마시다"],["agua","물"],["comida","음식"],["hotel","호텔"],["habitación","방"],["coche","자동차"],["autobús","버스"],["tren","기차"],["aeropuerto","공항"],["billete","표 / 티켓"],["baño","화장실"],["aquí","여기"],["allí","거기"],["bueno","좋은"],["grande","큰"],["pequeño","작은"]],
+"fr-FR":[["bonjour","안녕"],["oui","네"],["non","아니요"],["je","나"],["tu","너"],["aller","가다"],["venir","오다"],["s'asseoir","앉다"],["siège","자리 / 좌석"],["manger","먹다"],["boire","마시다"],["eau","물"],["nourriture","음식"],["hôtel","호텔"],["chambre","방"],["voiture","자동차"],["bus","버스"],["train","기차"],["aéroport","공항"],["billet","표 / 티켓"],["toilettes","화장실"],["ici","여기"],["là","거기"],["bon","좋은"],["grand","큰"],["petit","작은"]],
+"de-DE":[["hallo","안녕"],["ja","네"],["nein","아니요"],["ich","나"],["du","너"],["gehen","가다"],["kommen","오다"],["sitzen","앉다"],["Sitz","자리 / 좌석"],["essen","먹다"],["trinken","마시다"],["Wasser","물"],["Essen","음식"],["Hotel","호텔"],["Zimmer","방"],["Auto","자동차"],["Bus","버스"],["Zug","기차"],["Flughafen","공항"],["Ticket","표 / 티켓"],["Toilette","화장실"],["hier","여기"],["dort","거기"],["gut","좋은"],["groß","큰"],["klein","작은"]],
+"zh-CN":[["你好","안녕"],["是","네"],["不是","아니요"],["我","나"],["你","너"],["去","가다"],["来","오다"],["坐","앉다"],["座位","자리 / 좌석"],["吃","먹다"],["喝","마시다"],["水","물"],["食物","음식"],["酒店","호텔"],["房间","방"],["汽车","자동차"],["公交车","버스"],["火车","기차"],["机场","공항"],["票","표 / 티켓"],["洗手间","화장실"],["这里","여기"],["那里","거기"],["好","좋은"],["大","큰"],["小","작은"]]
+};
+var wSess=null;
+function wordStart(){
+  var all=W[S.lang]||W["en-US"], seen=S.wordSeen||{}, fresh=all.filter(function(x){return !seen[x[0]]});
+  var pool=(fresh.length?fresh:all).slice().sort(function(){return Math.random()-.5}).slice(0,5);
+  wSess={p:pool,i:0,stage:0,correct:0};show("word");wordQuestion();
+}
+function wordQuestion(){
+  if(wSess.i>=wSess.p.length)return wordFinish();
+  var x=wSess.p[wSess.i], q=document.getElementById("wq");document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
+  if(wSess.stage===0){
+    q.innerHTML="<span class='tag'>새 단어</span><div class='big'>"+x[0]+"</div><div class='muted' style='font-size:20px;margin-top:10px'>"+x[1]+"</div><button class='mic' id='wplay'>🔊</button><button class='primary' id='wknow'>알겠어</button><button class='secondary' id='wdont'>아직 모르겠어</button>";
+    document.getElementById("wplay").onclick=function(){speak(x[0])};
+    document.getElementById("wknow").onclick=function(){wSess.stage=1;wordQuestion()};
+    document.getElementById("wdont").onclick=function(){speak(x[0]);wSess.stage=1;wordQuestion()};
+  } else if(wSess.stage===1){
+    var opts=[x[1]], all=W[S.lang]||W["en-US"];
+    all.filter(function(y){return y[0]!==x[0]}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y[1])});
+    opts.sort(function(){return Math.random()-.5});
+    q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+x[0]+"</div><div class='muted'>뜻을 골라봐.</div>";
+    opts.forEach(function(o){var b=document.createElement("button");b.className="choice";b.textContent=o;b.onclick=function(){var ok=o===x[1];b.classList.add(ok?"ok":"bad");if(ok)wSess.correct++;S.total++;if(ok)S.ok++;S.xp+=ok?5:1;if(!ok){S.bad.unshift({id:"w-"+x[0],t:x[0],k:x[1]});S.bad=S.bad.slice(0,60)}S.wordSeen=S.wordSeen||{};S.wordSeen[x[0]]=(S.wordSeen[x[0]]||0)+1;save();var n=document.createElement("button");n.className="primary";n.textContent=ok?"정답! 다음":"정답은 “"+x[1]+"” · 다음";n.onclick=function(){wSess.stage=2;wordQuestion()};q.appendChild(n)};q.appendChild(b)});
+  } else {
+    q.innerHTML="<span class='tag'>한 번 더</span><div class='big'>"+x[1]+"</div><div class='muted'>단어를 보고 떠올린 뒤 눌러봐.</div><button class='secondary' id='reveal'>정답 보기</button>";
+    document.getElementById("reveal").onclick=function(){q.innerHTML="<span class='tag'>확인</span><div class='big'>"+x[0]+"</div><div class='muted' style='font-size:20px;margin-top:10px'>"+x[1]+"</div><button class='mic' id='wp2'>🔊</button><button class='primary' id='wnext'>다음 단어</button>";document.getElementById("wp2").onclick=function(){speak(x[0])};document.getElementById("wnext").onclick=function(){wSess.i++;wSess.stage=0;wordQuestion()}};
+  }
+}
+function wordFinish(){
+  var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
+  S.done[t]=(S.done[t]||0)+wSess.p.length;save();alert("단어 5개 학습 완료!");show("home");
+}
+
 var S=JSON.parse(localStorage.getItem("pumaLingoLive")||'{"lang":"en-US","xp":0,"streak":0,"last":"","goal":10,"done":{},"ok":0,"total":0,"bad":[]}'),flat=[],sess=null;
 function save(){localStorage.setItem("pumaLingoLive",JSON.stringify(S));home()}
 function day(){return new Date().toISOString().slice(0,10)}
