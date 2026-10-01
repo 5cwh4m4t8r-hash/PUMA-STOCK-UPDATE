@@ -18,7 +18,7 @@
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
 <div class="hero"><h1>오늘 10분만 가자.</h1><p>내 수준에 맞는 단어를 문장 속 빈칸으로 익히고, 잊을 때쯤 자동 복습해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">맞춤 어휘 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>문장 빈칸 입력 · 자동 복습</small></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>문장 빈칸 선택 · 자동 복습</small></div>
 <div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
@@ -160,7 +160,8 @@ function findMeaning(word){
   return x?x[1]:null;
 }
 
-function modeFor(m){return "cloze_input";}
+
+function modeFor(m){return "cloze_choice";}
 function placementStart(){
   var all=(W[S.lang]||W["en-US"]).map(function(x,i,a){return metaFor(x,i,a.length)});
   if(!all.length)return;
@@ -169,6 +170,16 @@ function placementStart(){
   wSess={p:p,i:0,correct:0,started:0,hint:false,placement:true};
   var nav=document.querySelector(".nav");if(nav)nav.style.display="none";
   show("word");wordQuestion();
+}
+function choiceWords(m){
+  var src=(W[S.lang]||W["en-US"]).map(function(x){return x[0]}).filter(function(x){return norm(x)!==norm(m.word)});
+  var near=src.filter(function(x){return Math.abs(x.length-m.word.length)<=3});
+  var pool=(near.length>=3?near:src).sort(function(){return Math.random()-.5});
+  var out=[m.word];
+  for(var i=0;i<pool.length&&out.length<4;i++){
+    if(!out.some(function(x){return norm(x)===norm(pool[i])}))out.push(pool[i]);
+  }
+  return out.sort(function(){return Math.random()-.5});
 }
 function wordQuestion(){
   if(wSess.i>=wSess.p.length)return wordFinish();
@@ -179,45 +190,45 @@ function wordQuestion(){
   var prompt=ex.sentence||"___";
   q.innerHTML="<span class='tag'>빈칸 퀴즈</span><div class='big'>"+prompt+"</div>"+
     "<div class='muted' style='font-size:17px;margin-top:12px'>"+ex.ko+"</div>"+
-    "<input class='ans' id='wordTyped' autocomplete='off' autocapitalize='none' spellcheck='false' placeholder='빈칸에 들어갈 단어'>"+
-    "<div class='row'><button class='secondary' id='wordHint'>힌트</button><button class='primary' id='wordCheck'>확인</button></div>"+
-    "<button class='secondary' id='wordDont' style='margin-top:10px'>모르겠어요</button>"+
+    "<div id='wordInput' style='margin-top:14px'></div>"+
+    "<button class='secondary' id='wordHint' style='margin-top:10px'>힌트</button>"+
     "<div class='muted' id='hintText' style='margin-top:9px'></div>";
-  var input=document.getElementById("wordTyped");
-  if(input)input.focus();
+  var holder=document.getElementById("wordInput");
+  choiceWords(m).forEach(function(o){
+    var b=document.createElement("button");
+    b.className="choice";b.textContent=o;
+    b.onclick=function(){
+      if(holder.dataset.done)return;
+      holder.dataset.done="1";
+      Array.from(holder.querySelectorAll(".choice")).forEach(function(z){
+        z.disabled=true;
+        if(norm(z.textContent)===norm(m.word))z.classList.add("ok");
+      });
+      if(norm(o)!==norm(m.word))b.classList.add("bad");
+      finishWordAnswer(m,"cloze_choice",norm(o)===norm(m.word),o,m.word,wSess.hint,b);
+    };
+    holder.appendChild(b);
+  });
   document.getElementById("wordHint").onclick=function(){
     wSess.hint=true;
     var h=document.getElementById("hintText");
-    h.textContent="첫 글자: "+m.word.slice(0,1)+" · "+m.word.length+"글자";
+    h.textContent="뜻: "+m.meaning+" · 발음을 들어보세요.";
     speak(m.word);
   };
-  document.getElementById("wordCheck").onclick=function(){
-    var v=document.getElementById("wordTyped").value;
-    finishWordAnswer(m,"cloze_input",norm(v)===norm(m.word),v,m.word,wSess.hint,null);
-  };
-  document.getElementById("wordDont").onclick=function(){
-    finishWordAnswer(m,"cloze_input",false,"",m.word,true,null);
-  };
-  input.addEventListener("keydown",function(e){
-    if(e.key==="Enter")document.getElementById("wordCheck").click();
-  });
 }
 function whyWrong(m,mode,entered,correct){
-  if(!norm(entered))return "아직 단어가 떠오르지 않았어요. 문장 전체에서 <b>"+correct+"</b>가 어떤 뜻으로 쓰였는지 확인하세요.";
+  if(!norm(entered))return "아직 단어가 떠오르지 않았어요. 문장 전체 뜻과 정답 단어를 같이 확인하세요.";
   var picked=findMeaning(entered);
-  if(picked)return "<b>"+entered+"</b>는 ‘"+picked+"’라는 뜻이라 이 문맥의 뜻과 맞지 않습니다.";
-  var sc=similar(entered,correct);
-  if(sc>=65)return "단어는 거의 떠올렸지만 <b>철자</b>가 다릅니다. 정답 철자는 <b>"+correct+"</b>입니다.";
+  if(picked)return "선택한 <b>"+entered+"</b>는 ‘"+picked+"’라는 뜻이라 이 문맥과 맞지 않습니다.";
   if(S.lang==="en-US"&&norm(entered)==="seat"&&norm(correct)==="sit")return "<b>seat</b>는 ‘좌석’, <b>sit</b>은 ‘앉다’입니다. 이 문장에는 동사 <b>sit</b>이 필요합니다.";
   if(S.lang==="en-US"&&norm(entered)==="sit"&&norm(correct)==="seat")return "<b>sit</b>은 ‘앉다’, <b>seat</b>는 ‘좌석’입니다. 이 문장에는 명사 <b>seat</b>가 필요합니다.";
-  return "입력한 단어는 이 문장의 의미와 연결되지 않습니다. 문장 전체 뜻과 정답 단어를 같이 확인하세요.";
+  return "선택한 <b>"+entered+"</b>는 이 문장의 뜻과 맞지 않습니다.";
 }
 function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
   if(document.getElementById("answerLocked"))return;
   var lock=document.createElement("span");lock.id="answerLocked";lock.style.display="none";document.getElementById("wq").appendChild(lock);
   var st=stateFor(m.word),ms=Date.now()-wSess.started,q=document.getElementById("wq");
-  var input=document.getElementById("wordTyped"),check=document.getElementById("wordCheck"),hintBtn=document.getElementById("wordHint"),dont=document.getElementById("wordDont");
-  if(input)input.disabled=true;if(check)check.disabled=true;if(hintBtn)hintBtn.disabled=true;if(dont)dont.disabled=true;
+  var hintBtn=document.getElementById("wordHint");if(hintBtn)hintBtn.disabled=true;
   st.seen++;st.last=Date.now();st.avgMs=st.avgMs?Math.round(st.avgMs*.7+ms*.3):ms;
   if(ok){
     st.right++;st.strength=Math.min(7,st.strength+(hint?0.5:1));
@@ -242,7 +253,7 @@ function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
     fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+
       "<br><br>정답: <b>"+m.word+"</b> — "+m.meaning+
       "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>"+
-      "<br><span class='muted'>이 항목은 지금 바로 반복하지 않고 복습 시점에 다시 냅니다.</span>";
+      "<br><span class='muted'>지금 바로 반복하지 않고 복습 시점에 다시 냅니다.</span>";
   }
   q.appendChild(fb);
   var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
@@ -341,12 +352,15 @@ home();
   };
   document.addEventListener("visibilitychange",function(){if(!document.hidden)check()});
   window.addEventListener("focus",check);
+  window.addEventListener("pageshow",check);
+  window.addEventListener("online",check);
+  document.addEventListener("DOMContentLoaded",check);
   setInterval(function(){
     if(pendingBuild&&!lessonActive())go(pendingBuild);
     else check();
-  },15*60*1000);
-  setInterval(function(){if(pendingBuild&&!lessonActive())go(pendingBuild)},3000);
-  setTimeout(check,350);
+  },60*1000);
+  setInterval(function(){if(pendingBuild&&!lessonActive())go(pendingBuild)},1500);
+  setTimeout(check,100);
 })();
 </script>
 
