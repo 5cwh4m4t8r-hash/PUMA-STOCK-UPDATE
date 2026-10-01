@@ -121,11 +121,14 @@ def test_record112_recent_requires_record_volume_and_previous_day_increase():
     assert _record112_recent(vols, 125, 1) is False
 
 
-def test_watermelon_pre_bowl3_filter_is_practical_not_overlocked():
+def test_watermelon_is_locked_to_user_bottom_ma_stack():
     src = __import__("pathlib").Path("puma_trader/watermelon_proxy.py").read_text(encoding="utf-8")
-    assert "abs(price / float(e224[i]) - 1.0) <= 0.040" in src
+    assert "e5 = _ema(closes, 5)" in src
     assert "len(prior_idx) >= 60 and below224_count >= 60" in src
     assert "volume_pre_signal = bool(" in src
     assert "record112_recent\n            or recent_large_money" in src
-    assert "and score >= 70" in src
-    assert "float(e60[i]) < float(e112[i]) < float(e224[i])" in src
+    assert "and score >= 60" in src
+    assert "float(e20[i]) < float(e5[i]) < float(e60[i])" in src
+    assert "< float(e112[i]) < float(e224[i]) < float(e448[i])" in src
+    assert "and bottom_ma_order" in src
+    assert "near_224_prebreak" not in src

@@ -137,7 +137,7 @@ def build_puma_watermelon(
     *,
     acc_flags: list[bool] | None = None,
 ) -> dict:
-    """PUMA watermelon approximation v4.
+    """PUMA watermelon approximation v5.
 
     Important:
       The proprietary Stock Dante watermelon formula is not public.
@@ -146,8 +146,9 @@ def build_puma_watermelon(
       with EMA112/224 and Ichimoku cloud, prior accumulation, and arrow confluence.
 
     Goal:
-      Mark only the sparse preparation zone immediately before a Bowl-3 style
-      EMA224 breakout setup, using concentrated-capital footprints as evidence.
+      Mark only a true bottom-turn area. The required bottom MA stack is
+      EMA20 < EMA5 < EMA60 < EMA112 < EMA224 < EMA448 (bottom to top),
+      plus observable volume/accumulation evidence.
 
     Uses only current/past bars. No future-bar confirmation is used.
     """
@@ -178,6 +179,7 @@ def build_puma_watermelon(
     lows = [float(c["low"]) for c in candles]
     vols = [float(c["volume"]) for c in candles]
 
+    e5 = _ema(closes, 5)
     e20 = _ema(closes, 20)
     e60 = _ema(closes, 60)
     e112 = _ema(closes, 112)
@@ -196,7 +198,7 @@ def build_puma_watermelon(
         acc_flags.extend([False] * (n - len(acc_flags)))
 
     last_display = -10**9
-    # 수박은 밥3 직전 준비구간에만 드물게 표시한다.
+    # 수박은 같은 바닥 반등구간에 난사하지 않고 드물게 표시한다.
     min_display_gap = 20
 
     pre_bowl_prev = False
@@ -262,11 +264,18 @@ def build_puma_watermelon(
             else:
                 ema20_recovery = float(e20[i]) >= float(e20[i - 3]) * 0.995
 
-        reverse_order = False
-        if e224[i] is not None:
-            reverse_order = float(e112[i]) <= float(e224[i]) * 1.015
-            if e448[i] is not None:
-                reverse_order = reverse_order and float(e224[i]) <= float(e448[i]) * 1.015
+        # User-defined bottom stack, read from the LOWEST line upward:
+        # 20 < 5 < 60 < 112 < 224 < 448.
+        bottom_ma_order = bool(
+            e5[i] is not None
+            and e20[i] is not None
+            and e60[i] is not None
+            and e112[i] is not None
+            and e224[i] is not None
+            and e448[i] is not None
+            and float(e20[i]) < float(e5[i]) < float(e60[i])
+            < float(e112[i]) < float(e224[i]) < float(e448[i])
+        )
 
         # Large-money footprint proxy: abnormal volume/absorption plus interaction
         # with structural levels that individual traders cannot directly command
@@ -368,8 +377,8 @@ def build_puma_watermelon(
             score += 10; tags.append("반등봉/종가회복")
         if ema20_recovery:
             score += 5; tags.append("단기선 회복")
-        if reverse_order:
-            score += 10; tags.append("장기이평 역배열/수렴")
+        if bottom_ma_order:
+            score += 20; tags.append("바닥이평 20<5<60<112<224<448")
         if impulse or acc_recent:
             score += 10; tags.append("선행 거래량/매집")
         if big_money_footprint:
@@ -386,32 +395,12 @@ def build_puma_watermelon(
         if stage and reclaim and reversal:
             stage = 2
 
-        # Earlier than v1: marker is allowed near the initial reclaim/turning area.
-        # Still require bottom context + long-MA proximity + actual reclaim.
-        # Final marker is intentionally strict. A loose arrow overlap alone is
-        # not evidence for watermelon. Require a *recent* long-MA reclaim,
-        # actual hold/settling, short-line recovery, and objective volume or
-        # accumulation evidence. This favors missing a marginal marker over
-        # painting false watermelon symbols across the chart.
-        context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
-        evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
+        # 최종 표시는 아래->위 20<5<60<112<224<448 바닥 배열을 핵심 게이트로 쓴다.
+        # 기존의 224 근접/밥3 직전 위치 강제는 제거한다.
 
-        # 밥3 분석기의 '3번 직전' 기준과 맞춘다:
-        # 1) EMA224 아래 장기 체류(최근 100봉 중 60봉 이상)
-        # 2) 현재가 EMA224 ±4%
-        # 3) 112봉 신고거래량 또는 대형자금/매집 흔적 중 하나
-        # 4) 60 < 112 < 224 역배열 또는 최근 112EMA 회복
-        near_224_prebreak = False
-        if e224[i] is not None and float(e224[i]) > 0:
-            near_224_prebreak = abs(price / float(e224[i]) - 1.0) <= 0.040
-
-        reverse_60_112_224 = False
-        if e60[i] is not None and e112[i] is not None and e224[i] is not None:
-            reverse_60_112_224 = bool(
-                float(e60[i]) < float(e112[i]) < float(e224[i])
-            )
-
-        reclaimed_112_recent = _latest_reclaim_index(closes, e112, i, 60) >= 0
+        # 수박은 이제 '밥3 직전/224 근접'이 아니라 실제 바닥 반등 초입에만 표시한다.
+        # 핵심 구조는 아래->위 20 < 5 < 60 < 112 < 224 < 448.
+        # 장기 하락/224 아래 체류와 거래량·매집 흔적을 함께 요구해 엉뚱한 중간 자리 표시를 막는다.
         record112_recent = _record112_recent(vols, i, 20)
 
         prior_start = max(223, i - 99)
@@ -431,7 +420,7 @@ def build_puma_watermelon(
             or any(int(x) >= 50 for x in footprint_scores[max(0, i - 9):i])
         )
 
-        # 현재 봉이 이미 224를 강한 양봉 몸통으로 돌파했다면 '직전 수박'이 아니다.
+        # 이미 224를 강한 양봉 몸통으로 돌파한 뒤라면 바닥 수박 자리가 아니다.
         bullish_224_body_break = False
         if i > 0 and e224[i] is not None:
             bullish_224_body_break = bool(
@@ -449,25 +438,25 @@ def build_puma_watermelon(
         pre_bowl3 = bool(
             bottom_context
             and long_below_224
-            and near_224_prebreak
-            and (reverse_60_112_224 or reclaimed_112_recent)
+            and bottom_ma_order
             and volume_pre_signal
             and not bullish_224_body_break
         )
 
         pre_bowl3_flags[i] = pre_bowl3
 
-        # 수박은 밥3 직전 구조 + 세력성 거래흔적이 보이면 표시한다.
+        # 수박은 바닥 이평배열 + 거래흔적이 동시에 확인될 때만 표시한다.
         # 신고거래량과 대형자금흔적을 동시에 요구하지 않는다.
         strict = bool(
             pre_bowl3
-            and score >= 70
+            and (reversal or ema20_recovery)
+            and score >= 60
         )
 
         if strict:
             stage = 3
             confirmed[i] = True
-            # 같은 준비구간에 여러 개 난사하지 않고, 구간에 처음 진입한 자리만 우선 표시.
+            # 같은 바닥구간에 여러 개 난사하지 않고, 조건에 처음 진입한 자리만 우선 표시.
             entered_pre_bowl = not pre_bowl_prev
             if entered_pre_bowl and i - last_display >= min_display_gap:
                 display[i] = 3

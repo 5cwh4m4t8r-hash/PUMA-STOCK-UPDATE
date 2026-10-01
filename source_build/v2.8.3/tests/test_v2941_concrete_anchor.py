@@ -44,7 +44,9 @@ def test_concrete_preview_exists_before_ema224_breakout():
     assert out is not None
     assert out["preview"] is True
     assert out["breakout_idx"] == -1
-    assert out["upper_source"] in ("전고언덕", "양봉종가")
+    assert out["upper_source"] == "양봉몸통저항"
+    assert out["high"] == 98.0
+    assert out["lower_source"] == "음봉몸통지지"
     assert out["high"] < 105.0
     assert candles[119]["close"] < e224[119]
 
