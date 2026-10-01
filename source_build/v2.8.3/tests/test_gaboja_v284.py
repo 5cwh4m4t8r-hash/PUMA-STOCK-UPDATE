@@ -144,3 +144,42 @@ def test_pullback_cannot_touch_basis_open():
     rows[-1] = _d("20260923091500", 112.0, 112.2, 106.0, 110.0, 400)
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15))
     assert sig.passed is False
+
+
+def test_high_volume_deep_drop_is_not_bought_at_cha_but_enters_on_body_recovery_breakout():
+    rows = _minute(False)
+    # 영1 1400/300=4.67주/s보다 눌림 거래량속도가 더 강하다.
+    # 따라서 09:15에는 차 매수 금지, 이후 전고(113) 양봉 몸통돌파 때만 진입한다.
+    rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 1800)
+
+    hot_drop = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 15, 30),
+        cha_min_live_seconds=20,
+    )
+    assert hot_drop.passed is False
+    assert hot_drop.entry_kind == ""
+
+    rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 900))
+    recovered = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 20, 30),
+        cha_min_live_seconds=20,
+    )
+    assert recovered.passed is True
+    assert recovered.entry_kind == "RECOVERY_BREAKOUT"
+    assert recovered.young1_high == 113
+    assert recovered.pullback_low == 107.8
+    assert recovered.details["recovery_breakout"] is True
+    assert recovered.details["recovery_pullback_index"] == 3
+
+
+def test_high_volume_recovery_requires_bullish_body_not_wick_only():
+    rows = _minute(False)
+    rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 1800)
+    # 고가는 전고 113을 넘지만 몸통 종가는 전고 아래 -> 진입 금지.
+    rows.append(_d("20260923092000", 112.0, 114.5, 111.8, 112.8, 900))
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 20, 30),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is False
+    assert sig.entry_kind == ""
