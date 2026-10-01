@@ -198,7 +198,7 @@ def build_puma_watermelon(
         acc_flags.extend([False] * (n - len(acc_flags)))
 
     last_display = -10**9
-    # 수박은 밥3 직전 준비구간에만 드물게 표시한다.
+    # 수박은 같은 바닥 반등구간에 난사하지 않고 드물게 표시한다.
     min_display_gap = 20
 
     pre_bowl_prev = False
@@ -395,20 +395,12 @@ def build_puma_watermelon(
         if stage and reclaim and reversal:
             stage = 2
 
-        # Earlier than v1: marker is allowed near the initial reclaim/turning area.
-        # Still require bottom context + long-MA proximity + actual reclaim.
-        # Final marker is intentionally strict. A loose arrow overlap alone is
-        # not evidence for watermelon. Require a *recent* long-MA reclaim,
-        # actual hold/settling, short-line recovery, and objective volume or
-        # accumulation evidence. This favors missing a marginal marker over
-        # painting false watermelon symbols across the chart.
-        context_confirmed = bool(reverse_order or drawdown_pct >= 15.0)
-        evidence_confirmed = bool(big_money_footprint or impulse or acc_recent)
+        # 최종 표시는 아래->위 20<5<60<112<224<448 바닥 배열을 핵심 게이트로 쓴다.
+        # 기존의 224 근접/밥3 직전 위치 강제는 제거한다.
 
         # 수박은 이제 '밥3 직전/224 근접'이 아니라 실제 바닥 반등 초입에만 표시한다.
         # 핵심 구조는 아래->위 20 < 5 < 60 < 112 < 224 < 448.
         # 장기 하락/224 아래 체류와 거래량·매집 흔적을 함께 요구해 엉뚱한 중간 자리 표시를 막는다.
-        reclaimed_112_recent = _latest_reclaim_index(closes, e112, i, 60) >= 0
         record112_recent = _record112_recent(vols, i, 20)
 
         prior_start = max(223, i - 99)
@@ -428,7 +420,7 @@ def build_puma_watermelon(
             or any(int(x) >= 50 for x in footprint_scores[max(0, i - 9):i])
         )
 
-        # 현재 봉이 이미 224를 강한 양봉 몸통으로 돌파했다면 '직전 수박'이 아니다.
+        # 이미 224를 강한 양봉 몸통으로 돌파한 뒤라면 바닥 수박 자리가 아니다.
         bullish_224_body_break = False
         if i > 0 and e224[i] is not None:
             bullish_224_body_break = bool(
@@ -457,7 +449,8 @@ def build_puma_watermelon(
         # 신고거래량과 대형자금흔적을 동시에 요구하지 않는다.
         strict = bool(
             pre_bowl3
-            and score >= 70
+            and (reversal or ema20_recovery)
+            and score >= 60
         )
 
         if strict:
