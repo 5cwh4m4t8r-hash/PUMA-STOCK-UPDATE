@@ -1,0 +1,40 @@
+name: PUMA Lingo v2 Version Manifest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/mobile/puma-lingo-v2/index.html'
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Write latest app manifest
+        shell: bash
+        run: |
+          mkdir -p demo/mobile/puma-lingo-v2
+          cat > demo/mobile/puma-lingo-v2/version.json <<EOF
+          {
+            "build": "${GITHUB_SHA}",
+            "updated_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "entry": "demo/mobile/puma-lingo-v2/index.html"
+          }
+          EOF
+      - name: Commit manifest
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add demo/mobile/puma-lingo-v2/version.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Update PUMA Lingo v2 version manifest"
+          git push origin main
