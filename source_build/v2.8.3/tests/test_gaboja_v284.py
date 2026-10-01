@@ -165,7 +165,7 @@ def test_high_volume_deep_drop_is_not_bought_at_cha_but_enters_on_body_recovery_
         cha_min_live_seconds=20,
     )
     assert recovered.passed is True
-    assert recovered.entry_kind == "RECOVERY_BREAKOUT"
+    assert recovered.entry_kind == "YOUNG2"
     assert recovered.young1_high == 113
     assert recovered.pullback_low == 107.8
     assert recovered.details["recovery_breakout"] is True
@@ -183,3 +183,73 @@ def test_high_volume_recovery_requires_bullish_body_not_wick_only():
     )
     assert sig.passed is False
     assert sig.entry_kind == ""
+
+
+def test_low_volume_drift_then_gradual_recovery_is_kept_as_youngcha_and_bought_at_young2():
+    rows = _minute(False)
+    # 거래량 없이 깊게 눌린 뒤, 여러 봉에 걸쳐 천천히 회복한다.
+    rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 80)
+    rows += [
+        _d("20260923092000", 108.3, 109.8, 108.1, 109.5, 70),
+        _d("20260923092500", 109.5, 111.5, 109.2, 111.0, 75),
+        _d("20260923093000", 112.0, 114.2, 111.8, 114.0, 85),
+    ]
+
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 30, 30),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.young1_high == 113
+    assert sig.pullback_low == 107.8
+    assert sig.details["second_young"] is True
+    assert sig.details["volume_required_for_structure"] is False
+
+
+def test_young2_structure_survives_even_when_pullback_volume_does_not_slow():
+    rows = _minute(False)
+    rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 1800)
+
+    watching = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 15, 30),
+        cha_min_live_seconds=20,
+    )
+    assert watching.passed is False
+    assert watching.details["structural_pullback"] is True
+    assert watching.details["volume_required_for_structure"] is False
+
+    rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 900))
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 20, 30),
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+
+
+def test_single_bar_young_does_not_require_local_volume_expansion():
+    rows = []
+    for day in ("20260916", "20260917", "20260918", "20260921", "20260922"):
+        rows += [
+            _d(day+"090000", 100, 101, 99, 100, 100),
+            _d(day+"090500", 100, 101, 99, 100, 100),
+            _d(day+"091000", 100, 101, 99, 100, 100),
+            _d(day+"091500", 100, 101, 99, 100, 100),
+        ]
+    rows += [
+        _d("20260923090000", 106, 107, 105.8, 106.5, 1200),
+        _d("20260923090500", 106.5, 109, 106.4, 108.8, 1200),
+        # 직전 평균 거래량보다 적어도 가격이 상승하며 직전 고점을 넘으면 1영 구조 후보.
+        _d("20260923091000", 108.8, 113, 108.7, 112.5, 200),
+        _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 50),
+        _d("20260923092000", 112.2, 114.5, 112.0, 114.0, 60),
+    ]
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 9, 23, 9, 20, 30),
+        apply_secondary_filter=False,
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.young1_high == 113
