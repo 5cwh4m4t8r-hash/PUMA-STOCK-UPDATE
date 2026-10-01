@@ -580,34 +580,9 @@ def _preview_concrete_before_bowl3(
     if len(valid_224) < 60 or below_224_count < 60:
         return None
 
-    near_224 = abs(current_close / current_224 - 1.0) <= 0.06
-    near_or_above_112 = bool(
-        current_idx < len(e112)
-        and e112[current_idx] is not None
-        and current_close >= float(e112[current_idx]) * 0.97
-    )
-
-    volume_impulse = False
-    for j in range(max(20, current_idx - 19), current_idx + 1):
-        if j <= 0:
-            continue
-        _, vs_prev, vs_avg = _volume_strength(candles, j)
-        if vs_prev >= 1.5 or vs_avg >= 1.8:
-            volume_impulse = True
-            break
-
-    strong_base = bool(
-        float(box.get("score", 0)) >= 90.0
-        and int(box.get("period", 0)) >= 12
-        and int(box.get("top_touches", 0)) >= 3
-        and int(box.get("bottom_touches", 0)) >= 3
-        and int(box.get("alternations", 0)) >= 3
-    )
-
-    # Concrete can exist well BEFORE the 3/Bowl-3 point. If the sideways base
-    # itself is strong enough, do not wait for price to get close to EMA224.
-    if not (strong_base or near_224 or (near_or_above_112 and volume_impulse)):
-        return None
+    # 공구리는 별도의 거래량/224근접 점수로 다시 거르지 않는다.
+    # 반복된 양봉 몸통 저항 + 음봉 몸통 지지 + 왕복 충돌로 확정된 박스 자체가 공구리다.
+    # 이 함수의 기존 장기 맥락(현재 224 아래, 장기간 224 아래 체류, 박스 상단 112 아래)은 유지한다.
 
     # 공구리 상단/하단은 이미 반복 몸통 충돌로 확정된 박스 경계를 그대로 쓴다.
     # 전고 언덕이나 한 개 양봉종가로 상단을 다시 바꾸지 않는다.
