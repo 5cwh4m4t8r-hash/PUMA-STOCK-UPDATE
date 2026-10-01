@@ -7,25 +7,41 @@
 <title>PUMA Lingo</title>
 <style>
 body{margin:0;background:#080c11;color:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;display:grid;place-items:center;min-height:100vh}
-.box{text-align:center;padding:24px}.logo{font-size:28px;font-weight:900;margin-bottom:10px}.sub{color:#94a3b8}
+.box{width:min(420px,90vw);text-align:center;padding:24px}.logo{font-size:30px;font-weight:950;margin-bottom:8px}.sub{color:#94a3b8;margin-bottom:18px}
+button{width:100%;padding:15px;border-radius:16px;font:inherit;font-weight:900;margin-top:10px}
+.primary{border:0;background:linear-gradient(90deg,#62dff5,#7ee7ad);color:#071015}
+.secondary{background:#182231;border:1px solid #2a3748;color:#f5f7fb}
+.status{margin-top:14px;color:#94a3b8;font-size:14px;min-height:20px}
 </style>
 </head>
 <body>
-<div class="box"><div class="logo">PUMA Lingo</div><div class="sub">최신 버전 확인 중...</div></div>
+<div class="box">
+<div class="logo">PUMA Lingo</div>
+<div class="sub">최신 버전을 확인하고 실행합니다.</div>
+<button class="primary" id="openBtn">PUMA Lingo 시작</button>
+<button class="secondary" id="checkBtn">최신 버전 확인</button>
+<div class="status" id="status">준비됨</div>
+</div>
 <script>
-(async function(){
-  const manifest="https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/demo/mobile/puma-lingo-v2/version.json?t="+Date.now();
-  const base="https://raw.githack.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/";
+const manifest="https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/demo/mobile/puma-lingo-v2/version.json";
+const base="https://raw.githack.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/";
+let latest=null;
+async function check(){
+  const s=document.getElementById("status"); s.textContent="최신 버전 확인 중...";
   try{
-    const r=await fetch(manifest,{cache:"no-store"});
+    const r=await fetch(manifest+"?t="+Date.now(),{cache:"no-store"});
     const v=await r.json();
-    if(v&&v.build){
-      location.replace(base+encodeURIComponent(v.build)+"/demo/mobile/puma-lingo-v2/index.html?launch=1");
-      return;
-    }
+    if(v&&v.build){latest=v.build;s.textContent="최신 버전 확인 완료";return v.build;}
   }catch(e){}
-  location.replace(base+"main/demo/mobile/puma-lingo-v2/index.html?fallback="+Date.now());
-})();
+  latest="main"; s.textContent="업데이트 서버 확인 실패 · 현재 버전으로 실행"; return latest;
+}
+async function openApp(){
+  const b=latest||await check();
+  location.href=base+encodeURIComponent(b)+"/demo/mobile/puma-lingo-v2/index.html?launch="+Date.now();
+}
+document.getElementById("openBtn").onclick=openApp;
+document.getElementById("checkBtn").onclick=check;
+check();
 </script>
 </body>
 </html>
