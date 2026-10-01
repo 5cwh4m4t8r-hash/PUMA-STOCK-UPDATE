@@ -43,17 +43,18 @@ def _opening_bearish_young2_rows():
     return rows
 
 
-def test_opening_bearish_bar_can_be_young1_and_buy_waits_for_young2():
+def test_opening_bearish_bar_can_be_young1_and_buy_at_cha():
+    rows = _opening_bearish_young2_rows()[:-1]
     sig = evaluate_gaboja(
-        _opening_bearish_young2_rows(),
+        rows,
         _daily(),
-        now=datetime(2026, 10, 1, 9, 10, 30),
+        now=datetime(2026, 10, 1, 9, 5, 30),
     )
     assert sig.passed is True
-    assert sig.entry_kind == "YOUNG2"
+    assert sig.entry_kind == "PULLBACK"
     assert sig.details["opening_bearish_young"] is True
     assert sig.details["pullback_index"] == 1
-    assert sig.details["young2_index"] == 2
+    assert sig.details["early_cha"] is True
 
 
 def test_old_25_percent_setting_migrates_to_50_percent():
@@ -79,7 +80,7 @@ def test_same_theme_strong_candidates_receive_bonus_only_as_tiebreak():
 
 def test_stage3_exit_requires_pullback_then_new_thrust():
     rows = [
-        _d("20261001091000", 100, 107, 99, 106, 1000),  # 2영 진입
+        _d("20261001091000", 100, 107, 99, 106, 1000),  # 차 진입 뒤 상승
         _d("20261001091500", 106, 111, 105, 110, 900),
         _d("20261001092000", 110, 110, 107, 108, 400),   # 눌림
         _d("20261001092500", 108, 113, 108, 112, 1000),  # 3
