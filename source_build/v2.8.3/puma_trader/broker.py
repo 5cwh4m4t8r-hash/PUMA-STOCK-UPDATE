@@ -134,6 +134,8 @@ class KiwoomRestBroker(BaseBroker):
         self.session = requests.Session()
         self._chart_gate = ChartRequestGate()
         self._chart_cancelled = lambda: False
+        self.last_account_balance_summary: dict = {}
+        self.last_account_positions_snapshot: list[dict] = []
 
     def connect(self):
         if not self.app_key or not self.app_secret:
@@ -551,6 +553,14 @@ class KiwoomRestBroker(BaseBroker):
                 data, cont_yn, next_key = self._post_page(
                     "/api/dostk/acnt", "kt00018", body, cont_yn, next_key
                 )
+                if exchange == "KRX":
+                    self.last_account_balance_summary = {
+                        "tot_pur_amt": data.get("tot_pur_amt", ""),
+                        "tot_evlt_amt": data.get("tot_evlt_amt", ""),
+                        "tot_evlt_pl": data.get("tot_evlt_pl", ""),
+                        "tot_prft_rt": data.get("tot_prft_rt", ""),
+                        "prsm_dpst_aset_amt": data.get("prsm_dpst_aset_amt", ""),
+                    }
                 part = data.get("acnt_evlt_remn_indv_tot", [])
                 if isinstance(part, list):
                     for raw in part:
@@ -572,7 +582,111 @@ class KiwoomRestBroker(BaseBroker):
             # Keep account synchronization responsive while still covering both venues.
             time.sleep(0.05)
 
-        return list(merged.values())
+        snapshot = list(merged.values())
+        self.last_account_positions_snapshot = [dict(x) for x in snapshot]
+        return snapshot
+
+    def get_account_overview(self) -> dict:
+        """Compact account data for the app header.
+
+        ka00001 supplies the account number, kt00001 supplies cash/buying power,
+        and kt00018 totals are reused from normal holdings sync when available.
+        """
+        def money(value) -> int:
+            raw = str(value or "0").strip().replace(",", "")
+            try:
+                return int(float(raw))
+            except Exception:
+                return 0
+
+        def number(value) -> float:
+            raw = str(value or "0").strip().replace(",", "")
+            try:
+                return float(raw)
+            except Exception:
+                return 0.0
+
+        out = {
+            "environment": "REAL" if self.real else "MOCK",
+            "account_no": "",
+            "deposit": 0,
+            "order_available": 0,
+            "withdrawable": 0,
+            "d2_deposit": 0,
+            "cash_unsettled": 0,
+            "holding_count": 0,
+            "total_purchase": 0,
+            "total_evaluation": 0,
+            "total_profit_loss": 0,
+            "total_profit_rate": 0.0,
+            "estimated_assets": 0,
+            "holdings": [],
+            "errors": [],
+        }
+
+        try:
+            acct = self._post("/api/dostk/acnt", "ka00001", {})
+            out["account_no"] = str(acct.get("acctNo") or acct.get("acnt_no") or "").strip()
+        except Exception as exc:
+            out["errors"].append(f"계좌번호:{exc}")
+
+        try:
+            dep = self._post("/api/dostk/acnt", "kt00001", {"qry_tp": "2"})
+            out["deposit"] = money(dep.get("entr"))
+            out["order_available"] = money(dep.get("ord_alow_amt"))
+            out["withdrawable"] = money(dep.get("pymn_alow_amt"))
+            out["d2_deposit"] = money(dep.get("d2_entra"))
+            out["cash_unsettled"] = money(dep.get("ch_uncla"))
+        except Exception as exc:
+            out["errors"].append(f"예수금:{exc}")
+
+        summary = dict(self.last_account_balance_summary or {})
+        if not summary:
+            try:
+                data = self._post(
+                    "/api/dostk/acnt", "kt00018",
+                    {"qry_tp": "1", "dmst_stex_tp": "KRX"},
+                )
+                summary = {
+                    "tot_pur_amt": data.get("tot_pur_amt", ""),
+                    "tot_evlt_amt": data.get("tot_evlt_amt", ""),
+                    "tot_evlt_pl": data.get("tot_evlt_pl", ""),
+                    "tot_prft_rt": data.get("tot_prft_rt", ""),
+                    "prsm_dpst_aset_amt": data.get("prsm_dpst_aset_amt", ""),
+                }
+                self.last_account_balance_summary = dict(summary)
+                rows = data.get("acnt_evlt_remn_indv_tot", [])
+                if isinstance(rows, list):
+                    self.last_account_positions_snapshot = [dict(x) for x in rows if isinstance(x, dict)]
+            except Exception as exc:
+                out["errors"].append(f"잔고:{exc}")
+
+        out["total_purchase"] = money(summary.get("tot_pur_amt"))
+        out["total_evaluation"] = money(summary.get("tot_evlt_amt"))
+        out["total_profit_loss"] = money(summary.get("tot_evlt_pl"))
+        out["total_profit_rate"] = number(summary.get("tot_prft_rt"))
+        out["estimated_assets"] = money(summary.get("prsm_dpst_aset_amt"))
+
+        holdings = []
+        for row in list(self.last_account_positions_snapshot or []):
+            qty = money(row.get("rmnd_qty"))
+            if qty <= 0:
+                continue
+            raw_code = str(row.get("stk_cd") or "").strip()
+            code = raw_code[1:] if raw_code.startswith("A") else raw_code
+            if "_" in code:
+                code = code.split("_", 1)[0]
+            holdings.append({
+                "code": code,
+                "name": str(row.get("stk_nm") or code).strip(),
+                "qty": qty,
+                "current": money(row.get("cur_prc")),
+                "profit_loss": money(row.get("evltv_prft")),
+                "profit_rate": number(row.get("prft_rt")),
+            })
+        out["holdings"] = holdings
+        out["holding_count"] = len(holdings)
+        return out
 
     def place_order(self, side: str, code: str, qty: int, order_type: str = "market", price: int = 0, cond_price: int = 0):
         if qty <= 0:
