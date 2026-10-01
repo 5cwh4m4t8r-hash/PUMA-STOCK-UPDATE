@@ -176,7 +176,7 @@ function choiceWords(m){
   var near=src.filter(function(x){return Math.abs(x.length-m.word.length)<=3});
   var pool=(near.length>=3?near:src).sort(function(){return Math.random()-.5});
   var out=[m.word];
-  for(var i=0;i<pool.length&&out.length<4;i++){
+  for(var i=0;i<pool.length&&out.length<5;i++){
     if(!out.some(function(x){return norm(x)===norm(pool[i])}))out.push(pool[i]);
   }
   return out.sort(function(){return Math.random()-.5});
