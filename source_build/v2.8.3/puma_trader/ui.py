@@ -2288,6 +2288,8 @@ class MainWindow(QMainWindow):
         if self._closing or not isinstance(data, dict):
             return
         account = str(data.get("account_no") or "-")
+        if isinstance(self.broker, KiwoomRestBroker) and account not in ("", "-"):
+            self.broker.account_no_cache = account
         env = "실전" if str(data.get("environment") or "").upper() == "REAL" else "모의"
         deposit = int(data.get("deposit", 0) or 0)
         order_available = int(data.get("order_available", 0) or 0)
