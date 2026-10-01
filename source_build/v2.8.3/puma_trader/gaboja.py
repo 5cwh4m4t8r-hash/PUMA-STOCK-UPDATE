@@ -372,7 +372,7 @@ def evaluate_gaboja(
             day_volume_ratio=day_ratio,
             details={**d, **premarket, "trade_start": trade_start},
         )
-    if len(session) < 3:
+    if len(session) < 2:
         return GabojaSignal(
             False,
             reason="가보자 5분봉 구조 형성 대기",
