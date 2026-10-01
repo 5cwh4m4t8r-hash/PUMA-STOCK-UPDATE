@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080c11">
+<title>PUMA Lingo</title>
+<style>
+body{margin:0;background:#080c11;color:#f5f7fb;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;display:grid;place-items:center;min-height:100vh}
+.box{text-align:center;padding:24px}.logo{font-size:28px;font-weight:900;margin-bottom:10px}.sub{color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="box"><div class="logo">PUMA Lingo</div><div class="sub">최신 버전 확인 중...</div></div>
+<script>
+(async function(){
+  const manifest="https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/demo/mobile/puma-lingo-v2/version.json?t="+Date.now();
+  const base="https://raw.githack.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/";
+  try{
+    const r=await fetch(manifest,{cache:"no-store"});
+    const v=await r.json();
+    if(v&&v.build){
+      location.replace(base+encodeURIComponent(v.build)+"/demo/mobile/puma-lingo-v2/index.html?launch=1");
+      return;
+    }
+  }catch(e){}
+  location.replace(base+"main/demo/mobile/puma-lingo-v2/index.html?fallback="+Date.now());
+})();
+</script>
+</body>
+</html>
