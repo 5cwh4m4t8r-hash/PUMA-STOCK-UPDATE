@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0e12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PUMA Lingo</title>
+<style>
+:root{--bg:#0b0e12;--p:#141922;--p2:#1c2430;--l:#2b3646;--t:#f7f9fc;--m:#9ba8ba;--a:#6ee7f9;--a2:#86efac;--ok:#34d399;--bad:#fb7185}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}.app{max-width:560px;margin:auto;min-height:100vh;padding:calc(14px + env(safe-area-inset-top)) 16px calc(88px + env(safe-area-inset-bottom))}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.brand{font-size:22px;font-weight:900}.pill{font-size:13px;padding:8px 11px;border:1px solid var(--l);background:var(--p2);border-radius:999px}.hero,.card,.box{background:var(--p);border:1px solid var(--l);border-radius:24px}.hero{padding:20px}.hero h1{font-size:28px;margin:0 0 8px}.hero p,.muted{color:var(--m)}.barbg{height:9px;background:#080a0d;border-radius:99px;overflow:hidden;margin-top:14px}.bar{height:100%;background:linear-gradient(90deg,var(--a),var(--a2));width:0}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.stat{background:var(--p);border:1px solid var(--l);border-radius:17px;padding:12px;text-align:center}.stat b{display:block;font-size:20px}.stat small{color:var(--m)}.section{font-weight:900;margin:22px 3px 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{padding:16px}.card b{display:block;margin-top:10px}.card small{color:var(--m)}button{font:inherit}.primary,.secondary{width:100%;padding:14px;border-radius:16px;font-weight:900;margin-top:10px}.primary{border:0;background:linear-gradient(90deg,var(--a),var(--a2));color:#071015}.secondary{border:1px solid var(--l);background:var(--p2);color:var(--t)}.screen{display:none}.screen.on{display:block}.head{display:flex;gap:10px;align-items:center;margin:8px 0 14px}.back{border:0;background:var(--p2);color:var(--t);padding:10px 13px;border-radius:13px}.head h2{margin:0}.box{padding:20px}.tag{display:inline-block;background:var(--a);color:#071015;font-weight:900;font-size:11px;padding:6px 9px;border-radius:999px;margin-bottom:14px}.big{font-size:28px;font-weight:900;line-height:1.25}.ans{width:100%;padding:14px;margin-top:13px;border-radius:14px;border:1px solid var(--l);background:#0e131b;color:var(--t)}.choice{width:100%;text-align:left;padding:13px;margin-top:9px;border-radius:14px;border:1px solid var(--l);background:#0e131b;color:var(--t)}.choice.ok{border-color:#2d8c70;background:#0d2a22}.choice.bad{border-color:#8b3448;background:#32151c}.feedback{margin-top:12px;padding:13px;border-radius:15px;display:none}.feedback.ok{display:block;background:#0d2a22;border:1px solid #2d8c70}.feedback.bad{display:block;background:#32151c;border:1px solid #8b3448}.mic{width:88px;height:88px;border:0;border-radius:50%;background:linear-gradient(145deg,var(--a),var(--a2));font-size:31px;display:block;margin:22px auto 12px}.trans{min-height:56px;border:1px solid var(--l);background:#0e131b;border-radius:14px;padding:13px;color:#c7d2df}.row{display:flex;gap:8px}.row>*{flex:1}.unit{padding:14px;border:1px solid var(--l);background:var(--p);border-radius:18px;margin-bottom:10px}.unit b{display:block}.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(560px,100%);display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,14,18,.96);backdrop-filter:blur(16px);border-top:1px solid var(--l);padding:7px 8px calc(7px + env(safe-area-inset-bottom));z-index:20}.nav button{border:0;background:none;color:var(--m);font-size:12px;padding:6px 0}.nav span{display:block;font-size:20px}.nav .sel{color:var(--t)}select{width:100%;padding:13px;border-radius:14px;background:#0e131b;color:var(--t);border:1px solid var(--l)}
+</style>
+</head>
+<body>
+<div class="app">
+<section id="home" class="screen on">
+<div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
+<div class="hero"><h1>오늘 10분만 가자.</h1><p>내 수준에 맞는 단어를 문장 속 빈칸으로 익히고, 잊을 때쯤 자동 복습해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">맞춤 어휘 학습 시작</button></div>
+<div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>빈칸 퀴즈 · 자동 복습</small></div>
+<div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
+<div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
+<div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
+<div class="card" onclick="show('me')">⚙️<b>설정</b><small>언어·목표</small></div>
+</div></section>
+
+<section id="word" class="screen"><div class="head"><button class="back" onclick="exitWord()">×</button><h2 id="wordNo">1/10</h2><div class="pill" id="wordLevel">Lv 1</div></div><div class="box" id="wq"></div></section><section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
+<section id="lesson" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="lessonNo">1/10</h2></div><div class="box" id="q"></div></section>
+<section id="review" class="screen"><div class="top"><div class="brand">복습</div><div class="pill" id="due">0</div></div><div id="reviewList"></div></section>
+<section id="pron" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>영어 발음</h2></div><div class="box"><span class="tag">MINIMAL PAIRS</span><div class="big">비슷한 소리 비교</div><div id="pairs"></div></div></section>
+<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">현재 실력</div><div class="pill" id="abilityText">실력 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
+</div>
+
+<div class="nav"><button class="sel" onclick="nav('home',this)"><span>⌂</span>홈</button><button onclick="nav('course',this)"><span>◫</span>코스</button><button onclick="nav('review',this)"><span>↻</span>복습</button><button onclick="nav('me',this)"><span>👤</span>내 학습</button></div>
+
+<script>
+var D={
+"en-US":{n:"English",f:"🇺🇸",u:[["기본",[["Hello.","안녕하세요."],["Thank you.","감사합니다."],["Excuse me.","실례합니다."],["Please say it slowly.","천천히 말해 주세요."]]],["이동·좌석",[["We can sit there.","우리는 거기에 앉을 수 있어요."],["I can sit there.","나는 거기에 앉을 수 있어요."],["Is this seat available?","이 자리 비어 있나요?"],["Where is gate twenty-two?","22번 게이트가 어디예요?"]]],["호텔",[["I have a reservation.","예약했습니다."],["Can I check in now?","지금 체크인할 수 있나요?"],["What time is check-out?","체크아웃은 몇 시예요?"],["Can I leave my luggage here?","짐을 맡겨도 될까요?"]]],["식당",[["A table for one, please.","한 명 자리 부탁합니다."],["Can I see the menu?","메뉴판을 볼 수 있을까요?"],["I'd like this one.","이걸로 주세요."],["Can I get the bill, please?","계산서 부탁합니다."]]]]},
+"ja-JP":{n:"日本語",f:"🇯🇵",u:[["기본",[["こんにちは。","안녕하세요."],["ありがとうございます。","감사합니다."],["すみません。","실례합니다."],["ゆっくり話してください。","천천히 말해 주세요."]]],["이동·좌석",[["私たちはそこに座れます。","우리는 거기에 앉을 수 있어요."],["この席は空いていますか。","이 자리 비어 있나요?"],["22番ゲートはどこですか。","22번 게이트가 어디예요?"],["トイレはどこですか。","화장실이 어디예요?"]]],["호텔",[["予約しています。","예약했습니다."],["今チェックインできますか。","지금 체크인할 수 있나요?"],["チェックアウトは何時ですか。","체크아웃은 몇 시예요?"],["荷物を預けてもいいですか。","짐을 맡겨도 될까요?"]]]]},
+"es-ES":{n:"Español",f:"🇪🇸",u:[["기본",[["Hola.","안녕하세요."],["Gracias.","감사합니다."],["No entiendo.","이해하지 못했어요."],["Hable más despacio, por favor.","천천히 말해 주세요."]]],["이동·좌석",[["Podemos sentarnos allí.","우리는 거기에 앉을 수 있어요."],["¿Está libre este asiento?","이 자리 비어 있나요?"],["¿Dónde está la puerta veintidós?","22번 게이트가 어디예요?"],["¿Dónde está el baño?","화장실이 어디예요?"]]],["호텔",[["Tengo una reserva.","예약했습니다."],["¿Puedo registrarme ahora?","지금 체크인할 수 있나요?"],["¿A qué hora es la salida?","체크아웃은 몇 시예요?"]]]]},
+"fr-FR":{n:"Français",f:"🇫🇷",u:[["기본",[["Bonjour.","안녕하세요."],["Merci.","감사합니다."],["Je ne comprends pas.","이해하지 못했어요."],["Parlez plus lentement, s'il vous plaît.","천천히 말해 주세요."]]],["이동·좌석",[["Nous pouvons nous asseoir là.","우리는 거기에 앉을 수 있어요."],["Cette place est libre ?","이 자리 비어 있나요?"],["Où est la porte vingt-deux ?","22번 게이트가 어디예요?"]]]]},
+"de-DE":{n:"Deutsch",f:"🇩🇪",u:[["기본",[["Hallo.","안녕하세요."],["Danke.","감사합니다."],["Ich verstehe nicht.","이해하지 못했어요."],["Bitte sprechen Sie langsamer.","천천히 말해 주세요."]]],["이동·좌석",[["Wir können dort sitzen.","우리는 거기에 앉을 수 있어요."],["Ist dieser Platz frei?","이 자리 비어 있나요?"],["Wo ist die Toilette?","화장실이 어디예요?"]]]]},
+"zh-CN":{n:"中文",f:"🇨🇳",u:[["기본",[["你好。","안녕하세요."],["谢谢。","감사합니다."],["我听不懂。","이해하지 못했어요."],["请说慢一点。","천천히 말해 주세요."]]],["이동·좌석",[["我们可以坐在那里。","우리는 거기에 앉을 수 있어요."],["这个座位有人吗？","이 자리 비어 있나요?"],["洗手间在哪里？","화장실이 어디예요?"]]]]}
+};
+
+var W={
+"en-US":[["hello","안녕"],["yes","네"],["no","아니요"],["I","나"],["you","너 / 당신"],["we","우리"],["go","가다"],["come","오다"],["sit","앉다"],["seat","자리 / 좌석"],["eat","먹다"],["drink","마시다"],["water","물"],["food","음식"],["hotel","호텔"],["room","방"],["car","자동차"],["bus","버스"],["train","기차"],["airport","공항"],["ticket","표 / 티켓"],["toilet","화장실"],["here","여기"],["there","거기"],["good","좋은"],["bad","나쁜"],["big","큰"],["small","작은"],["one","하나"],["two","둘"]],
+"ja-JP":[["こんにちは","안녕"],["はい","네"],["いいえ","아니요"],["私","나"],["あなた","너 / 당신"],["行く","가다"],["来る","오다"],["座る","앉다"],["席","자리 / 좌석"],["食べる","먹다"],["飲む","마시다"],["水","물"],["食べ物","음식"],["ホテル","호텔"],["部屋","방"],["車","자동차"],["バス","버스"],["電車","기차"],["空港","공항"],["切符","표 / 티켓"],["トイレ","화장실"],["ここ","여기"],["そこ","거기"],["良い","좋은"],["大きい","큰"],["小さい","작은"]],
+"es-ES":[["hola","안녕"],["sí","네"],["no","아니요"],["yo","나"],["tú","너"],["ir","가다"],["venir","오다"],["sentarse","앉다"],["asiento","자리 / 좌석"],["comer","먹다"],["beber","마시다"],["agua","물"],["comida","음식"],["hotel","호텔"],["habitación","방"],["coche","자동차"],["autobús","버스"],["tren","기차"],["aeropuerto","공항"],["billete","표 / 티켓"],["baño","화장실"],["aquí","여기"],["allí","거기"],["bueno","좋은"],["grande","큰"],["pequeño","작은"]],
+"fr-FR":[["bonjour","안녕"],["oui","네"],["non","아니요"],["je","나"],["tu","너"],["aller","가다"],["venir","오다"],["s'asseoir","앉다"],["siège","자리 / 좌석"],["manger","먹다"],["boire","마시다"],["eau","물"],["nourriture","음식"],["hôtel","호텔"],["chambre","방"],["voiture","자동차"],["bus","버스"],["train","기차"],["aéroport","공항"],["billet","표 / 티켓"],["toilettes","화장실"],["ici","여기"],["là","거기"],["bon","좋은"],["grand","큰"],["petit","작은"]],
+"de-DE":[["hallo","안녕"],["ja","네"],["nein","아니요"],["ich","나"],["du","너"],["gehen","가다"],["kommen","오다"],["sitzen","앉다"],["Sitz","자리 / 좌석"],["essen","먹다"],["trinken","마시다"],["Wasser","물"],["Essen","음식"],["Hotel","호텔"],["Zimmer","방"],["Auto","자동차"],["Bus","버스"],["Zug","기차"],["Flughafen","공항"],["Ticket","표 / 티켓"],["Toilette","화장실"],["hier","여기"],["dort","거기"],["gut","좋은"],["groß","큰"],["klein","작은"]],
+"zh-CN":[["你好","안녕"],["是","네"],["不是","아니요"],["我","나"],["你","너"],["去","가다"],["来","오다"],["坐","앉다"],["座位","자리 / 좌석"],["吃","먹다"],["喝","마시다"],["水","물"],["食物","음식"],["酒店","호텔"],["房间","방"],["汽车","자동차"],["公交车","버스"],["火车","기차"],["机场","공항"],["票","표 / 티켓"],["洗手间","화장실"],["这里","여기"],["那里","거기"],["好","좋은"],["大","큰"],["小","작은"]]
+};
+
+var EX={
+"en-US":{
+"hello":["___, nice to meet you.","안녕하세요, 만나서 반가워요."],
+"yes":["___, please.","네, 부탁해요."],
+"no":["___, thank you.","아니요, 괜찮아요."],
+"I":["___ am ready.","나는 준비됐어요."],
+"you":["Are ___ ready?","당신은 준비됐나요?"],
+"we":["___ can sit there.","우리는 거기에 앉을 수 있어요."],
+"go":["Let's ___ now.","지금 가요."],
+"come":["Please ___ here.","여기로 오세요."],
+"sit":["Please ___ here.","여기에 앉으세요."],
+"seat":["This ___ is free.","이 자리는 비어 있어요."],
+"eat":["Let's ___ lunch.","점심을 먹어요."],
+"drink":["I want to ___ water.","나는 물을 마시고 싶어요."],
+"water":["I need some ___.","나는 물이 좀 필요해요."],
+"food":["The ___ is good.","음식이 맛있어요."],
+"hotel":["The ___ is near.","호텔은 가까워요."],
+"room":["My ___ is clean.","내 방은 깨끗해요."],
+"car":["The ___ is outside.","자동차가 밖에 있어요."],
+"bus":["The ___ is here.","버스가 왔어요."],
+"train":["The ___ is fast.","기차는 빨라요."],
+"airport":["The ___ is far.","공항은 멀어요."],
+"ticket":["I have a ___.","나는 표가 있어요."],
+"toilet":["Where is the ___?","화장실이 어디예요?"],
+"here":["Come ___.","여기로 오세요."],
+"there":["Sit ___.","거기에 앉으세요."],
+"good":["This is ___.","이건 좋아요."],
+"bad":["This is ___.","이건 나빠요."],
+"big":["It is ___.","그것은 커요."],
+"small":["It is ___.","그것은 작아요."],
+"one":["I need ___ ticket.","표 한 장이 필요해요."],
+"two":["I need ___ tickets.","표 두 장이 필요해요."]
+}
+};
+
+
+var wSess=null;
+function langAbility(){
+  S.ability=S.ability||{};
+  if(!S.ability[S.lang])S.ability[S.lang]=1;
+  return S.ability[S.lang];
+}
+function setAbility(v){
+  S.ability=S.ability||{};
+  S.ability[S.lang]=Math.max(1,Math.min(30,Math.round(v*10)/10));
+}
+function vocabStore(){
+  S.vocab=S.vocab||{};
+  S.vocab[S.lang]=S.vocab[S.lang]||{};
+  return S.vocab[S.lang];
+}
+function metaFor(x,idx,total){
+  return {word:x[0],meaning:x[1],level:Math.max(1,Math.min(30,1+Math.floor(idx/Math.max(1,total-1)*29))),rank:idx+1};
+}
+function stateFor(word){
+  var vs=vocabStore();
+  vs[word]=vs[word]||{seen:0,right:0,wrong:0,strength:0,due:0,last:0,avgMs:0,hints:0};
+  return vs[word];
+}
+function dueCount(){
+  var now=Date.now(),n=0,vs=vocabStore();
+  Object.keys(vs).forEach(function(k){if(vs[k].seen&&vs[k].due<=now)n++});
+  return n;
+}
+function candidateScore(m){
+  var st=stateFor(m.word),ab=langAbility(),now=Date.now();
+  var due=st.seen&&st.due<=now?120:0;
+  var fresh=st.seen?0:75;
+  var near=40-Math.min(40,Math.abs(m.level-ab)*2.2);
+  var weak=Math.min(35,st.wrong*6)+Math.max(0,5-st.strength)*3;
+  var wait=st.seen&&st.due>now?-100:0;
+  return due+fresh+near+weak+wait+Math.random()*4;
+}
+function chooseWords(){
+  var all=(W[S.lang]||W["en-US"]).map(function(x,i,a){return metaFor(x,i,a.length)});
+  var goal=Math.max(5,Math.min(S.goal||10,15));
+  return all.sort(function(x,y){return candidateScore(y)-candidateScore(x)}).slice(0,goal);
+}
+function wordStart(){
+  var p=chooseWords();
+  if(!p.length){alert("지금 학습할 단어가 없습니다.");return}
+  wSess={p:p,i:0,correct:0,started:0,hint:false};
+  var nav=document.querySelector(".nav");if(nav)nav.style.display="none";
+  show("word");wordQuestion();
+}
+function exitWord(){
+  var nav=document.querySelector(".nav");if(nav)nav.style.display="grid";
+  show("home");home();
+}
+function clozeFor(m){
+  var e=EX[S.lang]&&EX[S.lang][m.word];
+  if(e)return {sentence:e[0],ko:e[1]};
+  return {sentence:"",ko:m.meaning};
+}
+function meaningOptions(m){
+  var all=(W[S.lang]||W["en-US"]).map(function(x){return x[1]}).filter(function(x){return x!==m.meaning});
+  return [m.meaning].concat(all.sort(function(){return Math.random()-.5}).slice(0,3)).sort(function(){return Math.random()-.5});
+}
+function wordOptions(m){
+  var all=(W[S.lang]||W["en-US"]).map(function(x){return x[0]}).filter(function(x){return x!==m.word});
+  return [m.word].concat(all.sort(function(){return Math.random()-.5}).slice(0,3)).sort(function(){return Math.random()-.5});
+}
+function findMeaning(word){
+  var x=(W[S.lang]||W["en-US"]).find(function(z){return norm(z[0])===norm(word)});
+  return x?x[1]:null;
+}
+function modeFor(m){
+  var st=stateFor(m.word);
+  if(st.strength<1)return "meaning";
+  if(st.strength<2)return "reverse";
+  if(S.lang==="en-US"&&EX[S.lang]&&EX[S.lang][m.word]&&st.strength<4)return "cloze";
+  if(st.strength>=4)return "type";
+  return "reverse";
+}
+function wordQuestion(){
+  if(wSess.i>=wSess.p.length)return wordFinish();
+  var m=wSess.p[wSess.i],mode=modeFor(m),q=document.getElementById("wq");
+  wSess.started=Date.now();wSess.hint=false;
+  document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
+  var lv=document.getElementById("wordLevel");if(lv)lv.textContent="Lv "+Math.round(langAbility());
+  q.innerHTML="";
+  if(mode==="meaning"){
+    q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+m.word+"</div><div class='muted' style='margin-top:10px'>뜻을 하나 고르세요.</div><button class='mic' id='wplay'>🔊</button><div id='wordInput'></div>";
+    document.getElementById("wplay").onclick=function(){speak(m.word)};
+    renderChoiceAnswers(m,mode,meaningOptions(m),m.meaning);
+  }else if(mode==="reverse"){
+    q.innerHTML="<span class='tag'>한국어 → 단어</span><div class='big'>"+m.meaning+"</div><div class='muted' style='margin-top:10px'>알맞은 단어를 고르세요.</div><div id='wordInput'></div>";
+    renderChoiceAnswers(m,mode,wordOptions(m),m.word);
+  }else if(mode==="cloze"){
+    var ex=clozeFor(m);
+    q.innerHTML="<span class='tag'>문맥</span><div class='big'>"+ex.sentence+"</div><div class='muted' style='font-size:17px;margin-top:10px'>"+ex.ko+"</div><div id='wordInput'></div>";
+    renderChoiceAnswers(m,mode,wordOptions(m),m.word);
+  }else{
+    var ex2=clozeFor(m),prompt=ex2.sentence||m.meaning;
+    q.innerHTML="<span class='tag'>직접 입력</span><div class='big'>"+prompt+"</div><div class='muted' style='font-size:17px;margin-top:10px'>"+ex2.ko+"</div><input class='ans' id='wordTyped' autocomplete='off' autocapitalize='none' spellcheck='false' placeholder='정답 입력'><div class='row'><button class='secondary' id='wordHint'>힌트</button><button class='primary' id='wordCheck'>확인</button></div>";
+    document.getElementById("wordHint").onclick=function(){wSess.hint=true;document.getElementById("wordHint").textContent="첫 글자 "+m.word.slice(0,1)+" · "+m.word.length+"글자";speak(m.word)};
+    document.getElementById("wordCheck").onclick=function(){
+      var v=document.getElementById("wordTyped").value;
+      finishWordAnswer(m,mode,norm(v)===norm(m.word),v,m.word,wSess.hint,null);
+    };
+  }
+}
+function renderChoiceAnswers(m,mode,opts,correct){
+  var holder=document.getElementById("wordInput");
+  opts.forEach(function(o){
+    var b=document.createElement("button");b.className="choice";b.textContent=o;
+    b.onclick=function(){
+      if(holder.dataset.done)return;holder.dataset.done="1";
+      Array.from(holder.querySelectorAll(".choice")).forEach(function(z){z.disabled=true;if(z.textContent===correct)z.classList.add("ok")});
+      if(o!==correct)b.classList.add("bad");
+      finishWordAnswer(m,mode,o===correct,o,correct,false,b);
+    };
+    holder.appendChild(b);
+  });
+}
+function whyWrong(m,mode,entered,correct){
+  if(mode==="meaning"){
+    var owner=(W[S.lang]||W["en-US"]).find(function(x){return x[1]===entered});
+    if(owner)return "선택한 <b>"+entered+"</b>는 <b>"+owner[0]+"</b>의 뜻입니다. <b>"+m.word+"</b>의 뜻은 <b>"+m.meaning+"</b>입니다.";
+    return "선택한 뜻은 <b>"+m.word+"</b>의 뜻과 다릅니다.";
+  }
+  var picked=findMeaning(entered);
+  if(picked)return "<b>"+entered+"</b>는 ‘"+picked+"’라는 뜻이라 이 문제의 정답과 다릅니다.";
+  var sc=similar(entered,correct);
+  if(sc>=65)return "정답과 비슷하지만 <b>철자</b>가 다릅니다. 빠진 글자와 순서를 확인하세요.";
+  if(S.lang==="en-US"&&norm(entered)==="seat"&&norm(correct)==="sit")return "<b>seat</b>는 ‘좌석’, <b>sit</b>은 ‘앉다’입니다. 여기에는 동사 <b>sit</b>이 필요합니다.";
+  if(S.lang==="en-US"&&norm(entered)==="sit"&&norm(correct)==="seat")return "<b>sit</b>은 ‘앉다’, <b>seat</b>는 ‘좌석’입니다. 여기에는 명사 <b>seat</b>가 필요합니다.";
+  return "정답 단어를 아직 정확히 기억하지 못한 것으로 판단했습니다.";
+}
+function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
+  var st=stateFor(m.word),ms=Date.now()-wSess.started,q=document.getElementById("wq");
+  st.seen++;st.last=Date.now();st.avgMs=st.avgMs?Math.round(st.avgMs*.7+ms*.3):ms;
+  if(ok){
+    st.right++;st.strength=Math.min(7,st.strength+(hint?0.5:1));
+    var intervals=[0,1,3,7,14,30,60,120],days=intervals[Math.max(1,Math.min(7,Math.floor(st.strength)))];
+    st.due=Date.now()+days*86400000*(hint?0.6:1);
+    setAbility(langAbility()+(m.level>=langAbility()-2?0.18:0.06));
+    S.ok++;S.xp+=(hint?4:6);wSess.correct++;
+  }else{
+    st.wrong++;st.strength=Math.max(0,st.strength-1);
+    st.due=Date.now()+10*60*1000;
+    setAbility(langAbility()-0.1);S.xp+=1;
+    S.bad.unshift({id:"w-"+S.lang+"-"+m.word,t:m.word,k:m.meaning,due:st.due});S.bad=S.bad.slice(0,80);
+  }
+  if(hint)st.hints++;S.total++;save();
+
+  var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
+  if(ok){
+    fb.innerHTML="<b>정답</b><br>"+m.word+" = "+m.meaning+"<br><span class='muted'>이 단어는 이번 세션에 다시 나오지 않습니다.</span>";
+    q.appendChild(fb);
+    setTimeout(function(){wSess.i++;wordQuestion()},650);
+  }else{
+    var ex=clozeFor(m),full=ex.sentence?ex.sentence.replace("____",m.word).replace("___",m.word):"";
+    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+"<br><br>정답: <b>"+correct+"</b> — "+m.meaning+(full?"<br><span class='muted'>예문: "+full+" · "+ex.ko+"</span>":"")+"<br><span class='muted'>지금 바로 반복하지 않고 10분 뒤 복습 대상으로 보냅니다.</span>";
+    q.appendChild(fb);
+    var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
+  }
+}
+function wordFinish(){
+  var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
+  S.done[t]=(S.done[t]||0)+wSess.p.length;save();
+  alert("학습 완료 · "+wSess.correct+"/"+wSess.p.length+" 정답");
+  exitWord();
+}
+var S=JSON.parse(localStorage.getItem("pumaLingoLive")||'{"lang":"en-US","xp":0,"streak":0,"last":"","goal":10,"done":{},"ok":0,"total":0,"bad":[]}'),flat=[],sess=null;
+function save(){localStorage.setItem("pumaLingoLive",JSON.stringify(S));home()}
+function day(){return new Date().toISOString().slice(0,10)}
+function makeFlat(){flat=[];D[S.lang].u.forEach(function(u,ui){u[1].forEach(function(x,ii){flat.push({id:ui+"-"+ii,t:x[0],k:x[1],u:ui})})})}
+function home(){makeFlat();document.getElementById("langPill").textContent=D[S.lang].f+" "+D[S.lang].n;quickLangs();document.getElementById("xp").textContent=S.xp;document.getElementById("streak").textContent=S.streak;document.getElementById("acc").textContent=(S.total?Math.round(S.ok/S.total*100):0)+"%";var n=S.done[day()]||0;document.getElementById("dailyText").textContent=n+"/"+S.goal;document.getElementById("dailyBar").style.width=Math.min(100,n/S.goal*100)+"%";document.getElementById("due").textContent=dueCount()+"개";units();settings();reviews()}
+function show(id){document.querySelectorAll(".screen").forEach(function(e){e.classList.remove("on")});document.getElementById(id).classList.add("on")}
+function nav(id,b){show(id);document.querySelectorAll(".nav button").forEach(function(x){x.classList.remove("sel")});b.classList.add("sel")}
+function units(){var b=document.getElementById("units");b.innerHTML="";D[S.lang].u.forEach(function(u,i){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+u[0]+"</b><span class='muted'>"+u[1].length+"문장</span><button class='secondary'>연습 시작</button>";d.querySelector("button").onclick=function(){start(i)};b.appendChild(d)})}
+function quickLangs(){var b=document.getElementById("quickLangs");if(!b)return;b.innerHTML="";Object.keys(D).forEach(function(k){var x=document.createElement("div");x.className="card";x.style.padding="13px";x.innerHTML="<b style=\"margin:0\">"+D[k].f+" "+D[k].n+"</b><small>"+(k===S.lang?"현재 학습 중":"눌러서 변경")+"</small>";x.onclick=function(){setLang(k)};b.appendChild(x)})}function settings(){var at=document.getElementById("abilityText");if(at)at.textContent="Lv "+Math.round(langAbility())+" / 30 · 복습 "+dueCount()+"개";var s=document.getElementById("langSel");s.innerHTML="";Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].f+" "+D[k].n;o.selected=k===S.lang;s.appendChild(o)})}
+function setLang(v){S.lang=v;save();show("home")}
+function goal(n){S.goal=n;save();alert("하루 목표를 "+n+"문제로 바꿨어요.")}
+function start(ui){makeFlat();var p=ui===undefined?flat:flat.filter(function(x){return x.u===ui});p=p.slice().sort(function(){return Math.random()-.5}).slice(0,S.goal);sess={p:p,i:0,c:0};show("lesson");question()}
+function question(){if(sess.i>=sess.p.length)return finish();var x=sess.p[sess.i],m=sess.i%4;document.getElementById("lessonNo").textContent=(sess.i+1)+"/"+sess.p.length;var q=document.getElementById("q");q.innerHTML="";
+if(m===0){var opts=[x.k];flat.filter(function(y){return y.id!==x.id}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y.k)});opts.sort(function(){return Math.random()-.5});q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+x.t+"</div>";opts.forEach(function(o){var b=document.createElement("button");b.className="choice";b.textContent=o;b.onclick=function(){grade(o===x.k,x);b.classList.add(o===x.k?"ok":"bad");nextBtn()};q.appendChild(b)})}
+else if(m===1){q.innerHTML="<span class='tag'>듣기</span><div class='big'>듣고 문장을 입력하세요.</div><button class='mic' id='play'>🔊</button><input class='ans' id='ans'><button class='primary' id='check'>확인</button><div class='feedback' id='fb'></div>";document.getElementById("play").onclick=function(){speak(x.t)};document.getElementById("check").onclick=function(){typed(x)};setTimeout(function(){speak(x.t)},250)}
+else if(m===2&&S.lang==="en-US"){q.innerHTML="<span class='tag'>말하기</span><div class='big'>"+x.t+"</div><div class='muted'>"+x.k+"</div><button class='mic' id='mic'>🎙️</button><div class='trans' id='tr'>마이크를 누르고 말해보세요.</div><div class='feedback' id='fb'></div><button class='secondary' id='model'>🔊 정답 듣기</button>";document.getElementById("mic").onclick=function(){rec(x)};document.getElementById("model").onclick=function(){speak(x.t)}}
+else{q.innerHTML="<span class='tag'>문장 만들기</span><div class='big'>"+x.k+"</div><input class='ans' id='ans'><button class='primary' id='check'>확인</button><div class='feedback' id='fb'></div><button class='secondary' id='hint'>🔊 정답 듣기</button>";document.getElementById("check").onclick=function(){typed(x)};document.getElementById("hint").onclick=function(){speak(x.t)}}}
+function norm(s){return (s||"").toLowerCase().replace(/[.,!?¿¡"'’。，？！]/g,"").replace(/\s+/g," ").trim()}
+function similar(a,b){a=norm(a);b=norm(b);if(!a||!b)return 0;var d=Array.from({length:a.length+1},function(){return Array(b.length+1).fill(0)});for(var i=0;i<=a.length;i++)d[i][0]=i;for(var j=0;j<=b.length;j++)d[0][j]=j;for(i=1;i<=a.length;i++)for(j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return Math.max(0,Math.round((1-d[a.length][b.length]/Math.max(a.length,b.length))*100))}
+function typed(x){var sc=similar(document.getElementById("ans").value,x.t),ok=sc>=80,fb=document.getElementById("fb");fb.className="feedback "+(ok?"ok":"bad");fb.innerHTML="<b>"+sc+"%</b><br>"+(ok?"좋아요.":"정답: "+x.t);grade(ok,x);nextBtn()}
+function rec(x){var R=window.SpeechRecognition||window.webkitSpeechRecognition,tr=document.getElementById("tr"),fb=document.getElementById("fb");if(!R){tr.textContent="이 iPhone/Safari에서는 음성 인식이 지원되지 않거나 권한이 꺼져 있습니다.";return}var r=new R();r.lang=S.lang;r.interimResults=true;r.onresult=function(e){var t="";for(var i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;tr.textContent=t;if(e.results[e.results.length-1].isFinal){var sc=similar(t,x.t),ok=sc>=76;fb.className="feedback "+(ok?"ok":"bad");fb.innerHTML="<b>"+sc+"%</b><br>"+(ok?"잘 전달됐어요.":"목표: "+x.t);grade(ok,x);nextBtn()}};r.onerror=function(e){tr.textContent="마이크 오류: "+e.error};r.start()}
+function grade(ok,x){S.total++;if(ok){S.ok++;S.xp+=10;sess.c++}else{S.xp+=2;S.bad.unshift({id:x.id,t:x.t,k:x.k});S.bad=S.bad.slice(0,60)}save()}
+function nextBtn(){if(document.getElementById("next"))return;var b=document.createElement("button");b.id="next";b.className="primary";b.textContent="다음";b.onclick=function(){sess.i++;question()};document.getElementById("q").appendChild(b)}
+function finish(){var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}S.done[t]=(S.done[t]||0)+sess.p.length;save();alert("학습 완료! "+sess.c+"/"+sess.p.length+" 정답");show("home")}
+function speak(t){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.lang=S.lang;u.rate=.88;speechSynthesis.speak(u)}
+function reviews(){
+  var b=document.getElementById("reviewList"),now=Date.now(),vs=vocabStore(),items=[];
+  (W[S.lang]||W["en-US"]).forEach(function(x,i,a){var st=vs[x[0]];if(st&&st.seen&&st.due<=now)items.push({m:metaFor(x,i,a.length),st:st})});
+  items.sort(function(a,b){return a.st.due-b.st.due});
+  if(!items.length){b.innerHTML="<div class='hero'><h1>지금 복습할 단어가 없어요.</h1><p>외운 단어는 잊을 가능성이 높아지는 시점에 다시 나옵니다.</p></div>";return}
+  b.innerHTML="<button class='primary' onclick='wordStart()'>자동 복습 시작</button><div class='section'>지금 복습할 단어 "+items.length+"개</div>";
+  items.slice(0,20).forEach(function(x){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+x.m.word+"</b><span class='muted'>최근 정답 "+x.st.right+" · 오답 "+x.st.wrong+"</span>";b.appendChild(d)});
+}
+function pron(){if(S.lang!=="en-US"){alert("현재 발음 비교는 영어에서 지원해요.");return}show("pron");var a=[["seat","sit"],["sit","shit"],["ship","sheep"],["live","leave"]],b=document.getElementById("pairs");b.innerHTML="";a.forEach(function(p){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+p[0]+" ↔ "+p[1]+"</b><div class='row'><button class='secondary'>"+p[0]+" 듣기</button><button class='secondary'>"+p[1]+" 듣기</button></div>";var z=d.querySelectorAll("button");z[0].onclick=function(){speak(p[0])};z[1].onclick=function(){speak(p[1])};b.appendChild(d)})}
+home();
+</script>
+</body>
+</html>
