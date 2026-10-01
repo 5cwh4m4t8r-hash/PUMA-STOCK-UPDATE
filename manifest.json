@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.65",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.65_UPDATE.zip",
-    "notes":  "v2.9.65 HOTFIX: Corrects Gaboja entry timing. The first 5-minute bar may still be Young1 even when bearish, but the actual buy is the live 65% deep-Cha with volume slowdown; PUMA no longer waits for Young2. A missed Cha may still use the existing body-breakout fallback. +4% first take-profit remains 50%, remaining 50% keeps rising-Cha stops, third-wave exit, and 15:00 safety exit. Same-theme co-strength bonus and v2.9.63 NXT safeguards remain unchanged.",
-    "sha256":  "65eeb6452fdbdecabbc21f17a25d0ac9614d7f1a14829a76450d553048b1ce28"
+    "version":  "2.9.66",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.66_UPDATE.zip",
+    "notes":  "v2.9.66 UI: Automatic-trading controls now have visible pressed feedback and unmistakable RUNNING/STOPPED/PENDING state indicators. Start buttons switch to an active check-mark label while trading is running, stop buttons become available only when active, and failures/cancellations show an immediate status message. Trading strategy remains unchanged from v2.9.65: buy at the live 65% deep-Cha with volume slowdown, +4% first take-profit 50%, remainder trend/stage3 management, same-theme bonus, and existing NXT safeguards.",
+    "sha256":  "a3540ab5affa58ce0698757a886b3970ff8c6494dd8e50a43ed056da7354d766"
 }
