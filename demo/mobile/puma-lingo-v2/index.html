@@ -89,6 +89,41 @@ var EX={
 };
 
 
+/* PUMA_EN_VOCAB_PACK_V1 */
+(function(){
+  var groups={
+    people:[["mother","어머니"],["father","아버지"],["brother","형제"],["sister","자매"],["family","가족"],["friend","친구"],["teacher","선생님"],["student","학생"],["doctor","의사"],["nurse","간호사"],["child","아이"],["baby","아기"],["man","남자"],["woman","여자"],["boy","소년"],["girl","소녀"],["neighbor","이웃"],["worker","근로자"],["manager","관리자"],["customer","손님"]],
+    home:[["house","집"],["door","문"],["window","창문"],["table","탁자"],["chair","의자"],["bed","침대"],["kitchen","부엌"],["bathroom","욕실"],["floor","바닥"],["wall","벽"],["light","불"],["key","열쇠"],["bag","가방"],["box","상자"],["cup","컵"],["bottle","병"],["plate","접시"],["spoon","숟가락"],["fork","포크"],["knife","칼"]],
+    objects:[["book","책"],["phone","휴대전화"],["computer","컴퓨터"],["paper","종이"],["pen","펜"],["pencil","연필"],["picture","사진"],["clock","시계"],["watch","손목시계"],["money","돈"],["card","카드"],["map","지도"],["umbrella","우산"],["camera","카메라"],["gift","선물"],["toy","장난감"],["ball","공"],["glasses","안경"],["letter","편지"],["newspaper","신문"]],
+    food:[["coffee","커피"],["tea","차"],["milk","우유"],["juice","주스"],["rice","밥"],["bread","빵"],["meat","고기"],["fish","생선"],["chicken","닭고기"],["egg","달걀"],["cheese","치즈"],["fruit","과일"],["apple","사과"],["banana","바나나"],["orange","오렌지"],["vegetable","채소"],["potato","감자"],["tomato","토마토"],["sugar","설탕"],["salt","소금"]],
+    places:[["school","학교"],["office","사무실"],["store","가게"],["bank","은행"],["hospital","병원"],["restaurant","식당"],["cafe","카페"],["park","공원"],["beach","해변"],["city","도시"],["village","마을"],["station","역"],["market","시장"],["library","도서관"],["museum","박물관"],["garden","정원"],["street","거리"],["road","도로"],["bridge","다리"],["farm","농장"]],
+    nature:[["sun","태양"],["moon","달"],["star","별"],["sky","하늘"],["cloud","구름"],["rain","비"],["snow","눈"],["wind","바람"],["tree","나무"],["flower","꽃"],["grass","풀"],["river","강"],["sea","바다"],["mountain","산"],["animal","동물"],["dog","개"],["cat","고양이"],["bird","새"],["horse","말"],["cow","소"]],
+    body:[["head","머리"],["face","얼굴"],["eye","눈"],["ear","귀"],["nose","코"],["mouth","입"],["tooth","이"],["hand","손"],["finger","손가락"],["arm","팔"],["leg","다리"],["foot","발"],["back","등"],["heart","심장"],["hair","머리카락"]],
+    clothes:[["shirt","셔츠"],["pants","바지"],["shoe","신발"],["jacket","재킷"],["coat","코트"],["hat","모자"],["sock","양말"],["dress","드레스"],["skirt","치마"],["belt","벨트"]],
+    verbs:[["see","보다"],["look","보다"],["hear","듣다"],["listen","듣다"],["speak","말하다"],["say","말하다"],["read","읽다"],["write","쓰다"],["walk","걷다"],["run","달리다"],["stop","멈추다"],["start","시작하다"],["open","열다"],["close","닫다"],["buy","사다"],["sell","팔다"],["pay","지불하다"],["give","주다"],["take","가져가다"],["bring","가져오다"],["make","만들다"],["use","사용하다"],["find","찾다"],["know","알다"],["think","생각하다"],["want","원하다"],["need","필요하다"],["like","좋아하다"],["love","사랑하다"],["help","돕다"],["work","일하다"],["study","공부하다"],["sleep","자다"],["wake","깨다"],["wait","기다리다"],["call","전화하다"],["ask","묻다"],["answer","대답하다"],["remember","기억하다"],["forget","잊다"]],
+    adjectives:[["happy","행복한"],["sad","슬픈"],["hot","뜨거운"],["cold","차가운"],["fast","빠른"],["slow","느린"],["easy","쉬운"],["hard","어려운"],["new","새로운"],["old","오래된"],["young","젊은"],["clean","깨끗한"],["dirty","더러운"],["full","가득 찬"],["empty","빈"],["cheap","싼"],["expensive","비싼"],["early","이른"],["late","늦은"],["strong","강한"],["weak","약한"],["beautiful","아름다운"],["busy","바쁜"],["free","한가한"],["right","맞는"],["wrong","틀린"]],
+    colors:[["red","빨간색"],["blue","파란색"],["green","초록색"],["yellow","노란색"],["black","검은색"],["white","흰색"],["brown","갈색"],["pink","분홍색"],["gray","회색"],["purple","보라색"]],
+    time:[["today","오늘"],["tomorrow","내일"],["yesterday","어제"],["morning","아침"],["afternoon","오후"],["evening","저녁"],["night","밤"],["week","주"],["month","달"],["year","년"],["Monday","월요일"],["Tuesday","화요일"],["Wednesday","수요일"],["Thursday","목요일"],["Friday","금요일"],["Saturday","토요일"],["Sunday","일요일"]]
+  };
+  var existing={};(W["en-US"]||[]).forEach(function(x){existing[norm(x[0])]=1});
+  function exFor(kind,w,m){
+    if(kind==="verbs")return ["I can ___ now.","지금 "+m+" 수 있어요."];
+    if(kind==="adjectives"||kind==="colors")return ["It is ___.","그것은 "+m+"이에요."];
+    if(kind==="people")return ["The ___ is here.",m+"이/가 여기 있어요."];
+    if(kind==="places")return ["The ___ is nearby.",m+"이/가 가까이에 있어요."];
+    if(kind==="food")return ["I like ___.",m+"을/를 좋아해요."];
+    if(kind==="time")return ["Think about ___.",m+"을/를 생각해 보세요."];
+    return ["I see a ___.",m+"이/가 보여요."];
+  }
+  Object.keys(groups).forEach(function(kind){
+    groups[kind].forEach(function(x){
+      var w=x[0],m=x[1];
+      if(!existing[norm(w)]){W["en-US"].push([w,m]);existing[norm(w)]=1}
+      if(!EX["en-US"][w])EX["en-US"][w]=exFor(kind,w,m);
+    });
+  });
+})();
+
 var wSess=null;
 function langAbility(){
   S.ability=S.ability||{};
@@ -216,6 +251,14 @@ function wordQuestion(){
     speak(m.word);
   };
 }
+function vocabChoiceNotes(q,m){
+  var rows=[];
+  Array.from(q.querySelectorAll(".choice")).forEach(function(z){
+    var w=z.textContent,meaning=findMeaning(w)||((norm(w)===norm(m.word))?m.meaning:"뜻 정보 없음");
+    rows.push("<div style='margin-top:7px'><b>"+w+"</b> — "+meaning+"</div>");
+  });
+  return rows.length?"<div style='margin-top:12px;padding-top:10px;border-top:1px solid var(--l)'><b>보기 설명</b>"+rows.join("")+"</div>":"";
+}
 function whyWrong(m,mode,entered,correct){
   if(!norm(entered))return "아직 단어가 떠오르지 않았어요. 문장 전체 뜻과 정답 단어를 같이 확인하세요.";
   var picked=findMeaning(entered);
@@ -255,6 +298,7 @@ function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
       "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>"+
       "<br><span class='muted'>지금 바로 반복하지 않고 복습 시점에 다시 냅니다.</span>";
   }
+  fb.innerHTML+=vocabChoiceNotes(q,m);
   q.appendChild(fb);
   var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
 }
@@ -286,6 +330,16 @@ function sentenceChoices(correct,field){
   }
   return vals.sort(function(){return Math.random()-.5});
 }
+function sentenceOptionNotes(opts,correct){
+  var rows=[];
+  opts.forEach(function(o){
+    var pair=flat.find(function(y){return norm(y.t)===norm(o)||norm(y.k)===norm(o)});
+    var other=pair?(norm(pair.t)===norm(o)?pair.k:pair.t):"설명 없음";
+    var mark=norm(o)===norm(correct)?" ✓ 정답":"";
+    rows.push("<div style='margin-top:8px'><b>"+o+"</b>"+mark+"<br><span class='muted'>"+other+"</span></div>");
+  });
+  return "<div style='margin-top:12px;padding-top:10px;border-top:1px solid var(--l)'><b>보기 설명</b>"+rows.join("")+"</div>";
+}
 function paintSentenceChoices(q,opts,correct,x){
   opts.forEach(function(o){
     var b=document.createElement("button");b.className="choice";b.textContent=o;
@@ -298,7 +352,14 @@ function paintSentenceChoices(q,opts,correct,x){
       var ok=norm(o)===norm(correct);if(!ok)b.classList.add("bad");
       grade(ok,x);
       var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
-      fb.innerHTML=ok?"<b>정답</b>":"<b>정답: "+correct+"</b>";
+      if(ok){
+        fb.innerHTML="<b>정답</b>";
+      }else{
+        var picked=flat.find(function(y){return norm(y.t)===norm(o)||norm(y.k)===norm(o)});
+        var pickedMeaning=picked?(norm(picked.t)===norm(o)?picked.k:picked.t):"";
+        fb.innerHTML="<b>오답</b><br>선택한 보기: <b>"+o+"</b>"+(pickedMeaning?"<br><span class='muted'>"+pickedMeaning+"</span>":"")+"<br><br>정답: <b>"+correct+"</b>";
+      }
+      fb.innerHTML+=sentenceOptionNotes(opts,correct);
       q.appendChild(fb);nextBtn();
     };
     q.appendChild(b);
