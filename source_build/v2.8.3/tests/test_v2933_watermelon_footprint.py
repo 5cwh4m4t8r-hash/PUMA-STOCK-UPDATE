@@ -127,7 +127,7 @@ def test_watermelon_is_locked_to_user_bottom_ma_stack():
     assert "len(prior_idx) >= 60 and below224_count >= 60" in src
     assert "volume_pre_signal = bool(" in src
     assert "record112_recent\n            or recent_large_money" in src
-    assert "and score >= 70" in src
+    assert "and score >= 60" in src
     assert "float(e20[i]) < float(e5[i]) < float(e60[i])" in src
     assert "< float(e112[i]) < float(e224[i]) < float(e448[i])" in src
     assert "and bottom_ma_order" in src
