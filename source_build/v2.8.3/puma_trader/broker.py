@@ -134,6 +134,7 @@ class KiwoomRestBroker(BaseBroker):
         self.session = requests.Session()
         self._chart_gate = ChartRequestGate()
         self._chart_cancelled = lambda: False
+        self.account_no_cache: str = ""
         self.last_account_balance_summary: dict = {}
         self.last_account_positions_snapshot: list[dict] = []
 
@@ -624,11 +625,15 @@ class KiwoomRestBroker(BaseBroker):
             "errors": [],
         }
 
-        try:
-            acct = self._post("/api/dostk/acnt", "ka00001", {})
-            out["account_no"] = str(acct.get("acctNo") or acct.get("acnt_no") or "").strip()
-        except Exception as exc:
-            out["errors"].append(f"계좌번호:{exc}")
+        if self.account_no_cache:
+            out["account_no"] = self.account_no_cache
+        else:
+            try:
+                acct = self._post("/api/dostk/acnt", "ka00001", {})
+                self.account_no_cache = str(acct.get("acctNo") or acct.get("acnt_no") or "").strip()
+                out["account_no"] = self.account_no_cache
+            except Exception as exc:
+                out["errors"].append(f"계좌번호:{exc}")
 
         try:
             dep = self._post("/api/dostk/acnt", "kt00001", {"qry_tp": "2"})
@@ -641,25 +646,24 @@ class KiwoomRestBroker(BaseBroker):
             out["errors"].append(f"예수금:{exc}")
 
         summary = dict(self.last_account_balance_summary or {})
-        if not summary:
-            try:
-                data = self._post(
-                    "/api/dostk/acnt", "kt00018",
-                    {"qry_tp": "1", "dmst_stex_tp": "KRX"},
-                )
-                summary = {
-                    "tot_pur_amt": data.get("tot_pur_amt", ""),
-                    "tot_evlt_amt": data.get("tot_evlt_amt", ""),
-                    "tot_evlt_pl": data.get("tot_evlt_pl", ""),
-                    "tot_prft_rt": data.get("tot_prft_rt", ""),
-                    "prsm_dpst_aset_amt": data.get("prsm_dpst_aset_amt", ""),
-                }
-                self.last_account_balance_summary = dict(summary)
-                rows = data.get("acnt_evlt_remn_indv_tot", [])
-                if isinstance(rows, list):
-                    self.last_account_positions_snapshot = [dict(x) for x in rows if isinstance(x, dict)]
-            except Exception as exc:
-                out["errors"].append(f"잔고:{exc}")
+        try:
+            data = self._post(
+                "/api/dostk/acnt", "kt00018",
+                {"qry_tp": "1", "dmst_stex_tp": "KRX"},
+            )
+            summary = {
+                "tot_pur_amt": data.get("tot_pur_amt", ""),
+                "tot_evlt_amt": data.get("tot_evlt_amt", ""),
+                "tot_evlt_pl": data.get("tot_evlt_pl", ""),
+                "tot_prft_rt": data.get("tot_prft_rt", ""),
+                "prsm_dpst_aset_amt": data.get("prsm_dpst_aset_amt", ""),
+            }
+            self.last_account_balance_summary = dict(summary)
+            rows = data.get("acnt_evlt_remn_indv_tot", [])
+            if isinstance(rows, list):
+                self.last_account_positions_snapshot = [dict(x) for x in rows if isinstance(x, dict)]
+        except Exception as exc:
+            out["errors"].append(f"잔고:{exc}")
 
         out["total_purchase"] = money(summary.get("tot_pur_amt"))
         out["total_evaluation"] = money(summary.get("tot_evlt_amt"))
