@@ -292,9 +292,9 @@ def evaluate_gaboja(
     2) 1영은 장대양봉 한 봉에 고정하지 않는다. 특히 장 시작 첫 5분봉은 음봉이어도
        거래량/변동폭이 살아 있으면 1영 구조의 시작봉으로 인정한다.
     3) 차는 기존 65% 깊은 되돌림 + 거래량 진행속도 둔화 규칙을 그대로 쓴다.
-       단, 차 자체에서는 매수하지 않는다.
-    4) 차 이후 다시 양봉 몸통과 거래량 진행속도가 살아나는 2영을 실시간 확인했을 때만 진입한다.
-       전고 몸통 재돌파는 강한 2영으로 인정하며, 최초 손절은 확인된 차 저점이다.
+       진행 중인 차가 조건을 충족하는 순간 바로 매수한다.
+    4) 차 타점을 놓친 경우에만 이후 전고 몸통 재돌파를 보조 진입으로 허용한다.
+       차 진입의 최초 손절은 기준봉 시가, 재돌파 진입은 확인된 차 저점이다.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -416,7 +416,7 @@ def evaluate_gaboja(
             young_bar_count = 1
             young_kind = "opening_bearish" if float(bar["close"]) < float(bar["open"]) else "opening"
             # 첫 봉 음봉은 당일 시가 아래에서 끝날 수 있으므로 구조 바닥은 첫 봉 저가로 둔다.
-            # 실제 2영 매수는 다시 당일 시가를 회복해야 한다.
+            # 이후 65% 깊은 차가 확인되면 그 차에서 바로 매수한다.
             structural_floor = min(basis_open, float(bar["low"]))
         else:
             prior = session[max(0, i - 3):i]
@@ -484,7 +484,7 @@ def evaluate_gaboja(
             float(young_bar_count * 5 * 60),
         )
 
-        # 1영 이후 첫 65% 깊은 차를 찾는다. 차는 '진입 준비'일 뿐 매수 신호가 아니다.
+        # 1영 이후 첫 65% 깊은 차를 찾는다. 조건을 만족한 현재 차 봉 자체가 매수 신호다.
         for j in range(i + 1, len(session)):
             pb = session[j]
             pb_low = float(pb["low"])
@@ -538,7 +538,11 @@ def evaluate_gaboja(
     latest = len(session) - 1
     pb = session[j]
 
-    # 차에서는 사지 않는다. 다음 봉부터 힘이 다시 붙는 2영을 확인한다.
+    # 차 매수: 현재 진행 중인 5분봉이 65% 깊은 차 영역에 들어왔고
+    # 거래량 진행속도까지 둔화됐으면 다음 2영을 기다리지 않고 즉시 진입한다.
+    pullback_entry = latest == j
+
+    # 차 타점을 놓친 경우의 보조 진입: 전고를 꼬리가 아니라 양봉 몸통으로 돌파할 때만 허용.
     body_low = min(float(current["open"]), float(current["close"]))
     body_high = max(float(current["open"]), float(current["close"]))
     body_rebreak = (
@@ -548,44 +552,28 @@ def evaluate_gaboja(
         and float(current["low"]) > structural_floor
     )
 
-    current_elapsed = _bar_elapsed_seconds(current.get("date"), now, 5)
-    current_pace = _volume_pace(
-        float(current["volume"]),
-        current_elapsed if current_elapsed > 0 else 1.0,
-    )
-    pb_body_high = max(float(pb["open"]), float(pb["close"]))
-    recovered_basis = (
-        float(current["close"]) > basis_open
-        if young_kind == "opening_bearish"
-        else True
-    )
-    young2 = (
-        latest > j
-        and float(current["close"]) > float(current["open"])
-        and float(current["close"]) > pb_body_high
-        # 2영은 꼬리만 전고를 찌르는 봉이 아니라 몸통 종가가 1영 전고 위로 올라와야 한다.
-        and float(current["close"]) > young1_high
-        and float(current["close"]) > float(session[latest - 1]["close"])
-        and float(current["low"]) > structural_floor
-        and recovered_basis
-        and (current_pace >= pullback_pace or body_rebreak)
-    )
-
-    passed = bool(time_ok and (young2 or body_rebreak))
-    kind = "YOUNG2" if passed else ""
+    passed = bool(time_ok and (pullback_entry or body_rebreak))
+    kind = "PULLBACK" if pullback_entry else ("YOUNG2" if body_rebreak else "")
     if passed:
-        strength = " · 1영 전고 몸통돌파" if body_rebreak else ""
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
-        reason = (
-            f"가보자 1영→차→2영 매수{opening_note}{strength} · "
-            f"차 저점 {pullback_low:,.0f} 이탈 손절"
-        )
+        if kind == "PULLBACK":
+            reason = (
+                f"가보자 1영→차 매수{opening_note} · 65% 깊은 눌림 "
+                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
+                f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
+                f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
+            )
+        else:
+            reason = (
+                f"가보자 전고 몸통돌파 보조진입{opening_note} · "
+                f"직전 차 저점 {pullback_low:,.0f} 이탈 손절"
+            )
     elif not time_ok:
         reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
     elif latest == j:
-        reason = "65% 차 확인 · 차에서는 매수하지 않고 2영 전환 대기"
+        reason = "65% 차 확인 · 차 매수 조건 대기"
     else:
-        reason = "1영→차 확인 · 2영 상승 전환 대기"
+        reason = "차 타점 경과 · 전고 몸통돌파 보조진입 대기"
 
     return GabojaSignal(
         passed=passed,
@@ -608,21 +596,20 @@ def evaluate_gaboja(
             "opening_bearish_young": young_kind == "opening_bearish",
             "structural_floor": structural_floor,
             "pullback_index": j,
-            "young2_index": latest if passed else -1,
-            "young2_price": current_price if passed else 0.0,
+            "young2_index": -1,
+            "young2_price": 0.0,
             "young1_high": young1_high,
             "pullback_low": pullback_low,
             "cha_ceiling": cha_ceiling,
             "cha_max_ratio": cha_ratio,
             "cha_depth_pct": cha_depth_pct,
-            "early_cha": False,
+            "early_cha": pullback_entry,
             "cha_ready": True,
             "cha_volume_pace_ratio": cha_pace_ratio,
             "cha_min_live_seconds": cha_live_min_sec,
             "pullback_elapsed_sec": pullback_elapsed_sec,
             "pullback_volume_pace": pullback_pace,
             "young_volume_pace": young_pace,
-            "young2_volume_pace": current_pace,
             "lower_volume_pace": lower_volume_pace,
             "pullback_volume": float(pb["volume"]),
             "young1_volume": young_volume,

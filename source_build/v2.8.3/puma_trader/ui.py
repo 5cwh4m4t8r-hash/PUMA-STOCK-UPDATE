@@ -442,7 +442,7 @@ def _enrich_danta_pure(analysis, series: dict):
 
     analysis.details["자동매매 기준"] = (
         "7개 조건검색 합집합 → PUMA 장중 힘 2차 선별 → "
-        "첫봉 음봉도 1영으로 인정하고, 65% 차 확인 뒤 2영 전환에서만 진입"
+        "첫봉 음봉도 1영으로 인정하고, 65% 깊은 차에서 바로 진입"
     )
     if not getattr(analysis, "in_time", False):
         analysis.details["PUMA 판단"] = "자동매수 시간 외 · 후보/구조만 관찰"
@@ -1476,7 +1476,7 @@ class MainWindow(QMainWindow):
         head.addWidget(refresh)
         outer.addLayout(head)
 
-        info = QLabel("가보자 단타는 5분봉 고정입니다. 단타 화면에는 화살표·공구리·수박 같은 장기 패턴 표시는 사용하지 않습니다. 조건검색 후보를 PUMA가 장중 힘으로 2차 선별하고, 첫봉 음봉도 1영으로 인정하고 65% 차 확인 뒤 2영 전환에서만 자동진입합니다.")
+        info = QLabel("가보자 단타는 5분봉 고정입니다. 단타 화면에는 화살표·공구리·수박 같은 장기 패턴 표시는 사용하지 않습니다. 조건검색 후보를 PUMA가 장중 힘으로 2차 선별하고, 첫봉 음봉도 1영으로 인정하고 65% 깊은 차에서 바로 자동진입합니다.")
         info.setWordWrap(True)
         info.setStyleSheet("color:#9eb4c9;padding:3px")
         outer.addWidget(info)
