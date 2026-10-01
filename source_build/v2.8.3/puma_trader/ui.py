@@ -82,7 +82,11 @@ QGroupBox { border: 1px solid #29415f; border-radius: 8px; margin-top: 10px; pad
 QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 6px; }
 QPushButton { background: #183457; border: 1px solid #315b89; border-radius: 7px; padding: 6px 9px; font-weight: 700; }
 QPushButton:hover { background: #21456f; }
+QPushButton:pressed { border:2px solid #8dc7ff; padding:7px 8px 5px 10px; }
 QPushButton#startBtn { background:#078a50; border-color:#19b36f; }
+QPushButton#startBtn:pressed { background:#04663c; border-color:#7affbb; }
+QPushButton#stopBtn:pressed { background:#6f1f28; border-color:#ff8791; }
+QPushButton#conditionBtn:pressed { background:#0f3658; border-color:#70bfff; }
 QPushButton#stopBtn { background:#9e2e39; border-color:#d14b58; }
 QPushButton#liveBtn { background:#7a5313; border-color:#b37c1e; }
 QPushButton#conditionBtn { background:#164b7a; border-color:#2d79b8; }
@@ -931,8 +935,12 @@ class MainWindow(QMainWindow):
         self.stop_btn.setObjectName("stopBtn")
         self.start_btn.clicked.connect(self.start_auto)
         self.stop_btn.clicked.connect(self.stop_auto)
+        self.stop_btn.setEnabled(False)
+        self.auto_state_badge = QLabel("● 자동매매 중지")
+        self.auto_state_badge.setStyleSheet("color:#ff8b95;font-weight:900;padding:4px 8px")
         controls.addWidget(self.start_btn)
         controls.addWidget(self.stop_btn)
+        controls.addWidget(self.auto_state_badge)
         controls.addStretch()
 
         add = QPushButton("＋ 관심종목 추가")
@@ -1412,18 +1420,26 @@ class MainWindow(QMainWindow):
         afm.addRow("트레일링 시작", self.focus_trail_start)
         afm.addRow("고점대비 하락", self.focus_trail_gap)
         ar = QHBoxLayout()
-        start = QPushButton("▶ 전체 후보 감시 · 조건충족만 매매")
-        start.setObjectName("startBtn")
-        selected_start = QPushButton("선택 종목만")
-        stop = QPushButton("■ 중지")
-        stop.setObjectName("stopBtn")
-        start.clicked.connect(self.start_danta_pool_auto)
-        selected_start.clicked.connect(self.start_focus_auto)
-        stop.clicked.connect(self.stop_auto)
-        ar.addWidget(start)
-        ar.addWidget(selected_start)
-        ar.addWidget(stop)
+        self.focus_auto_start_btn = QPushButton("▶ 전체 후보 감시 · 조건충족만 매매")
+        self.focus_auto_start_btn.setObjectName("startBtn")
+        self.focus_auto_selected_btn = QPushButton("선택 종목만")
+        self.focus_auto_stop_btn = QPushButton("■ 중지")
+        self.focus_auto_stop_btn.setObjectName("stopBtn")
+        self.focus_auto_stop_btn.setEnabled(False)
+        self.focus_auto_start_btn.clicked.connect(self.start_danta_pool_auto)
+        self.focus_auto_selected_btn.clicked.connect(self.start_focus_auto)
+        self.focus_auto_stop_btn.clicked.connect(self.stop_auto)
+        ar.addWidget(self.focus_auto_start_btn)
+        ar.addWidget(self.focus_auto_selected_btn)
+        ar.addWidget(self.focus_auto_stop_btn)
         afm.addRow(ar)
+        self.focus_auto_status = QLabel("● 자동매매 중지")
+        self.focus_auto_status.setWordWrap(True)
+        self.focus_auto_status.setStyleSheet(
+            "background:#24171a;color:#ff8b95;border:1px solid #6b3038;"
+            "border-radius:7px;padding:8px;font-weight:900"
+        )
+        afm.addRow("실행 상태", self.focus_auto_status)
         auv.addWidget(auto)
         note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. 단타 검색기 7개 합집합을 PUMA 점수 높은 순으로 확인하고, 가보자 진입조건을 통과한 최우선 1종목에 현재 복리 시드를 전액 투입합니다. 포지션이 끝나기 전에는 다른 종목을 사지 않습니다. 수익/손실은 다음 매매 시드에 그대로 반영되며 하루 누적 -4% 도달 시 그날 신규매수는 중단합니다. 검색추가·스윙·중장기는 자동매수 대상이 아닙니다.")
         note.setWordWrap(True)
@@ -5030,12 +5046,72 @@ class MainWindow(QMainWindow):
         self.live_auto_confirmed_session = True
         return True
 
+    def _set_auto_ui_state(self, enabled: bool, detail: str = ""):
+        """Make automatic-trading state unmistakable in both dashboard and focus UI."""
+        running = bool(enabled)
+        detail = str(detail or "").strip()
+        text = ("● 자동매매 실행 중" if running else "● 자동매매 중지")
+        if detail:
+            text += f" · {detail}"
+
+        badge = getattr(self, "auto_state_badge", None)
+        if badge is not None:
+            badge.setText(text)
+            badge.setStyleSheet(
+                ("color:#61ff8f;font-weight:900;padding:4px 8px"
+                 if running else
+                 "color:#ff8b95;font-weight:900;padding:4px 8px")
+            )
+
+        status = getattr(self, "focus_auto_status", None)
+        if status is not None:
+            status.setText(text)
+            status.setStyleSheet(
+                ("background:#10271d;color:#61ff8f;border:1px solid #267d50;"
+                 "border-radius:7px;padding:8px;font-weight:900"
+                 if running else
+                 "background:#24171a;color:#ff8b95;border:1px solid #6b3038;"
+                 "border-radius:7px;padding:8px;font-weight:900")
+            )
+
+        for attr in ("start_btn", "focus_auto_start_btn", "focus_auto_selected_btn"):
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(not running)
+        for attr in ("stop_btn", "focus_auto_stop_btn"):
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setEnabled(running)
+
+        start_btn = getattr(self, "start_btn", None)
+        if start_btn is not None:
+            start_btn.setText("✓ 자동매매 실행 중" if running else "▶ 자동매매 시작")
+        pool_btn = getattr(self, "focus_auto_start_btn", None)
+        if pool_btn is not None:
+            pool_btn.setText("✓ 전체 후보 감시 실행 중" if running else "▶ 전체 후보 감시 · 조건충족만 매매")
+
+    def _set_auto_ui_pending(self, detail: str):
+        text = f"● 처리 중 · {str(detail or '').strip()}"
+        for attr in ("auto_state_badge", "focus_auto_status"):
+            label = getattr(self, attr, None)
+            if label is not None:
+                label.setText(text)
+                label.setStyleSheet(
+                    "background:#2b2513;color:#ffd76a;border:1px solid #7d6a2b;"
+                    "border-radius:7px;padding:8px;font-weight:900"
+                    if attr == "focus_auto_status" else
+                    "color:#ffd76a;font-weight:900;padding:4px 8px"
+                )
+
     def start_focus_auto(self):
+        self._set_auto_ui_pending("선택 종목 자동매매 시작 확인")
         if not self.selected_code:
+            self._set_auto_ui_state(False, "종목을 먼저 선택하세요")
             QMessageBox.information(self, "종목 선택", "조건검색 목록에서 종목을 먼저 선택하세요.")
             return
         selected_item = self.condition_candidates.get(self.selected_code, {})
         if not self._candidate_in_danta_feed(selected_item):
+            self._set_auto_ui_state(False, "단타 검색기 후보만 자동매매 가능")
             QMessageBox.information(
                 self, "단타 종목만 자동매매",
                 "실전 자동매매는 단타 검색기 후보 종목만 허용합니다. 검색추가·스윙·중장기 종목은 자동매매하지 않습니다.",
@@ -5057,15 +5133,18 @@ class MainWindow(QMainWindow):
                 "선택 종목 실전 자동매매",
                 f"{self.selected_name or self.selected_code} 한 종목 자동매매를 시작합니다.",
             ):
+                self._set_auto_ui_state(False, "사용자가 시작을 취소했습니다")
                 return
             try:
                 self.engine.sync_account(force=True)
             except Exception as exc:
+                self._set_auto_ui_state(False, "실계좌 동기화 실패")
                 QMessageBox.critical(self, "실계좌 동기화 실패", str(exc)); return
         self.focus_auto_danta_pool = False
         self.focus_only_code = self.selected_code
         self.engine.enabled = True
         self.timer.start()
+        self._set_auto_ui_state(True, f"선택 종목 {self.selected_name or self.selected_code} 감시")
         self.log(self.selected_name or self.selected_code, "AUTO", "-", "선택 종목 전용 가보자 자동매매 시작")
         self.scan_one()
 
@@ -5288,6 +5367,7 @@ class MainWindow(QMainWindow):
         return list(merged.values())
 
     def start_danta_pool_auto(self):
+        self._set_auto_ui_pending("전체 후보 자동매매 시작 준비")
         # 통합 트레이딩 전용: 관심종목 등록 여부를 보지 않는다.
         # 필요하면 단타 검색기 7개 스트림부터 자동으로 시작한다.
         self.focus_only_code = None
@@ -5309,6 +5389,7 @@ class MainWindow(QMainWindow):
 
         if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
             self.focus_auto_danta_pool = False
+            self._set_auto_ui_state(False, "키움 연결 필요")
             QMessageBox.information(self, "키움 연결 필요", "전체 후보 자동매매는 키움 연결 후 단타 검색기 7개 결과를 사용합니다.")
             return
 
@@ -5319,6 +5400,7 @@ class MainWindow(QMainWindow):
         # 스레드 객체 생성 여부만 확인하고 초기 스냅샷은 비동기로 기다린다.
         if self.condition_thread is None:
             self.focus_auto_danta_pool = False
+            self._set_auto_ui_state(False, "단타 검색기 시작 실패")
             QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 시작하지 못했습니다.")
             return
 
@@ -5329,12 +5411,14 @@ class MainWindow(QMainWindow):
                 f"현재 복리 시드 {self.engine.current_trade_budget():,}원 전액 / 동시보유 1종목 / 하루 손실 -4% 신규매수 중단",
             ):
                 self.focus_auto_danta_pool = False
+                self._set_auto_ui_state(False, "사용자가 시작을 취소했습니다")
                 return
             try:
                 self.engine.sync_account(force=True)
                 self._refresh_position_rows()
             except Exception as exc:
                 self.focus_auto_danta_pool = False
+                self._set_auto_ui_state(False, "실계좌 동기화 실패")
                 QMessageBox.critical(self, "실계좌 동기화 실패", f"잔고 동기화에 실패하여 실전 자동매매를 시작하지 않습니다.\n{exc}")
                 return
 
@@ -5344,6 +5428,7 @@ class MainWindow(QMainWindow):
             1 for item in self.condition_candidates.values()
             if self._candidate_in_danta_feed(item)
         )
+        self._set_auto_ui_state(True, f"전체 후보 감시 · 현재 KRX 후보 {candidate_count}종목")
         self.log(
             "SYSTEM", "AUTO", "0",
             f"08:00 NXT 실시간 검색·매매 → 08:50 주문 공백 → 09:00 KRX+NXT 통합비교 → 가보자 최우선 1종목 · KRX 후보 {candidate_count}종목"
@@ -5359,6 +5444,7 @@ class MainWindow(QMainWindow):
         self.timer.stop()
         self.focus_only_code = None
         self.focus_auto_danta_pool = False
+        self._set_auto_ui_state(False, "주문·감시 중지")
         if hasattr(self, "log_table"):
             self.log("SYSTEM", "STOP", "0", "자동매매 중지")
 
