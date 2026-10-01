@@ -16,7 +16,10 @@ def trend_then_box():
         c=100+((k%4)-1.5)*0.55
         h=109.5 if k in (1,9,17,25) else c+1.0
         l=91.0 if k in (5,13,21,29) else c-1.0
-        rows.append(bar(55+k,c-0.2,h,l,c,1000))
+        top = k in (1,9,17,25)
+        bottom = k in (5,13,21,29)
+        op = c-0.7 if top else c+0.7 if bottom else c + (0.25 if k % 2 else -0.25)
+        rows.append(bar(55+k,op,h,l,c,1000))
     return rows
 
 
