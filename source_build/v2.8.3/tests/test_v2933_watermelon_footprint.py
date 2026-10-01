@@ -130,9 +130,9 @@ def test_watermelon_keeps_pre_bowl3_and_uses_correct_user_ma_structure():
     assert "and score >= 70" in src
     assert "float(e448[i]) > float(e224[i]) > float(e112[i])" in src
     assert "> float(e20[i]) > float(e5[i]) > float(e60[i])" in src
-    assert "golden_60_112 = bool(" in src
-    assert "float(e60[i - 1]) <= float(e112[i - 1])" in src
+    assert "golden_60_112_active = bool(" in src
     assert "float(e60[i]) > float(e112[i])" in src
+    assert "float(e60[i - 1]) <= float(e112[i - 1])" not in src
     assert "abs(price / float(e224[i]) - 1.0) <= 0.040" in src
-    assert "and (watermelon_ma_stack or golden_60_112)" in src
+    assert "and (watermelon_ma_stack or golden_60_112_active)" in src
 
