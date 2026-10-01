@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.69",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.69_UPDATE.zip",
-    "notes":  "v2.9.69 WATERMELON: EMA60-over-EMA112 is no longer recognized only on the single golden-cross candle. After EMA60 crosses above EMA112, the alternative MA condition stays active for the full period that EMA60 remains above EMA112, and turns off when EMA60 falls back to or below EMA112. The existing EMA224-near/pre-Bowl3 location gate, the 448\u003e224\u003e112\u003e20\u003e5\u003e60 alternative stack, and the repeated-body concrete definition remain unchanged. Auto-trading rules are unchanged.",
-    "sha256":  "9453d30718b5318cb9b7e04f61f7fffedf9100fbee4774c5055cf743d3327bf5"
+    "version":  "2.9.70",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.70_UPDATE.zip",
+    "notes":  "v2.9.70 UI: The first-screen header now shows a compact live Kiwoom account summary directly beside the version: account number, cash deposit, order-available cash, holding count, total evaluation, and evaluation P/L. Hovering the summary shows exact values plus withdrawable cash, D+2 estimated deposit, estimated assets, unsettled cash, and up to eight holding names/quantities/returns. Account data refreshes asynchronously every 15 seconds and after trading activity so it does not block the trading UI. Watermelon, concrete, and auto-trading rules remain unchanged from v2.9.69.",
+    "sha256":  "9d453c45682a9cd97dca1d669631c40c5945c588219bc0b93532e394babdb0e9"
 }
