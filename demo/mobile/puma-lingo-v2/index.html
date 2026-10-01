@@ -277,11 +277,51 @@ function quickLangs(){var b=document.getElementById("quickLangs");if(!b)return;b
 function setLang(v){S.lang=v;save();show("home")}
 function goal(n){S.goal=n;save();alert("하루 목표를 "+n+"문제로 바꿨어요.")}
 function start(ui){makeFlat();var p=ui===undefined?flat:flat.filter(function(x){return x.u===ui});p=p.slice().sort(function(){return Math.random()-.5}).slice(0,S.goal);sess={p:p,i:0,c:0};show("lesson");question()}
-function question(){if(sess.i>=sess.p.length)return finish();var x=sess.p[sess.i],m=sess.i%4;document.getElementById("lessonNo").textContent=(sess.i+1)+"/"+sess.p.length;var q=document.getElementById("q");q.innerHTML="";
-if(m===0){var opts=[x.k];flat.filter(function(y){return y.id!==x.id}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y.k)});opts.sort(function(){return Math.random()-.5});q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+x.t+"</div>";opts.forEach(function(o){var b=document.createElement("button");b.className="choice";b.textContent=o;b.onclick=function(){grade(o===x.k,x);b.classList.add(o===x.k?"ok":"bad");nextBtn()};q.appendChild(b)})}
-else if(m===1){q.innerHTML="<span class='tag'>듣기</span><div class='big'>듣고 문장을 입력하세요.</div><button class='mic' id='play'>🔊</button><input class='ans' id='ans'><button class='primary' id='check'>확인</button><div class='feedback' id='fb'></div>";document.getElementById("play").onclick=function(){speak(x.t)};document.getElementById("check").onclick=function(){typed(x)};setTimeout(function(){speak(x.t)},250)}
-else if(m===2&&S.lang==="en-US"){q.innerHTML="<span class='tag'>말하기</span><div class='big'>"+x.t+"</div><div class='muted'>"+x.k+"</div><button class='mic' id='mic'>🎙️</button><div class='trans' id='tr'>마이크를 누르고 말해보세요.</div><div class='feedback' id='fb'></div><button class='secondary' id='model'>🔊 정답 듣기</button>";document.getElementById("mic").onclick=function(){rec(x)};document.getElementById("model").onclick=function(){speak(x.t)}}
-else{q.innerHTML="<span class='tag'>문장 만들기</span><div class='big'>"+x.k+"</div><input class='ans' id='ans'><button class='primary' id='check'>확인</button><div class='feedback' id='fb'></div><button class='secondary' id='hint'>🔊 정답 듣기</button>";document.getElementById("check").onclick=function(){typed(x)};document.getElementById("hint").onclick=function(){speak(x.t)}}}
+
+function sentenceChoices(correct,field){
+  var vals=[correct],pool=flat.slice().sort(function(){return Math.random()-.5});
+  for(var i=0;i<pool.length&&vals.length<5;i++){
+    var v=field==="t"?pool[i].t:pool[i].k;
+    if(!vals.some(function(x){return norm(x)===norm(v)}))vals.push(v);
+  }
+  return vals.sort(function(){return Math.random()-.5});
+}
+function paintSentenceChoices(q,opts,correct,x){
+  opts.forEach(function(o){
+    var b=document.createElement("button");b.className="choice";b.textContent=o;
+    b.onclick=function(){
+      if(q.dataset.done)return;q.dataset.done="1";
+      Array.from(q.querySelectorAll(".choice")).forEach(function(z){
+        z.disabled=true;
+        if(norm(z.textContent)===norm(correct))z.classList.add("ok");
+      });
+      var ok=norm(o)===norm(correct);if(!ok)b.classList.add("bad");
+      grade(ok,x);
+      var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
+      fb.innerHTML=ok?"<b>정답</b>":"<b>정답: "+correct+"</b>";
+      q.appendChild(fb);nextBtn();
+    };
+    q.appendChild(b);
+  });
+}
+function question(){
+  if(sess.i>=sess.p.length)return finish();
+  var x=sess.p[sess.i],m=sess.i%3;
+  document.getElementById("lessonNo").textContent=(sess.i+1)+"/"+sess.p.length;
+  var q=document.getElementById("q");q.innerHTML="";q.dataset.done="";
+  if(m===0){
+    q.innerHTML="<span class='tag'>문장 뜻 고르기</span><div class='big'>"+x.t+"</div><div class='muted' style='margin:10px 0 14px'>맞는 뜻을 고르세요.</div>";
+    paintSentenceChoices(q,sentenceChoices(x.k,"k"),x.k,x);
+  }else if(m===1){
+    q.innerHTML="<span class='tag'>문장 고르기</span><div class='big'>"+x.k+"</div><div class='muted' style='margin:10px 0 14px'>맞는 문장을 고르세요.</div>";
+    paintSentenceChoices(q,sentenceChoices(x.t,"t"),x.t,x);
+  }else{
+    q.innerHTML="<span class='tag'>듣고 뜻 고르기</span><div class='big'>문장을 듣고 맞는 뜻을 고르세요.</div><button class='mic' id='play'>🔊</button>";
+    document.getElementById("play").onclick=function(){speak(x.t)};
+    paintSentenceChoices(q,sentenceChoices(x.k,"k"),x.k,x);
+    setTimeout(function(){speak(x.t)},250);
+  }
+}
 function norm(s){return (s||"").toLowerCase().replace(/[.,!?¿¡"'’。，？！]/g,"").replace(/\s+/g," ").trim()}
 function similar(a,b){a=norm(a);b=norm(b);if(!a||!b)return 0;var d=Array.from({length:a.length+1},function(){return Array(b.length+1).fill(0)});for(var i=0;i<=a.length;i++)d[i][0]=i;for(var j=0;j<=b.length;j++)d[0][j]=j;for(i=1;i<=a.length;i++)for(j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return Math.max(0,Math.round((1-d[a.length][b.length]/Math.max(a.length,b.length))*100))}
 function typed(x){var sc=similar(document.getElementById("ans").value,x.t),ok=sc>=80,fb=document.getElementById("fb");fb.className="feedback "+(ok?"ok":"bad");fb.innerHTML="<b>"+sc+"%</b><br>"+(ok?"좋아요.":"정답: "+x.t);grade(ok,x);nextBtn()}
