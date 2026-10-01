@@ -293,10 +293,12 @@ def evaluate_gaboja(
        거래량/변동폭이 살아 있으면 1영 구조의 시작봉으로 인정한다.
     3) 차는 기존 65% 깊은 되돌림 + 거래량 진행속도 둔화 규칙을 그대로 쓴다.
        진행 중인 차가 조건을 충족하는 순간 바로 매수한다.
-    4) 두 번째 경로는 '고거래량 하락 후 회복'이다. 65% 이상 깊게 밀렸는데
-       거래량 진행속도가 줄지 않는 동안에는 절대 차 매수를 하지 않고 관찰만 한다.
-       이후 힘이 실제로 회복되어 전고를 양봉 몸통으로 돌파하는 봉에서만 진입한다.
-       차 진입의 최초 손절은 기준봉 시가, 전고돌파 진입은 확인된 눌림 저점이다.
+    4) 영차영차의 구조는 거래량 모양이 아니라 가격 구조다:
+       1영(상승봉 또는 상승 언덕) -> 차(눌림) -> 2영(1영 전고 몸통돌파).
+       차 자체는 거래량과 무관하게 추적하며, 거래량 둔화는 차 직접매수의 보조/안전 조건으로만 쓴다.
+       차에서 직접 못 샀거나 거래량 조건이 안 맞아도 구조를 버리지 않고 계속 추적하다가,
+       이후 양봉 몸통이 1영 전고를 실제 돌파하면 2영 진입을 허용한다. 윗꼬리 돌파는 제외한다.
+       차 진입의 최초 손절은 기준봉 시가, 2영 진입은 확인된 눌림 저점이다.
     """
     candles = normalize_candles(minute_rows or [])
     if not candles:
@@ -401,8 +403,12 @@ def evaluate_gaboja(
 
     # 1영은 첫 5분봉부터 볼 수 있다. 첫 봉은 음봉이어도 후보가 이미
     # 장초 거래량/PUMA 힘 필터를 통과했다면 구조의 시작봉으로 인정한다.
-    pairs = []
-    recovery_setups = []
+    # 영차영차 구조 자체는 가격으로 판정한다. 봉 단위 거래량은 1영/차/2영 구조를
+    # 끊는 필수조건이 아니며, 차 직접매수 품질과 후보 강도 판단에만 보조로 사용한다.
+    quiet_cha_pairs = []
+    structural_watches = []
+    second_young_setups = []
+
     for i in range(0, len(session) - 1):
         bar = session[i]
         opening_young = (
@@ -419,7 +425,6 @@ def evaluate_gaboja(
             young_bar_count = 1
             young_kind = "opening_bearish" if float(bar["close"]) < float(bar["open"]) else "opening"
             # 첫 봉 음봉은 당일 시가 아래에서 끝날 수 있으므로 구조 바닥은 첫 봉 저가로 둔다.
-            # 이후 65% 깊은 차가 확인되면 그 차에서 바로 매수한다.
             structural_floor = min(basis_open, float(bar["low"]))
         else:
             prior = session[max(0, i - 3):i]
@@ -427,11 +432,13 @@ def evaluate_gaboja(
                 continue
 
             prior_high = max(float(x["high"]) for x in prior)
-            prior_vol = mean(float(x["volume"]) for x in prior)
+
+            # 단봉 1영: 가격이 실제로 상승하며 직전 고점을 공격했는지만 본다.
+            # 후보 자체의 거래량 강도는 앞단 PUMA 2차선별에서 이미 검증하므로
+            # 이 봉의 거래량이 직전 봉들보다 반드시 커야 한다고 다시 강제하지 않는다.
             single_impulse = (
                 float(bar["close"]) > float(bar["open"])
                 and float(bar["high"]) > prior_high
-                and float(bar["volume"]) >= prior_vol
             )
 
             # 언덕형 1영: 최근 최대 7봉 안에서 저점부터 이어진 상승 언덕 전체를 인정한다.
@@ -481,25 +488,32 @@ def evaluate_gaboja(
         rise = young_high - structural_floor
         if rise <= 0:
             continue
+
         cha_ceiling = structural_floor + rise * cha_ratio
         young_pace = _volume_pace(
             young_volume_total,
             float(young_bar_count * 5 * 60),
         )
 
-        # 1영 이후 첫 65% 깊은 차를 찾는다.
-        # 거래량 진행속도가 줄면 기존 차 매수 경로, 줄지 않으면 '고거래량 하락'
-        # 회복 감시 경로로 전환한다. 고거래량 하락 중에는 절대 매수하지 않는다.
-        hot_pullback_idx = -1
-        hot_pullback_low = 0.0
-        hot_pullback_pace = 0.0
-        hot_pullback_depth = 0.0
+        # 차(눌림)는 가격 구조로 먼저 기록한다.
+        # 65% 이상 깊은 눌림이 확인되면 거래량이 크든 작든 2영 감시는 계속한다.
+        # 단, 차 자체에서 즉시 사는 기존 타점은 거래량 진행속도 둔화가 확인될 때만 유지한다.
+        structural_pullback_idx = -1
+        structural_pullback_low = 0.0
+        structural_pullback_depth = 0.0
+        structural_pullback_pace = 0.0
+        structural_pullback_elapsed = 0.0
+        structure_invalid = False
+        quiet_cha_recorded = False
 
         for j in range(i + 1, len(session)):
             pb = session[j]
             pb_low = float(pb["low"])
             pb_close = float(pb["close"])
+
+            # 1영 구조 바닥 자체가 깨지면 이 영차영차 구조는 폐기한다.
             if pb_low <= structural_floor or pb_close <= structural_floor:
+                structure_invalid = True
                 break
 
             deep_zone = structural_floor < pb_close <= cha_ceiling
@@ -514,193 +528,235 @@ def evaluate_gaboja(
             pb_pace = _volume_pace(float(pb["volume"]), elapsed if elapsed > 0 else 1.0)
             lower_volume_pace = young_pace > 0 and pb_pace <= young_pace * cha_pace_ratio
 
-            if deep_zone and live_ready and lower_volume_pace:
+            if deep_zone and live_ready:
                 depth_pct = ((young_high - pb_close) / rise) * 100.0
-                pairs.append((
-                    young_start, i, j, young_high, pb_low,
-                    cha_ceiling, young_volume, young_kind, depth_pct,
-                    young_pace, pb_pace, elapsed, lower_volume_pace,
-                    structural_floor,
-                ))
-                break
 
-            if deep_zone and live_ready and not lower_volume_pace:
-                # 거래량이 안 죽은 채 깊게 밀리면 차 매수 금지.
-                # 이후 전고 몸통돌파가 확인될 때까지 회복 후보로만 유지한다.
-                if hot_pullback_idx < 0:
-                    hot_pullback_idx = j
-                    hot_pullback_low = pb_low
-                    hot_pullback_pace = pb_pace
-                    hot_pullback_depth = ((young_high - pb_close) / rise) * 100.0
+                if structural_pullback_idx < 0:
+                    structural_pullback_idx = j
+                    structural_pullback_low = pb_low
+                    structural_pullback_depth = depth_pct
+                    structural_pullback_pace = pb_pace
+                    structural_pullback_elapsed = elapsed
                 else:
-                    hot_pullback_low = min(hot_pullback_low, pb_low)
-                    hot_pullback_pace = max(hot_pullback_pace, pb_pace)
-                    hot_pullback_depth = max(
-                        hot_pullback_depth,
-                        ((young_high - pb_close) / rise) * 100.0,
-                    )
+                    structural_pullback_low = min(structural_pullback_low, pb_low)
+                    structural_pullback_depth = max(structural_pullback_depth, depth_pct)
+                    structural_pullback_pace = pb_pace
+                    structural_pullback_elapsed = elapsed
 
-        # 고거래량 하락형은 차에서 사지 않는다. 눌림이 끝난 뒤 현재봉이
-        # 양봉 몸통으로 1영 전고를 실제 돌파할 때만 별도 회복 진입 신호를 만든다.
-        if hot_pullback_idx >= 0 and latest_index > hot_pullback_idx:
+                # 기존 '차에서 매수'는 그대로 유지한다.
+                # 거래량 둔화가 확인되는 첫 차 봉을 직접매수 후보로 기록한다.
+                if lower_volume_pace and not quiet_cha_recorded:
+                    quiet_cha_pairs.append((
+                        young_start, i, j, young_high, pb_low,
+                        cha_ceiling, young_volume, young_kind, depth_pct,
+                        young_pace, pb_pace, elapsed, lower_volume_pace,
+                        structural_floor,
+                    ))
+                    quiet_cha_recorded = True
+
+            # 차를 찍고 회복하는 동안 더 낮은 저점이 생기면 실제 눌림 저점으로 갱신한다.
+            elif structural_pullback_idx >= 0:
+                structural_pullback_low = min(structural_pullback_low, pb_low)
+
+        if structural_pullback_idx < 0 or structure_invalid:
+            continue
+
+        structural_watches.append((
+            young_start, i, structural_pullback_idx, young_high, structural_pullback_low,
+            cha_ceiling, young_volume, young_kind, structural_pullback_depth,
+            young_pace, structural_pullback_pace, structural_pullback_elapsed,
+            structural_floor,
+        ))
+
+        # 2영: 차 이후 몇 봉을 천천히 회복했든 상관없이 현재 양봉 몸통이
+        # 1영 전고를 실제로 가로질러 돌파하면 진입 후보. 거래량은 필수조건이 아니다.
+        if latest_index > structural_pullback_idx:
             current_bar = session[latest_index]
             current_body_low = min(float(current_bar["open"]), float(current_bar["close"]))
             current_body_high = max(float(current_bar["open"]), float(current_bar["close"]))
-            recovery_body_break = bool(
+            second_young_body_break = bool(
                 float(current_bar["close"]) > float(current_bar["open"])
                 and current_body_low <= young_high < current_body_high
                 and float(current_bar["low"]) > structural_floor
             )
-            if recovery_body_break:
-                recovery_setups.append((
-                    young_start, i, hot_pullback_idx, young_high, hot_pullback_low,
-                    cha_ceiling, young_volume, young_kind, hot_pullback_depth,
-                    young_pace, hot_pullback_pace, structural_floor,
+            if second_young_body_break:
+                second_young_setups.append((
+                    young_start, i, structural_pullback_idx, young_high, structural_pullback_low,
+                    cha_ceiling, young_volume, young_kind, structural_pullback_depth,
+                    young_pace, structural_pullback_pace, structural_pullback_elapsed,
+                    structural_floor,
                 ))
 
-    if not pairs:
-        if recovery_setups:
-            (
-                recovery_young_start, recovery_i, recovery_j, recovery_high, recovery_low,
-                recovery_cha_ceiling, recovery_young_volume, recovery_young_kind,
-                recovery_depth_pct, recovery_young_pace, recovery_pullback_pace,
-                recovery_floor,
-            ) = recovery_setups[-1]
-            recovery_passed = bool(time_ok)
-            opening_note = " · 첫봉 음봉 1영 인정" if recovery_young_kind == "opening_bearish" else ""
-            reason = (
-                f"가보자 고거래량 하락→전고 몸통돌파 회복진입{opening_note} · "
-                f"차에서는 매수 보류 · 전고 {recovery_high:,.0f} 몸통돌파 확인 · "
-                f"직전 눌림저점 {recovery_low:,.0f} 이탈 손절"
-                if recovery_passed else
-                f"고거래량 하락 후 전고 몸통돌파 확인 · 검색시간 외({scan_start}~{scan_end})"
-            )
-            return GabojaSignal(
-                passed=recovery_passed,
-                entry_kind="RECOVERY_BREAKOUT" if recovery_passed else "",
-                reason=reason,
-                current_price=current_price,
-                basis_open=basis_open,
-                young1_high=recovery_high,
-                pullback_low=recovery_low,
-                day_volume_ratio=day_ratio,
-                details={
-                    **d, **premarket,
-                    "time_ok": time_ok,
-                    "trade_start": trade_start,
-                    "cha_max_ratio": cha_ratio,
-                    "cha_volume_pace_ratio": cha_pace_ratio,
-                    "cha_min_live_seconds": cha_live_min_sec,
-                    "recovery_breakout": True,
-                    "recovery_pullback_index": recovery_j,
-                    "recovery_pullback_low": recovery_low,
-                    "recovery_depth_pct": recovery_depth_pct,
-                    "recovery_pullback_volume_pace": recovery_pullback_pace,
-                    "young_volume_pace": recovery_young_pace,
-                    "young1_index": recovery_i,
-                    "young1_start_index": recovery_young_start,
-                },
-            )
+    latest = len(session) - 1
 
+    # 1차 진입: 현재봉 자체가 거래량 둔화까지 확인된 차면 기존대로 차에서 즉시 매수.
+    current_cha_pairs = [x for x in quiet_cha_pairs if x[2] == latest]
+    if current_cha_pairs:
+        (
+            young_start, i, j, young1_high, pullback_low, cha_ceiling,
+            young_volume, young_kind, cha_depth_pct, young_pace,
+            pullback_pace, pullback_elapsed_sec, lower_volume_pace,
+            structural_floor,
+        ) = current_cha_pairs[-1]
+        pb = session[j]
+        passed = bool(time_ok)
+        opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
+        reason = (
+            f"가보자 1영→차 매수{opening_note} · 65% 깊은 눌림 "
+            f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
+            f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
+            f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
+            if passed else
+            f"가보자 1영→차 확인 · 검색시간 외({scan_start}~{scan_end})"
+        )
         return GabojaSignal(
-            False,
-            reason="1영 이후 65% 이상 되돌린 차 또는 고거래량 회복형 대기",
+            passed=passed,
+            entry_kind="PULLBACK" if passed else "",
+            reason=reason,
             current_price=current_price,
             basis_open=basis_open,
+            young1_high=young1_high,
+            pullback_low=pullback_low,
             day_volume_ratio=day_ratio,
             details={
-                **d, **premarket, "time_ok": time_ok, "trade_start": trade_start,
+                **d,
+                **premarket,
+                "time_ok": time_ok,
+                "trade_start": trade_start,
+                "young1_index": i,
+                "young_start_index": young_start,
+                "young_end_index": i,
+                "young_kind": young_kind,
+                "opening_bearish_young": young_kind == "opening_bearish",
+                "structural_floor": structural_floor,
+                "pullback_index": j,
+                "young2_index": -1,
+                "young2_price": 0.0,
+                "young1_high": young1_high,
+                "pullback_low": pullback_low,
+                "cha_ceiling": cha_ceiling,
                 "cha_max_ratio": cha_ratio,
+                "cha_depth_pct": cha_depth_pct,
+                "early_cha": True,
+                "cha_ready": True,
                 "cha_volume_pace_ratio": cha_pace_ratio,
                 "cha_min_live_seconds": cha_live_min_sec,
-                "recovery_breakout": False,
+                "pullback_elapsed_sec": pullback_elapsed_sec,
+                "pullback_volume_pace": pullback_pace,
+                "young_volume_pace": young_pace,
+                "lower_volume_pace": lower_volume_pace,
+                "pullback_volume": float(pb["volume"]),
+                "young1_volume": young_volume,
+                "body_rebreak": False,
+                "second_young": False,
+                "volume_required_for_structure": False,
             },
         )
 
-    (
-        young_start, i, j, young1_high, pullback_low, cha_ceiling,
-        young_volume, young_kind, cha_depth_pct, young_pace,
-        pullback_pace, pullback_elapsed_sec, lower_volume_pace,
-        structural_floor,
-    ) = pairs[-1]
-    latest = len(session) - 1
-    pb = session[j]
-
-    # 차 매수: 현재 진행 중인 5분봉이 65% 깊은 차 영역에 들어왔고
-    # 거래량 진행속도까지 둔화됐으면 다음 2영을 기다리지 않고 즉시 진입한다.
-    pullback_entry = latest == j
-
-    # 차 타점을 놓친 경우의 보조 진입: 전고를 꼬리가 아니라 양봉 몸통으로 돌파할 때만 허용.
-    body_low = min(float(current["open"]), float(current["close"]))
-    body_high = max(float(current["open"]), float(current["close"]))
-    body_rebreak = (
-        latest > j
-        and float(current["close"]) > float(current["open"])
-        and body_low <= young1_high < body_high
-        and float(current["low"]) > structural_floor
-    )
-
-    passed = bool(time_ok and (pullback_entry or body_rebreak))
-    kind = "PULLBACK" if pullback_entry else ("YOUNG2" if body_rebreak else "")
-    if passed:
+    # 2차 진입: 차 직접매수를 못 했더라도 가격 구조를 계속 추적한다.
+    # 거래량이 많든 적든, 천천히 회복했든 빠르게 회복했든 전고 몸통돌파만 확인되면 2영.
+    if second_young_setups:
+        (
+            young_start, i, j, young1_high, pullback_low, cha_ceiling,
+            young_volume, young_kind, cha_depth_pct, young_pace,
+            pullback_pace, pullback_elapsed_sec, structural_floor,
+        ) = second_young_setups[-1]
+        passed = bool(time_ok)
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
-        if kind == "PULLBACK":
-            reason = (
-                f"가보자 1영→차 매수{opening_note} · 65% 깊은 눌림 "
-                f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
-                f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
-                f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
-            )
-        else:
-            reason = (
-                f"가보자 전고 몸통돌파 보조진입{opening_note} · "
-                f"직전 차 저점 {pullback_low:,.0f} 이탈 손절"
-            )
-    elif not time_ok:
-        reason = f"가보자 패턴 확인 · 검색시간 외({scan_start}~{scan_end})"
-    elif latest == j:
-        reason = "65% 차 확인 · 차 매수 조건 대기"
-    else:
-        reason = "차 타점 경과 · 전고 몸통돌파 보조진입 대기"
+        reason = (
+            f"가보자 1영→차→2영 전고 몸통돌파 매수{opening_note} · "
+            f"전고 {young1_high:,.0f} 몸통돌파 확인 · "
+            f"눌림저점 {pullback_low:,.0f} 이탈 손절"
+            if passed else
+            f"1영→차→2영 전고 몸통돌파 확인 · 검색시간 외({scan_start}~{scan_end})"
+        )
+        return GabojaSignal(
+            passed=passed,
+            entry_kind="YOUNG2" if passed else "",
+            reason=reason,
+            current_price=current_price,
+            basis_open=basis_open,
+            young1_high=young1_high,
+            pullback_low=pullback_low,
+            day_volume_ratio=day_ratio,
+            details={
+                **d,
+                **premarket,
+                "time_ok": time_ok,
+                "trade_start": trade_start,
+                "young1_index": i,
+                "young_start_index": young_start,
+                "young_end_index": i,
+                "young_kind": young_kind,
+                "opening_bearish_young": young_kind == "opening_bearish",
+                "structural_floor": structural_floor,
+                "pullback_index": j,
+                "young2_index": latest,
+                "young2_price": current_price,
+                "young1_high": young1_high,
+                "pullback_low": pullback_low,
+                "cha_ceiling": cha_ceiling,
+                "cha_max_ratio": cha_ratio,
+                "cha_depth_pct": cha_depth_pct,
+                "early_cha": False,
+                "cha_ready": True,
+                "cha_volume_pace_ratio": cha_pace_ratio,
+                "cha_min_live_seconds": cha_live_min_sec,
+                "pullback_elapsed_sec": pullback_elapsed_sec,
+                "pullback_volume_pace": pullback_pace,
+                "young_volume_pace": young_pace,
+                "lower_volume_pace": (
+                    young_pace > 0
+                    and pullback_pace <= young_pace * cha_pace_ratio
+                ),
+                "pullback_volume": float(session[j]["volume"]),
+                "young1_volume": young_volume,
+                "body_rebreak": True,
+                "second_young": True,
+                "volume_required_for_structure": False,
+            },
+        )
+
+    if structural_watches:
+        watch = structural_watches[-1]
+        return GabojaSignal(
+            False,
+            reason="가보자 1영→차 확인 · 2영 전고 몸통돌파 감시 중",
+            current_price=current_price,
+            basis_open=basis_open,
+            young1_high=float(watch[3]),
+            pullback_low=float(watch[4]),
+            day_volume_ratio=day_ratio,
+            details={
+                **d,
+                **premarket,
+                "time_ok": time_ok,
+                "trade_start": trade_start,
+                "cha_max_ratio": cha_ratio,
+                "cha_volume_pace_ratio": cha_pace_ratio,
+                "cha_min_live_seconds": cha_live_min_sec,
+                "structural_pullback": True,
+                "second_young": False,
+                "volume_required_for_structure": False,
+            },
+        )
 
     return GabojaSignal(
-        passed=passed,
-        entry_kind=kind,
-        reason=reason,
+        False,
+        reason="1영 이후 65% 이상 차(눌림) 형성 대기",
         current_price=current_price,
         basis_open=basis_open,
-        young1_high=young1_high,
-        pullback_low=pullback_low,
         day_volume_ratio=day_ratio,
         details={
             **d,
             **premarket,
             "time_ok": time_ok,
             "trade_start": trade_start,
-            "young1_index": i,
-            "young_start_index": young_start,
-            "young_end_index": i,
-            "young_kind": young_kind,
-            "opening_bearish_young": young_kind == "opening_bearish",
-            "structural_floor": structural_floor,
-            "pullback_index": j,
-            "young2_index": -1,
-            "young2_price": 0.0,
-            "young1_high": young1_high,
-            "pullback_low": pullback_low,
-            "cha_ceiling": cha_ceiling,
             "cha_max_ratio": cha_ratio,
-            "cha_depth_pct": cha_depth_pct,
-            "early_cha": pullback_entry,
-            "cha_ready": True,
             "cha_volume_pace_ratio": cha_pace_ratio,
             "cha_min_live_seconds": cha_live_min_sec,
-            "pullback_elapsed_sec": pullback_elapsed_sec,
-            "pullback_volume_pace": pullback_pace,
-            "young_volume_pace": young_pace,
-            "lower_volume_pace": lower_volume_pace,
-            "pullback_volume": float(pb["volume"]),
-            "young1_volume": young_volume,
-            "body_rebreak": body_rebreak,
+            "structural_pullback": False,
+            "second_young": False,
+            "volume_required_for_structure": False,
         },
     )
