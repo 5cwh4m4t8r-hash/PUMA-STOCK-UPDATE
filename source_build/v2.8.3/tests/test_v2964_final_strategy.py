@@ -49,6 +49,7 @@ def test_opening_bearish_bar_can_be_young1_and_buy_at_cha():
         rows,
         _daily(),
         now=datetime(2026, 10, 1, 9, 5, 30),
+        apply_secondary_filter=False,
     )
     assert sig.passed is True
     assert sig.entry_kind == "PULLBACK"
