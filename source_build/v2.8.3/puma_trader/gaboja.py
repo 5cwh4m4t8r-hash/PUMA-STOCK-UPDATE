@@ -553,7 +553,7 @@ def evaluate_gaboja(
     )
 
     passed = bool(time_ok and (pullback_entry or body_rebreak))
-    kind = "PULLBACK" if pullback_entry else ("BODY_REBREAK" if body_rebreak else "")
+    kind = "PULLBACK" if pullback_entry else ("YOUNG2" if body_rebreak else "")
     if passed:
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
         if kind == "PULLBACK":
