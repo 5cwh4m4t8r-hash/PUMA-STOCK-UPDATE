@@ -432,6 +432,8 @@ def evaluate_gaboja(
                 continue
 
             prior_high = max(float(x["high"]) for x in prior)
+            prior_vol = mean(float(x["volume"]) for x in prior)
+            single_volume_expansion = float(bar["volume"]) >= prior_vol if prior_vol > 0 else True
 
             # 단봉 1영: 가격이 실제로 상승하며 직전 고점을 공격했는지만 본다.
             # 후보 자체의 거래량 강도는 앞단 PUMA 2차선별에서 이미 검증하므로
@@ -468,9 +470,18 @@ def evaluate_gaboja(
                 and progress >= max(1, (len(hill) - 1) // 2)
             )
 
-            # 여러 봉이 이어진 상승 언덕이면 hill을 우선 보존한다.
-            # hill이 아닌 단일 가격 돌파만 single로 분류한다.
-            if hill_shape:
+            # 가격 구조가 둘 다 성립할 때만 거래량을 '분류 보조'로 쓴다.
+            # 현재 봉 거래량이 직전 평균 이상이면 단봉 추진력(single)으로 보고,
+            # 그렇지 않으면 여러 봉 누적 상승(hill)로 보존한다.
+            # 중요한 점: 거래량 부족 때문에 1영 자체를 탈락시키지는 않는다.
+            if single_impulse and (not hill_shape or single_volume_expansion):
+                young_start = i
+                young_high = float(bar["high"])
+                young_volume = float(bar["volume"])
+                young_volume_total = float(bar["volume"])
+                young_bar_count = 1
+                young_kind = "single"
+            elif hill_shape:
                 young_high = hill_high
                 young_volume = max(float(x["volume"]) for x in hill)
                 young_volume_total = sum(float(x["volume"]) for x in hill)
