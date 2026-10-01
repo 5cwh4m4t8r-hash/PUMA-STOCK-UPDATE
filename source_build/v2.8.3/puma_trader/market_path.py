@@ -568,21 +568,9 @@ def _preview_concrete_before_bowl3(
         return None
     max_allowed_top = min(valid_112)
 
-    look_start = max(0, current_idx - 99)
-    valid_224 = [
-        j for j in range(look_start, current_idx + 1)
-        if j < len(e224) and e224[j] is not None
-    ]
-    below_224_count = sum(
-        1 for j in valid_224
-        if float(candles[j]["close"]) < float(e224[j])
-    )
-    if len(valid_224) < 60 or below_224_count < 60:
-        return None
-
-    # 공구리는 별도의 거래량/224근접 점수로 다시 거르지 않는다.
+    # 공구리는 별도의 거래량/224근접/장기체류 점수로 다시 거르지 않는다.
     # 반복된 양봉 몸통 저항 + 음봉 몸통 지지 + 왕복 충돌로 확정된 박스 자체가 공구리다.
-    # 이 함수의 기존 장기 맥락(현재 224 아래, 장기간 224 아래 체류, 박스 상단 112 아래)은 유지한다.
+    # 공구리의 기존 112 이하 사용 규칙과, 현재 224 돌파 전이라는 위치 규칙만 유지한다.
 
     # 공구리 상단/하단은 이미 반복 몸통 충돌로 확정된 박스 경계를 그대로 쓴다.
     # 전고 언덕이나 한 개 양봉종가로 상단을 다시 바꾸지 않는다.
