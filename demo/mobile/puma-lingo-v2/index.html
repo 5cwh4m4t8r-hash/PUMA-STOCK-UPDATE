@@ -303,18 +303,6 @@ function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
   }
   if(hint)st.hints++;S.total++;save();
 
-  var ex=clozeFor(m),full=ex.sentence?ex.sentence.replace("____",m.word).replace("___",m.word):m.word;
-  var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
-  if(ok){
-    fb.innerHTML="<b>정답</b><br><b>"+m.word+"</b> — "+m.meaning+
-      "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>";
-  }else{
-    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+
-      "<br><br>정답: <b>"+m.word+"</b> — "+m.meaning+
-      "<br><span class='muted'>"+full+"</span><br><span class='muted'>"+ex.ko+"</span>"+
-      "<br><span class='muted'>지금 바로 반복하지 않고 복습 시점에 다시 냅니다.</span>";
-  }
-  q.appendChild(fb);
   var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
 }
 function wordFinish(){
@@ -377,11 +365,7 @@ function paintSentenceChoices(q,opts,correct,x){
       openOnlyChoiceNote(q,note);
       grade(ok,x);
 
-      var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
-      fb.innerHTML=ok
-        ? "<b>정답</b><br><span class='muted'>다른 보기도 눌러보면 각각 뜻/해석을 볼 수 있어요.</span>"
-        : "<b>오답</b><br>정답: <b>"+correct+"</b><br><span class='muted'>다른 보기도 눌러보면 각각 뜻/해석을 볼 수 있어요.</span>";
-      q.appendChild(fb);nextBtn();
+      nextBtn();
     };
     q.appendChild(b);
     q.appendChild(note);
