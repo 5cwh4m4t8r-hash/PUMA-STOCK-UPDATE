@@ -28,7 +28,7 @@
 <section id="lesson" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="lessonNo">1/10</h2></div><div class="box" id="q"></div></section>
 <section id="review" class="screen"><div class="top"><div class="brand">복습</div><div class="pill" id="due">0</div></div><div id="reviewList"></div></section>
 <section id="pron" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>영어 발음</h2></div><div class="box"><span class="tag">MINIMAL PAIRS</span><div class="big">비슷한 소리 비교</div><div id="pairs"></div></div></section>
-<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
+<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">현재 실력</div><div class="pill" id="abilityText">실력 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
 </div>
 
 <div class="nav"><button class="sel" onclick="nav('home',this)"><span>⌂</span>홈</button><button onclick="nav('course',this)"><span>◫</span>코스</button><button onclick="nav('review',this)"><span>↻</span>복습</button><button onclick="nav('me',this)"><span>👤</span>내 학습</button></div>
@@ -243,5 +243,6 @@ function reviews(){
 function pron(){if(S.lang!=="en-US"){alert("현재 발음 비교는 영어에서 지원해요.");return}show("pron");var a=[["seat","sit"],["sit","shit"],["ship","sheep"],["live","leave"]],b=document.getElementById("pairs");b.innerHTML="";a.forEach(function(p){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+p[0]+" ↔ "+p[1]+"</b><div class='row'><button class='secondary'>"+p[0]+" 듣기</button><button class='secondary'>"+p[1]+" 듣기</button></div>";var z=d.querySelectorAll("button");z[0].onclick=function(){speak(p[0])};z[1].onclick=function(){speak(p[1])};b.appendChild(d)})}
 home();
 </script>
+<script src="./engine-v2.js?v=6"></script>
 </body>
 </html>
