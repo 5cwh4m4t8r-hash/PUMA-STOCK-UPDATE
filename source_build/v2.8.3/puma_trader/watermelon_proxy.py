@@ -149,7 +149,7 @@ def build_puma_watermelon(
       Keep the original EMA224-near / pre-Bowl3 preparation context, but only
       allow watermelon when the user-defined bottom MA structure is present:
       top-to-bottom EMA448 > EMA224 > EMA112 > EMA20 > EMA5 > EMA60,
-      OR when EMA60 is making a golden cross above EMA112.
+      OR during the whole active period after EMA60 golden-crosses above EMA112 and remains above it.
       Volume/accumulation evidence is still required.
 
     Uses only current/past bars. No future-bar confirmation is used.
@@ -279,14 +279,14 @@ def build_puma_watermelon(
             > float(e20[i]) > float(e5[i]) > float(e60[i])
         )
 
-        # Alternative trigger requested by the user: EMA60 golden-crosses EMA112.
-        golden_60_112 = bool(
-            i > 0
-            and e60[i - 1] is not None
-            and e112[i - 1] is not None
-            and e60[i] is not None
+        # Alternative trigger requested by the user:
+        # not only the exact crossing candle. Once EMA60 has golden-crossed
+        # EMA112, keep this condition active for the whole period that
+        # EMA60 remains above EMA112. It turns off only after EMA60 falls back
+        # to/below EMA112.
+        golden_60_112_active_active = bool(
+            e60[i] is not None
             and e112[i] is not None
-            and float(e60[i - 1]) <= float(e112[i - 1])
             and float(e60[i]) > float(e112[i])
         )
 
@@ -392,7 +392,7 @@ def build_puma_watermelon(
             score += 5; tags.append("단기선 회복")
         if watermelon_ma_stack:
             score += 20; tags.append("수박이평 448>224>112>20>5>60")
-        if golden_60_112:
+        if golden_60_112_active:
             score += 20; tags.append("60EMA→112EMA 골든크로스")
         if impulse or acc_recent:
             score += 10; tags.append("선행 거래량/매집")
@@ -412,7 +412,7 @@ def build_puma_watermelon(
 
         # 기존 수박 위치 정의는 유지한다:
         # 장기 224 아래 체류 + 현재가 224 근처 + 밥3 직전 준비구간.
-        # 여기에 MA 구조(448>224>112>20>5>60) 또는 60/112 골든크로스를 추가한다.
+        # 여기에 MA 구조(448>224>112>20>5>60) 또는 60EMA가 112EMA 위에 올라탄 골든크로스 유지구간을 추가한다.
         record112_recent = _record112_recent(vols, i, 20)
 
         prior_start = max(223, i - 99)
@@ -457,7 +457,7 @@ def build_puma_watermelon(
             bottom_context
             and long_below_224
             and near_224_prebreak
-            and (watermelon_ma_stack or golden_60_112)
+            and (watermelon_ma_stack or golden_60_112_active)
             and volume_pre_signal
             and not bullish_224_body_break
         )
