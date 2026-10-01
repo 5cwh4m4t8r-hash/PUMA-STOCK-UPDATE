@@ -15,20 +15,20 @@
 <div class="app">
 <section id="home" class="screen on">
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
-<div class="hero"><h1>오늘 10분만 가자.</h1><p>단어만 보고 뜻을 고릅니다. 틀린 단어만 한 번 더 나와요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">왕초보 단어 학습 시작</button></div>
+<div class="hero"><h1>오늘 10분만 가자.</h1><p>내 수준에 맞는 단어를 문장 속 빈칸으로 익히고, 잊을 때쯤 자동 복습해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">맞춤 어휘 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>왕초보 단어</b><small>단어만 보고 뜻 선택</small></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>맞춤 어휘</b><small>빈칸 퀴즈 · 자동 복습</small></div>
 <div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
 <div class="card" onclick="show('me')">⚙️<b>설정</b><small>언어·목표</small></div>
 </div></section>
 
-<section id="word" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="wordNo">1/5</h2></div><div class="box" id="wq"></div></section><section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
+<section id="word" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="wordNo">1/10</h2><div class="pill" id="wordLevel">Lv 1</div></div><div class="box" id="wq"></div></section><section id="course" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>코스</h2></div><div id="units"></div></section>
 <section id="lesson" class="screen"><div class="head"><button class="back" onclick="show('home')">×</button><h2 id="lessonNo">1/10</h2></div><div class="box" id="q"></div></section>
 <section id="review" class="screen"><div class="top"><div class="brand">복습</div><div class="pill" id="due">0</div></div><div id="reviewList"></div></section>
 <section id="pron" class="screen"><div class="head"><button class="back" onclick="show('home')">←</button><h2>영어 발음</h2></div><div class="box"><span class="tag">MINIMAL PAIRS</span><div class="big">비슷한 소리 비교</div><div id="pairs"></div></div></section>
-<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
+<section id="me" class="screen"><div class="top"><div class="brand">내 학습</div></div><div class="box"><b>학습 언어</b><select id="langSel" onchange="setLang(this.value)"></select><div class="section">현재 어휘 레벨</div><div class="pill" id="abilityText">Lv 1 / 30</div><div class="section">하루 목표</div><div class="row"><button class="secondary" onclick="goal(5)">5문제</button><button class="secondary" onclick="goal(10)">10문제</button><button class="secondary" onclick="goal(20)">20문제</button></div><p class="muted">iPhone Safari에서 공유 → 홈 화면에 추가하면 앱처럼 실행할 수 있습니다.</p></div></section>
 </div>
 
 <div class="nav"><button class="sel" onclick="nav('home',this)"><span>⌂</span>홈</button><button onclick="nav('course',this)"><span>◫</span>코스</button><button onclick="nav('review',this)"><span>↻</span>복습</button><button onclick="nav('me',this)"><span>👤</span>내 학습</button></div>
@@ -51,75 +51,171 @@ var W={
 "de-DE":[["hallo","안녕"],["ja","네"],["nein","아니요"],["ich","나"],["du","너"],["gehen","가다"],["kommen","오다"],["sitzen","앉다"],["Sitz","자리 / 좌석"],["essen","먹다"],["trinken","마시다"],["Wasser","물"],["Essen","음식"],["Hotel","호텔"],["Zimmer","방"],["Auto","자동차"],["Bus","버스"],["Zug","기차"],["Flughafen","공항"],["Ticket","표 / 티켓"],["Toilette","화장실"],["hier","여기"],["dort","거기"],["gut","좋은"],["groß","큰"],["klein","작은"]],
 "zh-CN":[["你好","안녕"],["是","네"],["不是","아니요"],["我","나"],["你","너"],["去","가다"],["来","오다"],["坐","앉다"],["座位","자리 / 좌석"],["吃","먹다"],["喝","마시다"],["水","물"],["食物","음식"],["酒店","호텔"],["房间","방"],["汽车","자동차"],["公交车","버스"],["火车","기차"],["机场","공항"],["票","표 / 티켓"],["洗手间","화장실"],["这里","여기"],["那里","거기"],["好","좋은"],["大","큰"],["小","작은"]]
 };
+
+var EX={
+"en-US":{
+"hello":["___, nice to meet you.","안녕하세요, 만나서 반가워요."],
+"yes":["___, please.","네, 부탁해요."],
+"no":["___, thank you.","아니요, 괜찮아요."],
+"I":["___ am ready.","나는 준비됐어요."],
+"you":["Are ___ ready?","당신은 준비됐나요?"],
+"we":["___ can sit there.","우리는 거기에 앉을 수 있어요."],
+"go":["Let's ___ now.","지금 가요."],
+"come":["Please ___ here.","여기로 오세요."],
+"sit":["Please ___ here.","여기에 앉으세요."],
+"seat":["This ___ is free.","이 자리는 비어 있어요."],
+"eat":["Let's ___ lunch.","점심을 먹어요."],
+"drink":["I want to ___ water.","나는 물을 마시고 싶어요."],
+"water":["I need some ___.","나는 물이 좀 필요해요."],
+"food":["The ___ is good.","음식이 맛있어요."],
+"hotel":["The ___ is near.","호텔은 가까워요."],
+"room":["My ___ is clean.","내 방은 깨끗해요."],
+"car":["The ___ is outside.","자동차가 밖에 있어요."],
+"bus":["The ___ is here.","버스가 왔어요."],
+"train":["The ___ is fast.","기차는 빨라요."],
+"airport":["The ___ is far.","공항은 멀어요."],
+"ticket":["I have a ___.","나는 표가 있어요."],
+"toilet":["Where is the ___?","화장실이 어디예요?"],
+"here":["Come ___.","여기로 오세요."],
+"there":["Sit ___.","거기에 앉으세요."],
+"good":["This is ___.","이건 좋아요."],
+"bad":["This is ___.","이건 나빠요."],
+"big":["It is ___.","그것은 커요."],
+"small":["It is ___.","그것은 작아요."],
+"one":["I need ___ ticket.","표 한 장이 필요해요."],
+"two":["I need ___ tickets.","표 두 장이 필요해요."]
+}
+};
+
 var wSess=null;
+function langAbility(){
+  S.ability=S.ability||{};
+  if(!S.ability[S.lang])S.ability[S.lang]=1;
+  return S.ability[S.lang];
+}
+function setAbility(v){
+  S.ability=S.ability||{};
+  S.ability[S.lang]=Math.max(1,Math.min(30,Math.round(v*10)/10));
+}
+function vocabStore(){S.vocab=S.vocab||{};S.vocab[S.lang]=S.vocab[S.lang]||{};return S.vocab[S.lang]}
+function metaFor(x,idx,total){
+  return {word:x[0],meaning:x[1],level:Math.max(1,Math.min(30,1+Math.floor(idx/Math.max(1,total-1)*29))),rank:idx+1};
+}
+function stateFor(word){
+  var vs=vocabStore();vs[word]=vs[word]||{seen:0,right:0,wrong:0,strength:0,due:0,last:0,avgMs:0,hints:0};
+  return vs[word];
+}
+function dueCount(){
+  var now=Date.now(),vs=vocabStore(),n=0;
+  Object.keys(vs).forEach(function(k){if(vs[k].seen&&vs[k].due<=now)n++});
+  return n;
+}
+function candidateScore(m){
+  var st=stateFor(m.word),ab=langAbility(),now=Date.now();
+  if(st.seen&&st.due>now)return -10000;
+  var due=st.seen&&st.due<=now?120:0;
+  var unseen=st.seen?0:70;
+  var near=35-Math.min(35,Math.abs(m.level-ab)*2.4);
+  var important=(31-m.level)*1.2;
+  var weak=(5-Math.min(5,st.strength))*10+Math.min(20,st.wrong*2);
+  return due+unseen+near+important+weak+Math.random()*4;
+}
+function chooseWords(){
+  var all=(W[S.lang]||W["en-US"]).map(function(x,i,a){return metaFor(x,i,a.length)});
+  var now=Date.now(),vs=vocabStore(),due=all.filter(function(m){var s=stateFor(m.word);return s.seen&&s.due<=now});
+  due.sort(function(a,b){return (stateFor(a.word).due-stateFor(b.word).due)||candidateScore(b)-candidateScore(a)});
+  var fresh=all.filter(function(m){return !stateFor(m.word).seen}).sort(function(a,b){return candidateScore(b)-candidateScore(a)});
+  var goal=Math.max(5,Math.min(S.goal||10,20)),picked=[],seen={};
+  function add(m){if(m&&!seen[m.word]&&picked.length<goal){seen[m.word]=1;picked.push(m)}}
+  // Roughly 40% due review, then new items closest to current level.
+  due.slice(0,Math.ceil(goal*.4)).forEach(add);
+  fresh.forEach(add);
+  // If the data set is exhausted, use only truly due words, not pointless repeats.
+  if(picked.length<goal)due.forEach(add);
+  return picked;
+}
 function wordStart(){
-  var all=(W[S.lang]||W["en-US"]).slice();
-  var learned=S.wordStats||{};
-  // Prefer words not yet mastered; randomize without pointless duplicates.
-  all.sort(function(a,b){
-    var aa=(learned[a[0]]&&learned[a[0]].right||0)-(learned[a[0]]&&learned[a[0]].wrong||0);
-    var bb=(learned[b[0]]&&learned[b[0]].right||0)-(learned[b[0]]&&learned[b[0]].wrong||0);
-    return aa-bb || Math.random()-.5;
-  });
-  var count=Math.min(7,all.length);
-  wSess={p:all.slice(0,count),i:0,correct:0,retry:[],retryMode:false};
+  var p=chooseWords();
+  if(!p.length){alert("지금 복습할 단어가 없어요. 다음 복습 시간이 되면 다시 나옵니다.");return}
+  wSess={p:p,i:0,correct:0,started:Date.now(),hint:false};
   show("word");wordQuestion();
 }
+function clozeFor(m){
+  var e=EX[S.lang]&&EX[S.lang][m.word];
+  if(e)return {sentence:e[0],ko:e[1]};
+  return {sentence:"____",ko:m.meaning};
+}
+function distractWords(m){
+  var all=(W[S.lang]||W["en-US"]).map(function(x){return x[0]}).filter(function(w){return w!==m.word});
+  return [m.word].concat(all.sort(function(){return Math.random()-.5}).slice(0,3)).sort(function(){return Math.random()-.5});
+}
 function wordQuestion(){
-  if(wSess.i>=wSess.p.length){
-    // Only missed words get one meaningful retry at the end.
-    if(!wSess.retryMode && wSess.retry.length){
-      var uniq=[],seen={};
-      wSess.retry.forEach(function(x){if(!seen[x[0]]){seen[x[0]]=1;uniq.push(x)}});
-      wSess={p:uniq,i:0,correct:wSess.correct,retry:[],retryMode:true};
-      wordQuestion();return;
-    }
-    return wordFinish();
+  if(wSess.i>=wSess.p.length)return wordFinish();
+  var m=wSess.p[wSess.i],st=stateFor(m.word),q=document.getElementById("wq"),ex=clozeFor(m);
+  wSess.started=Date.now();wSess.hint=false;
+  document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
+  document.getElementById("wordLevel").textContent="Lv "+Math.round(langAbility());
+  var isChoice=st.strength<2;
+  q.innerHTML="<span class='tag'>어휘 Lv "+m.level+"</span><div class='big'>"+ex.sentence+"</div><div class='muted' style='font-size:17px;margin-top:12px'>"+ex.ko+"</div><div id='wordInput'></div><div class='feedback' id='wfb'></div>";
+  var holder=document.getElementById("wordInput");
+  if(isChoice){
+    distractWords(m).forEach(function(o){
+      var b=document.createElement("button");b.className="choice";b.textContent=o;
+      b.onclick=function(){if(holder.dataset.done)return;holder.dataset.done="1";finishWordAnswer(m,o===m.word,Date.now()-wSess.started,false,o,b,holder)};
+      holder.appendChild(b);
+    });
+    var h=document.createElement("button");h.className="secondary";h.textContent="힌트 듣기 🔊";h.onclick=function(){wSess.hint=true;speak(m.word)};holder.appendChild(h);
+  }else{
+    holder.innerHTML="<input class='ans' id='wordTyped' autocomplete='off' autocapitalize='none' spellcheck='false' placeholder='빈칸에 들어갈 단어'><div class='row'><button class='secondary' id='wordHint'>힌트</button><button class='primary' id='wordCheck'>확인</button></div><div class='muted' id='hintText' style='margin-top:8px'></div>";
+    document.getElementById("wordHint").onclick=function(){wSess.hint=true;var w=m.word;document.getElementById("hintText").textContent="첫 글자: "+w.slice(0,1)+" · "+w.length+"글자";speak(m.word)};
+    document.getElementById("wordCheck").onclick=function(){var v=document.getElementById("wordTyped").value;finishWordAnswer(m,norm(v)===norm(m.word),Date.now()-wSess.started,wSess.hint,v,null,holder)};
+    document.getElementById("wordTyped").focus();
   }
-  var x=wSess.p[wSess.i], q=document.getElementById("wq");
-  document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length+(wSess.retryMode?" · 오답":"");
-  var all=W[S.lang]||W["en-US"], opts=[x[1]];
-  all.filter(function(y){return y[0]!==x[0]&&y[1]!==x[1]}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y[1])});
-  opts.sort(function(){return Math.random()-.5});
-  q.innerHTML="<span class='tag'>"+(wSess.retryMode?"오답 다시":"단어 학습")+"</span><div class='big'>"+x[0]+"</div><div class='muted' style='margin-top:10px'>뜻을 하나 고르세요.</div><button class='mic' id='wplay'>🔊</button><div id='wopts'></div><div class='feedback' id='wfb'></div>";
-  document.getElementById("wplay").onclick=function(){speak(x[0])};
-  var box=document.getElementById("wopts");
-  opts.forEach(function(o){
-    var b=document.createElement("button");b.className="choice";b.textContent=o;
-    b.onclick=function(){
-      if(box.dataset.done==="1")return;
-      box.dataset.done="1";
-      var ok=o===x[1];
-      Array.from(box.querySelectorAll("button")).forEach(function(z){z.disabled=true;if(z.textContent===x[1])z.classList.add("ok")});
-      if(!ok)b.classList.add("bad");
-      var fb=document.getElementById("wfb");fb.className="feedback "+(ok?"ok":"bad");
-      fb.innerHTML=ok?"정답!":"정답: <b>"+x[1]+"</b>";
-      S.wordStats=S.wordStats||{};
-      S.wordStats[x[0]]=S.wordStats[x[0]]||{right:0,wrong:0};
-      if(ok){S.wordStats[x[0]].right++;S.ok++;S.xp+=5;wSess.correct++}
-      else {S.wordStats[x[0]].wrong++;S.xp+=1;if(!wSess.retryMode)wSess.retry.push(x);S.bad.unshift({id:"w-"+x[0],t:x[0],k:x[1]});S.bad=S.bad.slice(0,60)}
-      S.total++;save();
-      var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
-    };
-    box.appendChild(b);
-  });
+}
+function finishWordAnswer(m,ok,ms,hint,entered,btn,holder){
+  if(holder.dataset.graded)return;holder.dataset.graded="1";
+  var st=stateFor(m.word),fb=document.getElementById("wfb"),quality=ok?1:0;
+  if(btn){Array.from(holder.querySelectorAll(".choice")).forEach(function(z){z.disabled=true;if(norm(z.textContent)===norm(m.word))z.classList.add("ok")});if(!ok)btn.classList.add("bad")}
+  fb.className="feedback "+(ok?"ok":"bad");
+  var ex=clozeFor(m);
+  fb.innerHTML=(ok?"정답!":"정답: <b>"+m.word+"</b>")+"<br><span class='muted'>"+m.word+" = "+m.meaning+"</span><br><span class='muted'>"+ex.sentence.replace("___",m.word).replace("____",m.word)+"</span>";
+  st.seen++;st.last=Date.now();st.avgMs=st.avgMs?Math.round(st.avgMs*.7+ms*.3):ms;
+  if(ok){
+    st.right++;st.strength=Math.min(7,st.strength+(hint?.45:1));
+    var intervals=[0,1,3,7,14,30,90,180];var days=intervals[Math.max(1,Math.min(7,Math.floor(st.strength)))];
+    var speedFactor=ms<5000?1.25:(ms>12000?.75:1);
+    if(hint)speedFactor*=.5;
+    st.due=Date.now()+days*86400000*speedFactor;
+    setAbility(langAbility()+(m.level>=langAbility()-2?.22:.08));
+    S.ok++;S.xp+=hint?4:6;wSess.correct++;
+  }else{
+    st.wrong++;st.strength=Math.max(0,st.strength-1);
+    // Wrong answers return later, not immediately in the same session.
+    st.due=Date.now()+10*60*1000;
+    setAbility(langAbility()-.12);
+    S.xp+=1;
+    S.bad.unshift({id:"w-"+m.word,t:m.word,k:m.meaning,due:st.due});
+    S.bad=S.bad.slice(0,80);
+  }
+  if(hint)st.hints++;
+  S.total++;save();
+  var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};document.getElementById("wq").appendChild(n);
 }
 function wordFinish(){
   var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
-  var learnedCount=(wSess&&wSess.p?wSess.p.length:0);
-  S.done[t]=(S.done[t]||0)+learnedCount;save();
-  alert("단어 학습 완료!");
+  S.done[t]=(S.done[t]||0)+wSess.p.length;save();
+  alert("학습 완료 · "+wSess.correct+"/"+wSess.p.length+" 정답 · 어휘 Lv "+Math.round(langAbility()));
   show("home");
 }
 var S=JSON.parse(localStorage.getItem("pumaLingoLive")||'{"lang":"en-US","xp":0,"streak":0,"last":"","goal":10,"done":{},"ok":0,"total":0,"bad":[]}'),flat=[],sess=null;
 function save(){localStorage.setItem("pumaLingoLive",JSON.stringify(S));home()}
 function day(){return new Date().toISOString().slice(0,10)}
 function makeFlat(){flat=[];D[S.lang].u.forEach(function(u,ui){u[1].forEach(function(x,ii){flat.push({id:ui+"-"+ii,t:x[0],k:x[1],u:ui})})})}
-function home(){makeFlat();document.getElementById("langPill").textContent=D[S.lang].f+" "+D[S.lang].n;quickLangs();document.getElementById("xp").textContent=S.xp;document.getElementById("streak").textContent=S.streak;document.getElementById("acc").textContent=(S.total?Math.round(S.ok/S.total*100):0)+"%";var n=S.done[day()]||0;document.getElementById("dailyText").textContent=n+"/"+S.goal;document.getElementById("dailyBar").style.width=Math.min(100,n/S.goal*100)+"%";document.getElementById("due").textContent=S.bad.length+"개";units();settings();reviews()}
+function home(){makeFlat();document.getElementById("langPill").textContent=D[S.lang].f+" "+D[S.lang].n;quickLangs();document.getElementById("xp").textContent=S.xp;document.getElementById("streak").textContent=S.streak;document.getElementById("acc").textContent=(S.total?Math.round(S.ok/S.total*100):0)+"%";var n=S.done[day()]||0;document.getElementById("dailyText").textContent=n+"/"+S.goal;document.getElementById("dailyBar").style.width=Math.min(100,n/S.goal*100)+"%";document.getElementById("due").textContent=dueCount()+"개";units();settings();reviews()}
 function show(id){document.querySelectorAll(".screen").forEach(function(e){e.classList.remove("on")});document.getElementById(id).classList.add("on")}
 function nav(id,b){show(id);document.querySelectorAll(".nav button").forEach(function(x){x.classList.remove("sel")});b.classList.add("sel")}
 function units(){var b=document.getElementById("units");b.innerHTML="";D[S.lang].u.forEach(function(u,i){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+u[0]+"</b><span class='muted'>"+u[1].length+"문장</span><button class='secondary'>연습 시작</button>";d.querySelector("button").onclick=function(){start(i)};b.appendChild(d)})}
-function quickLangs(){var b=document.getElementById("quickLangs");if(!b)return;b.innerHTML="";Object.keys(D).forEach(function(k){var x=document.createElement("div");x.className="card";x.style.padding="13px";x.innerHTML="<b style=\"margin:0\">"+D[k].f+" "+D[k].n+"</b><small>"+(k===S.lang?"현재 학습 중":"눌러서 변경")+"</small>";x.onclick=function(){setLang(k)};b.appendChild(x)})}function settings(){var s=document.getElementById("langSel");s.innerHTML="";Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].f+" "+D[k].n;o.selected=k===S.lang;s.appendChild(o)})}
+function quickLangs(){var b=document.getElementById("quickLangs");if(!b)return;b.innerHTML="";Object.keys(D).forEach(function(k){var x=document.createElement("div");x.className="card";x.style.padding="13px";x.innerHTML="<b style=\"margin:0\">"+D[k].f+" "+D[k].n+"</b><small>"+(k===S.lang?"현재 학습 중":"눌러서 변경")+"</small>";x.onclick=function(){setLang(k)};b.appendChild(x)})}function settings(){var at=document.getElementById("abilityText");if(at)at.textContent="Lv "+Math.round(langAbility())+" / 30 · 복습 "+dueCount()+"개";var s=document.getElementById("langSel");s.innerHTML="";Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].f+" "+D[k].n;o.selected=k===S.lang;s.appendChild(o)})}
 function setLang(v){S.lang=v;save();show("home")}
 function goal(n){S.goal=n;save();alert("하루 목표를 "+n+"문제로 바꿨어요.")}
 function start(ui){makeFlat();var p=ui===undefined?flat:flat.filter(function(x){return x.u===ui});p=p.slice().sort(function(){return Math.random()-.5}).slice(0,S.goal);sess={p:p,i:0,c:0};show("lesson");question()}
@@ -136,7 +232,14 @@ function grade(ok,x){S.total++;if(ok){S.ok++;S.xp+=10;sess.c++}else{S.xp+=2;S.ba
 function nextBtn(){if(document.getElementById("next"))return;var b=document.createElement("button");b.id="next";b.className="primary";b.textContent="다음";b.onclick=function(){sess.i++;question()};document.getElementById("q").appendChild(b)}
 function finish(){var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}S.done[t]=(S.done[t]||0)+sess.p.length;save();alert("학습 완료! "+sess.c+"/"+sess.p.length+" 정답");show("home")}
 function speak(t){speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.lang=S.lang;u.rate=.88;speechSynthesis.speak(u)}
-function reviews(){var b=document.getElementById("reviewList");if(!S.bad.length){b.innerHTML="<div class='hero'><h1>오답이 없어요.</h1><p>틀린 문장이 생기면 여기에 저장됩니다.</p></div>";return}var seen={};b.innerHTML="<button class='primary' onclick='start()'>복습 세션 시작</button><div class='section'>최근 오답</div>";S.bad.forEach(function(x){if(seen[x.id])return;seen[x.id]=1;var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+x.t+"</b><span class='muted'>"+x.k+"</span>";b.appendChild(d)})}
+function reviews(){
+  var b=document.getElementById("reviewList"),now=Date.now(),vs=vocabStore(),items=[];
+  (W[S.lang]||W["en-US"]).forEach(function(x,i,a){var st=vs[x[0]];if(st&&st.seen&&st.due<=now)items.push({m:metaFor(x,i,a.length),st:st})});
+  items.sort(function(a,b){return a.st.due-b.st.due});
+  if(!items.length){b.innerHTML="<div class='hero'><h1>지금 복습할 단어가 없어요.</h1><p>외운 단어는 잊을 가능성이 높아지는 시점에 다시 나옵니다.</p></div>";return}
+  b.innerHTML="<button class='primary' onclick='wordStart()'>자동 복습 시작</button><div class='section'>지금 복습할 단어 "+items.length+"개</div>";
+  items.slice(0,20).forEach(function(x){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+x.m.word+"</b><span class='muted'>최근 정답 "+x.st.right+" · 오답 "+x.st.wrong+"</span>";b.appendChild(d)});
+}
 function pron(){if(S.lang!=="en-US"){alert("현재 발음 비교는 영어에서 지원해요.");return}show("pron");var a=[["seat","sit"],["sit","shit"],["ship","sheep"],["live","leave"]],b=document.getElementById("pairs");b.innerHTML="";a.forEach(function(p){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+p[0]+" ↔ "+p[1]+"</b><div class='row'><button class='secondary'>"+p[0]+" 듣기</button><button class='secondary'>"+p[1]+" 듣기</button></div>";var z=d.querySelectorAll("button");z[0].onclick=function(){speak(p[0])};z[1].onclick=function(){speak(p[1])};b.appendChild(d)})}
 home();
 </script>
