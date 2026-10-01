@@ -181,12 +181,12 @@ function finishWordAnswer(m,ok,ms,hint,entered,btn,holder){
   fb.innerHTML=(ok?"정답!":"정답: <b>"+m.word+"</b>")+"<br><span class='muted'>"+m.word+" = "+m.meaning+"</span><br><span class='muted'>"+ex.sentence.replace("___",m.word).replace("____",m.word)+"</span>";
   st.seen++;st.last=Date.now();st.avgMs=st.avgMs?Math.round(st.avgMs*.7+ms*.3):ms;
   if(ok){
-    st.right++;st.strength=Math.min(7,st.strength+(hint?.45:1));
+    st.right++;st.strength=Math.min(7,st.strength+(hint ? 0.45 : 1));
     var intervals=[0,1,3,7,14,30,90,180];var days=intervals[Math.max(1,Math.min(7,Math.floor(st.strength)))];
-    var speedFactor=ms<5000?1.25:(ms>12000?.75:1);
+    var speedFactor=ms<5000?1.25:(ms>12000 ? 0.75 : 1);
     if(hint)speedFactor*=.5;
     st.due=Date.now()+days*86400000*speedFactor;
-    setAbility(langAbility()+(m.level>=langAbility()-2?.22:.08));
+    setAbility(langAbility()+(m.level>=langAbility()-2 ? 0.22 : 0.08));
     S.ok++;S.xp+=hint?4:6;wSess.correct++;
   }else{
     st.wrong++;st.strength=Math.max(0,st.strength-1);
