@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.71",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.71_UPDATE.zip",
-    "notes":  "v2.9.71 GABOJA: Adds a separate high-volume-drop recovery entry path. If a candidate reaches the 65% deep-Cha zone while volume pace remains hot instead of slowing, PUMA does not buy the falling Cha. It watches only, and may enter later only when a bullish candle body crosses the prior Young high; a wick-only break is rejected. The stop for this recovery-breakout entry is the confirmed pullback low. The normal low-volume Cha entry remains unchanged. Header account summary, Watermelon, Concrete, and other auto-trading rules remain unchanged.",
-    "sha256":  "5cb8f46652f0f0a9efcf50ed6309558fd9a8676f63f257a42785645e7815e893"
+    "version":  "2.9.72",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.72_UPDATE.zip",
+    "notes":  "v2.9.72 GABOJA: Young-Cha-Young2 is now price-structure led instead of being classified by a high-volume-drop subtype. Young1 can be a rising candle or rising hill without requiring that individual candle volume expand. A 65% deep Cha is tracked as a structural pullback regardless of pullback volume, so slow low-volume drifts and other pullbacks remain under observation. The existing direct-Cha buy keeps the volume-pace slowdown safeguard, while the second entry path keeps tracking the structure and buys only when a bullish candle body crosses the Young1 prior high; wick-only breaks remain rejected. Young2 entry uses the confirmed pullback low as its stop. Other auto-trading, account-header, Watermelon and Concrete rules remain unchanged.",
+    "sha256":  "44398502ba0dd0aacf17370e633b259b511408719e4ede1793ae3f4121eceae7"
 }
