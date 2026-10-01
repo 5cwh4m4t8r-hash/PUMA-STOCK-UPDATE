@@ -243,13 +243,15 @@ function finishWordAnswer(m,mode,ok,entered,correct,hint,btn){
   if(ok){
     fb.innerHTML="<b>정답</b><br>"+m.word+" = "+m.meaning+"<br><span class='muted'>이 단어는 이번 세션에 다시 나오지 않습니다.</span>";
     q.appendChild(fb);
-    setTimeout(function(){wSess.i++;wordQuestion()},650);
   }else{
     var ex=clozeFor(m),full=ex.sentence?ex.sentence.replace("____",m.word).replace("___",m.word):"";
-    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+"<br><br>정답: <b>"+correct+"</b> — "+m.meaning+(full?"<br><span class='muted'>예문: "+full+" · "+ex.ko+"</span>":"")+"<br><span class='muted'>지금 바로 반복하지 않고 10분 뒤 복습 대상으로 보냅니다.</span>";
+    var answerLine=(mode==="meaning")
+      ? "정답: <b>"+m.meaning+"</b>"
+      : "정답: <b>"+correct+"</b> — "+m.meaning;
+    fb.innerHTML="<b>왜 오답일까?</b><br>"+whyWrong(m,mode,entered,correct)+"<br><br>"+answerLine+(full?"<br><span class='muted'>예문: "+full+" · "+ex.ko+"</span>":"")+"<br><span class='muted'>지금 바로 반복하지 않고 10분 뒤 복습 대상으로 보냅니다.</span>";
     q.appendChild(fb);
-    var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
   }
+  var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
 }
 function wordFinish(){
   var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
