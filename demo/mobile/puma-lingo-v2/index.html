@@ -217,29 +217,34 @@ function choiceWords(m){
   return out.sort(function(){return Math.random()-.5});
 }
 
-var PUMA_PRON_CACHE=JSON.parse(localStorage.getItem("pumaPronCache")||"{}");
+
+var PUMA_PRON_CACHE=JSON.parse(localStorage.getItem("pumaPronCacheUS")||"{}");
 function pronTokenize(text){
   return (text||"").replace(/[.,!?¿¡"“”‘’():;]/g," ").split(/\s+/).filter(Boolean);
 }
-async function englishIpaWord(word){
+async function englishStandardPronWord(word){
   var key=norm(word);
   if(!key)return "";
   if(PUMA_PRON_CACHE[key])return PUMA_PRON_CACHE[key];
   try{
     var r=await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(key),{cache:"force-cache"});
-    if(!r.ok)throw new Error("ipa");
-    var data=await r.json(),ipa="";
+    if(!r.ok)throw new Error("pron");
+    var data=await r.json(),ipa="",fallback="";
     if(data&&data[0]){
-      ipa=data[0].phonetic||"";
-      if(!ipa&&data[0].phonetics){
-        for(var i=0;i<data[0].phonetics.length;i++){
-          if(data[0].phonetics[i].text){ipa=data[0].phonetics[i].text;break}
+      var ps=data[0].phonetics||[];
+      for(var i=0;i<ps.length;i++){
+        if(ps[i].text&&!fallback)fallback=ps[i].text;
+        var a=(ps[i].audio||"").toLowerCase();
+        var src=(ps[i].sourceUrl||"").toLowerCase();
+        if(ps[i].text&&(a.indexOf("-us.")>=0||a.indexOf("_us_")>=0||a.indexOf("/us/")>=0||src.indexOf("american")>=0)){
+          ipa=ps[i].text;break;
         }
       }
+      if(!ipa)ipa=data[0].phonetic||fallback||"";
     }
     if(ipa){
       PUMA_PRON_CACHE[key]=ipa;
-      localStorage.setItem("pumaPronCache",JSON.stringify(PUMA_PRON_CACHE));
+      localStorage.setItem("pumaPronCacheUS",JSON.stringify(PUMA_PRON_CACHE));
     }
     return ipa||"";
   }catch(e){return ""}
@@ -248,7 +253,7 @@ async function pronunciationLabel(text){
   if(S.lang!=="en-US")return "";
   var words=pronTokenize(text);
   if(!words.length)return "";
-  var vals=await Promise.all(words.slice(0,12).map(englishIpaWord));
+  var vals=await Promise.all(words.slice(0,14).map(englishStandardPronWord));
   var out=[];
   for(var i=0;i<vals.length;i++)if(vals[i])out.push(vals[i]);
   return out.join(" ");
@@ -257,12 +262,12 @@ function attachPronunciation(note,text){
   if(!note||note.querySelector(".pron-row"))return;
   var row=document.createElement("div");row.className="pron-row";
   var ipa=document.createElement("div");ipa.className="pron-ipa";
-  ipa.textContent=S.lang==="en-US"?"발음표기 불러오는 중...":"발음";
+  ipa.textContent=S.lang==="en-US"?"미국 표준 발음 불러오는 중...":"발음";
   var btn=document.createElement("button");btn.className="secondary pron-btn";btn.textContent="🔊 발음 듣기";
   btn.onclick=function(e){e.stopPropagation();speak(text)};
   row.appendChild(ipa);row.appendChild(btn);note.appendChild(row);
   pronunciationLabel(text).then(function(p){
-    if(S.lang==="en-US")ipa.textContent=p?("발음 "+p):"발음표기 없음";
+    if(S.lang==="en-US")ipa.textContent=p?("미국 표준 발음 "+p):"미국 표준 발음표기 없음";
     else ipa.textContent="발음";
   });
 }
@@ -304,7 +309,7 @@ function wordQuestion(){
     b.onclick=function(){
       if(holder.dataset.done){
         openOnlyChoiceNote(holder,note);
-        if(isCorrectChoice)attachPronunciation(note,m.word);
+        attachPronunciation(note,o);
         return;
       }
       holder.dataset.done="1";
@@ -313,7 +318,7 @@ function wordQuestion(){
       });
       if(norm(o)!==norm(m.word))b.classList.add("bad");
       openOnlyChoiceNote(holder,note);
-      if(isCorrectChoice)attachPronunciation(note,m.word);
+      attachPronunciation(note,o);
       finishWordAnswer(m,"cloze_choice",norm(o)===norm(m.word),o,m.word,wSess.hint,b);
     };
     holder.appendChild(b);
@@ -389,6 +394,10 @@ function sentenceChoiceMeaning(o){
   var pair=flat.find(function(y){return norm(y.t)===norm(o)||norm(y.k)===norm(o)});
   return pair?(norm(pair.t)===norm(o)?pair.k:pair.t):"설명 없음";
 }
+function sentenceChoiceTarget(o){
+  var pair=flat.find(function(y){return norm(y.t)===norm(o)||norm(y.k)===norm(o)});
+  return pair?pair.t:o;
+}
 function paintSentenceChoices(q,opts,correct,x){
   opts.forEach(function(o){
     var b=document.createElement("button");b.className="choice";b.textContent=o;
@@ -405,7 +414,7 @@ function paintSentenceChoices(q,opts,correct,x){
     b.onclick=function(){
       if(q.dataset.done){
         openOnlyChoiceNote(q,note);
-        if(isCorrectChoice)attachPronunciation(note,x.t);
+        attachPronunciation(note,sentenceChoiceTarget(o));
         return;
       }
       q.dataset.done="1";
@@ -415,7 +424,7 @@ function paintSentenceChoices(q,opts,correct,x){
       var ok=norm(o)===norm(correct);
       if(!ok)b.classList.add("bad");
       openOnlyChoiceNote(q,note);
-      if(isCorrectChoice)attachPronunciation(note,x.t);
+      attachPronunciation(note,sentenceChoiceTarget(o));
       grade(ok,x);
 
       nextBtn();
