@@ -49,18 +49,17 @@ def _minute(body_break=True):
     return rows
 
 
-def test_gaboja_cha_is_setup_only_not_entry():
+def test_gaboja_cha_is_entry():
     sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15,30))
-    assert sig.passed is False
-    assert sig.entry_kind == ""
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
     assert sig.basis_open == 106
-    assert "2영" in sig.reason
 
 
 def test_gaboja_body_rebreak_requires_body_cross():
     sig = evaluate_gaboja(_minute(True), _daily(), now=datetime(2026,9,23,9,20))
     assert sig.passed is True
-    assert sig.entry_kind == "YOUNG2"
+    assert sig.entry_kind == "BODY_REBREAK"
     assert sig.young1_high == 113
 
 
@@ -90,16 +89,16 @@ def test_65pct_retracement_boundary_is_used():
 
     rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.4, 100)
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15,30))
-    assert sig.passed is False
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
     assert round(sig.details["cha_ceiling"], 2) == 108.45
-    assert "2영" in sig.reason
 
 
-def test_deep_cha_is_recorded_but_waits_for_young2():
+def test_deep_cha_enters_immediately():
     sig = evaluate_gaboja(_minute(False), _daily(), now=datetime(2026,9,23,9,15,30))
-    assert sig.passed is False
-    assert sig.entry_kind == ""
-    assert sig.details["early_cha"] is False
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.details["early_cha"] is True
     assert sig.details["cha_ready"] is True
     assert round(sig.details["cha_ceiling"], 2) == 108.45
     assert sig.current_price == 108.3
@@ -117,15 +116,15 @@ def test_live_cha_rejects_raw_low_volume_when_per_second_pace_is_fast():
     assert sig.passed is False
 
 
-def test_live_cha_can_be_recognized_without_buying_until_young2():
+def test_live_cha_enters_without_waiting_for_next_bar():
     rows = _minute(False)
     rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 100)
     sig = evaluate_gaboja(
         rows, _daily(), now=datetime(2026,9,23,9,15,30),
         cha_min_live_seconds=20,
     )
-    assert sig.passed is False
-    assert sig.entry_kind == ""
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
     assert sig.details["cha_ready"] is True
     assert sig.details["pullback_elapsed_sec"] == 30.0
     assert sig.details["pullback_volume_pace"] < sig.details["young_volume_pace"]
