@@ -284,7 +284,7 @@ def build_puma_watermelon(
         # EMA112, keep this condition active for the whole period that
         # EMA60 remains above EMA112. It turns off only after EMA60 falls back
         # to/below EMA112.
-        golden_60_112_active_active = bool(
+        golden_60_112_active = bool(
             e60[i] is not None
             and e112[i] is not None
             and float(e60[i]) > float(e112[i])
