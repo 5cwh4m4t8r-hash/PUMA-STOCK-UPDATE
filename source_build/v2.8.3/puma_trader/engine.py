@@ -107,7 +107,7 @@ def _gaboja_stage3_exit_from_rows(
 ) -> tuple[bool, float]:
     """Detect the next completed/live thrust after a post-entry pullback ("3").
 
-    2영 진입 뒤 최소 한 번의 1~3봉 눌림이 있고, 현재 봉이 그 눌림 전 고점을
+    차 진입 뒤 상승이 나온 후 최소 한 번의 1~3봉 눌림이 있고, 현재 봉이 그 눌림 전 고점을
     다시 넘으며 몸통을 회복할 때 3파동으로 본다. 미래 봉은 보지 않는다.
     """
     candles = normalize_candles(rows or [])
@@ -980,7 +980,7 @@ class TradeEngine:
                     sell_ratio=partial_ratio,
                 )
 
-            # 2영 매수 뒤 눌림을 거쳐 다음 재상승 파동(3)이 확인되면 잔량 전량 매도.
+            # 차 매수 뒤 상승·눌림을 거쳐 다음 재상승 파동(3)이 확인되면 잔량 전량 매도.
             stage3, stage3_high = _gaboja_stage3_exit_from_rows(
                 candles,
                 current_bar_key=bar_key,
@@ -1056,9 +1056,12 @@ class TradeEngine:
             }
 
         if self.enabled and allow_buy and sig.passed and self.can_open(code) and current > 0:
-            # v2.9.64부터 차 자체에서는 매수하지 않는다. 2영 확인 뒤 진입하므로
-            # 최초 손절선은 이미 확인된 직전 차 저점이며 이후 높은 차가 생길 때만 올린다.
-            stop_price = float(sig.pullback_low or sig.basis_open or 0)
+            # 차 진입은 진행봉 저점이 아직 확정되지 않았으므로 기준봉 시가를 최초 손절선으로 사용.
+            # 차 타점을 놓친 뒤 전고 몸통돌파 보조진입이면 이미 확인된 직전 차 저점을 쓴다.
+            if str(sig.entry_kind or "") == "PULLBACK":
+                stop_price = float(sig.basis_open or 0)
+            else:
+                stop_price = float(sig.pullback_low or sig.basis_open or 0)
             return self._submit_buy(
                 code, name, current, sig.reason,
                 stop_price=stop_price,
