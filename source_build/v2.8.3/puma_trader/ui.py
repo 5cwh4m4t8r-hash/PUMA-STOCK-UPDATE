@@ -2296,11 +2296,21 @@ class MainWindow(QMainWindow):
         total_profit_loss = int(data.get("total_profit_loss", 0) or 0)
         total_profit_rate = float(data.get("total_profit_rate", 0) or 0)
 
+        def brief_won(value: int) -> str:
+            value = int(value or 0)
+            sign = "-" if value < 0 else ""
+            amount = abs(value)
+            if amount >= 100_000_000:
+                return f"{sign}{amount / 100_000_000:.2f}억"
+            if amount >= 10_000:
+                return f"{sign}{amount / 10_000:.0f}만"
+            return f"{value:,}"
+
         if getattr(self, "header_account_summary", None) is not None:
             self.header_account_summary.setText(
-                f"{env} 계좌 {account} · 예수금 {deposit:,}원 · 주문가능 {order_available:,}원 · "
-                f"보유 {holding_count}종목 · 평가 {total_evaluation:,}원 · "
-                f"손익 {total_profit_loss:+,}원({total_profit_rate:+.2f}%)"
+                f"계좌 {account} · 예수금 {brief_won(deposit)} · 주문 {brief_won(order_available)} · "
+                f"보유 {holding_count} · 평가 {brief_won(total_evaluation)} · "
+                f"손익 {brief_won(total_profit_loss)}({total_profit_rate:+.2f}%)"
             )
 
             withdrawable = int(data.get("withdrawable", 0) or 0)
