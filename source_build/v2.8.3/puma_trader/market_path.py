@@ -209,12 +209,30 @@ def _bowl3_context(candles: list[dict], i: int, e224, settings: Any) -> tuple[bo
 
 
 def _spaced_touch_indices(seg: list[dict], level: float, tol: float, side: str) -> list[int]:
-    """Return repeated BODY touches on a box boundary.
+    """Generic wick-touch helper used by non-concrete resistance structures."""
+    raw = []
+    for i, c in enumerate(seg):
+        hit = (
+            float(c["high"]) >= level * (1 - tol)
+            if side == "top"
+            else float(c["low"]) <= level * (1 + tol)
+        )
+        if hit:
+            raw.append(i)
 
-    User rule for concrete:
-      - resistance/top = bullish candle BODY top
-      - support/bottom = bearish candle BODY bottom
-    Wicks are deliberately ignored so a single spike cannot manufacture a box.
+    out = []
+    for i in raw:
+        if not out or i - out[-1] >= 3:
+            out.append(i)
+    return out
+
+
+def _spaced_body_touch_indices(seg: list[dict], level: float, tol: float, side: str) -> list[int]:
+    """Concrete-only repeated BODY touches.
+
+    Resistance/top counts bullish body tops only.
+    Support/bottom counts bearish body bottoms only.
+    Wicks do not count as concrete boundary contacts.
     """
     raw = []
     for i, c in enumerate(seg):
@@ -290,8 +308,8 @@ def _evaluate_box(candles: list[dict], start: int, end: int, settings: Any) -> d
     max_directionality = float(_s(settings, "box_max_directionality", 0.50))
 
     coverage = sum(1 for c in closes if low*(1-tol) <= c <= high*(1+tol)) / n
-    top_idx = _spaced_touch_indices(seg, high, tol, "top")
-    bottom_idx = _spaced_touch_indices(seg, low, tol, "bottom")
+    top_idx = _spaced_body_touch_indices(seg, high, tol, "top")
+    bottom_idx = _spaced_body_touch_indices(seg, low, tol, "bottom")
     alts = _alternations(top_idx, bottom_idx)
     if coverage < coverage_req or len(top_idx) < touch_req or len(bottom_idx) < touch_req or alts < alt_req:
         return None
