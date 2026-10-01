@@ -218,58 +218,31 @@ function choiceWords(m){
 }
 
 
-var PUMA_PRON_CACHE=JSON.parse(localStorage.getItem("pumaPronCacheUS")||"{}");
+var PUMA_IPA_US={"a":"/ə/","about":"/əˈbaʊt/","afternoon":"/ˌæftɚˈnun/","airport":"/ˈɛɹˌpɔɹt/","am":"/ˈæm/","animal":"/ˈænəməl/","answer":"/ˈænsɚ/","apple":"/ˈæpəl/","are":"/ˈɑɹ/","arm":"/ˈɑɹm/","ask":"/ˈæsk/","available":"/əˈveɪləbəl/","baby":"/ˈbeɪbi/","back":"/ˈbæk/","bad":"/ˈbæd/","bag":"/ˈbæɡ/","ball":"/ˈbɔl/","banana":"/bəˈnænə/","bank":"/ˈbæŋk/","bathroom":"/ˈbæθˌɹum/","beach":"/ˈbitʃ/","beautiful":"/ˈbjutəfəl/","bed":"/ˈbɛd/","belt":"/ˈbɛlt/","big":"/ˈbɪɡ/","bill":"/ˈbɪl/","bird":"/ˈbɝd/","black":"/ˈblæk/","blue":"/ˈblu/","book":"/ˈbʊk/","bottle":"/ˈbɑtəl/","box":"/ˈbɑks/","boy":"/ˈbɔɪ/","bread":"/ˈbɹɛd/","bridge":"/ˈbɹɪdʒ/","bring":"/ˈbɹɪŋ/","brother":"/ˈbɹʌðɚ/","brown":"/ˈbɹaʊn/","bus":"/ˈbʌs/","busy":"/ˈbɪzi/","buy":"/ˈbaɪ/","cafe":"/kəˈfeɪ/","call":"/ˈkɔl/","camera":"/ˈkæmɚə/","can":"/ˈkæn/","car":"/ˈkɑɹ/","card":"/ˈkɑɹd/","cat":"/ˈkæt/","chair":"/ˈtʃɛɹ/","cheap":"/ˈtʃip/","check":"/ˈtʃɛk/","check-out":"/ˈtʃɛk ˌaʊt/","cheese":"/ˈtʃiz/","chicken":"/ˈtʃɪkən/","child":"/ˈtʃaɪld/","city":"/ˈsɪti/","clean":"/ˈklin/","clock":"/ˈklɑk/","close":"/ˈkloʊs/","cloud":"/ˈklaʊd/","coat":"/ˈkoʊt/","coffee":"/ˈkɑfi/","cold":"/ˈkoʊld/","come":"/ˈkʌm/","computer":"/kəmˈpjutɚ/","cow":"/ˈkaʊ/","cup":"/ˈkʌp/","customer":"/ˈkʌstəmɚ/","dirty":"/ˈdɝti/","doctor":"/ˈdɑktɚ/","dog":"/ˈdɔɡ/","door":"/ˈdɔɹ/","dress":"/ˈdɹɛs/","drink":"/ˈdɹɪŋk/","ear":"/ˈiɹ/","early":"/ˈɝli/","easy":"/ˈizi/","eat":"/ˈit/","egg":"/ˈɛɡ/","empty":"/ˈɛmpti/","evening":"/ˈivnɪŋ/","excuse":"/ɪkˈskjus/","expensive":"/ɪkˈspɛnsɪv/","eye":"/ˈaɪ/","face":"/ˈfeɪs/","family":"/ˈfæməli/","far":"/ˈfɑɹ/","farm":"/ˈfɑɹm/","fast":"/ˈfæst/","father":"/ˈfɑðɚ/","find":"/ˈfaɪnd/","finger":"/ˈfɪŋɡɚ/","fish":"/ˈfɪʃ/","floor":"/ˈflɔɹ/","flower":"/ˈflaʊɚ/","food":"/ˈfud/","foot":"/ˈfʊt/","for":"/ˈfɔɹ/","forget":"/fɚˈɡɛt/","fork":"/ˈfɔɹk/","free":"/ˈfɹi/","friday":"/ˈfɹaɪdi/","friend":"/ˈfɹɛnd/","fruit":"/ˈfɹut/","full":"/ˈfʊl/","garden":"/ˈɡɑɹdən/","gate":"/ˈɡeɪt/","get":"/ˈɡɛt/","gift":"/ˈɡɪft/","girl":"/ˈɡɝl/","give":"/ˈɡɪv/","glasses":"/ˈɡlæsəz/","go":"/ˈɡoʊ/","good":"/ˈɡʊd/","grass":"/ˈɡɹæs/","gray":"/ˈɡɹeɪ/","green":"/ˈɡɹin/","hair":"/ˈhɛɹ/","hand":"/ˈhænd/","happy":"/ˈhæpi/","hard":"/ˈhɑɹd/","hat":"/ˈhæt/","have":"/ˈhæv/","head":"/ˈhɛd/","hear":"/ˈhiɹ/","heart":"/ˈhɑɹt/","hello":"/həˈloʊ/","help":"/ˈhɛlp/","here":"/ˈhiɹ/","horse":"/ˈhɔɹs/","hospital":"/ˈhɑspɪtəl/","hot":"/ˈhɑt/","hotel":"/hoʊˈtɛl/","house":"/ˈhaʊs/","i":"/ˈaɪ/","i'd":"/ˈaɪd/","in":"/ɪn/","is":"/ˈɪz/","it":"/ˈɪt/","jacket":"/ˈdʒækət/","juice":"/ˈdʒus/","key":"/ˈki/","kitchen":"/ˈkɪtʃən/","knife":"/ˈnaɪf/","know":"/ˈnoʊ/","late":"/ˈleɪt/","leave":"/ˈliv/","leg":"/ˈlɛɡ/","let's":"/ˈlɛts/","letter":"/ˈlɛtɚ/","library":"/ˈlaɪbɹɛɹi/","light":"/ˈlaɪt/","like":"/ˈlaɪk/","listen":"/ˈlɪsən/","look":"/ˈlʊk/","love":"/ˈlʌv/","luggage":"/ˈlʌɡədʒ/","lunch":"/ˈlʌntʃ/","make":"/ˈmeɪk/","man":"/ˈmæn/","manager":"/ˈmænədʒɚ/","map":"/ˈmæp/","market":"/ˈmɑɹkət/","me":"/ˈmi/","meat":"/ˈmit/","meet":"/ˈmit/","menu":"/ˈmɛnju/","milk":"/ˈmɪlk/","monday":"/ˈmʌndi/","money":"/ˈmʌni/","month":"/ˈmʌnθ/","moon":"/ˈmun/","morning":"/ˈmɔɹnɪŋ/","mother":"/ˈmʌðɚ/","mountain":"/ˈmaʊntən/","mouth":"/ˈmaʊθ/","museum":"/mjuˈziəm/","my":"/ˈmaɪ/","near":"/ˈnɪɹ/","nearby":"/ˈnɪɹˌbaɪ/","need":"/ˈnid/","neighbor":"/ˈneɪbɚ/","new":"/ˈnu/","newspaper":"/ˈnuzˌpeɪpɚ/","nice":"/ˈnaɪs/","night":"/ˈnaɪt/","no":"/ˈnoʊ/","nose":"/ˈnoʊz/","now":"/ˈnaʊ/","nurse":"/ˈnɝs/","office":"/ˈɔfɪs/","old":"/ˈoʊld/","one":"/ˈwʌn/","open":"/ˈoʊpən/","orange":"/ˈɔɹəndʒ/","outside":"/ˈaʊtˌsaɪd/","pants":"/ˈpænts/","paper":"/ˈpeɪpɚ/","park":"/ˈpɑɹk/","pay":"/ˈpeɪ/","pen":"/ˈpɛn/","pencil":"/ˈpɛnsəl/","phone":"/ˈfoʊn/","picture":"/ˈpɪktʃɚ/","pink":"/ˈpɪŋk/","plate":"/ˈpleɪt/","please":"/ˈpliz/","potato":"/pəˈteɪtoʊ/","purple":"/ˈpɝpəl/","rain":"/ˈɹeɪn/","read":"/ˈɹid/","ready":"/ˈɹɛdi/","red":"/ˈɹɛd/","remember":"/ɹɪˈmɛmbɚ/","reservation":"/ˌɹɛzɚˈveɪʃən/","restaurant":"/ˈɹɛstɚɑnt/","rice":"/ˈɹaɪs/","right":"/ˈɹaɪt/","river":"/ˈɹɪvɚ/","road":"/ˈɹoʊd/","room":"/ˈɹum/","run":"/ˈɹʌn/","sad":"/ˈsæd/","salt":"/ˈsɔlt/","saturday":"/ˈsætɚdi/","say":"/ˈseɪ/","school":"/ˈskul/","sea":"/ˈsi/","seat":"/ˈsit/","see":"/ˈsi/","sell":"/ˈsɛl/","shirt":"/ˈʃɝt/","shoe":"/ˈʃu/","sister":"/ˈsɪstɚ/","sit":"/ˈsɪt/","skirt":"/ˈskɝt/","sky":"/ˈskaɪ/","sleep":"/ˈslip/","slow":"/ˈsloʊ/","slowly":"/ˈsloʊli/","small":"/ˈsmɔl/","snow":"/ˈsnoʊ/","sock":"/ˈsɑk/","some":"/ˈsʌm/","speak":"/ˈspik/","spoon":"/ˈspun/","star":"/ˈstɑɹ/","start":"/ˈstɑɹt/","station":"/ˈsteɪʃən/","stop":"/ˈstɑp/","store":"/ˈstɔɹ/","street":"/ˈstɹit/","strong":"/ˈstɹɔŋ/","student":"/ˈstudənt/","study":"/ˈstʌdi/","sugar":"/ˈʃʊɡɚ/","sun":"/ˈsʌn/","sunday":"/ˈsʌnˌdeɪ/","table":"/ˈteɪbəl/","take":"/ˈteɪk/","tea":"/ˈti/","teacher":"/ˈtitʃɚ/","thank":"/ˈθæŋk/","the":"/ðə/","there":"/ˈðɛɹ/","think":"/ˈθɪŋk/","this":"/ˈðɪs/","thursday":"/ˈθɝzˌdeɪ/","ticket":"/ˈtɪkət/","tickets":"/ˈtɪkəts/","time":"/ˈtaɪm/","to":"/tə/","today":"/təˈdeɪ/","toilet":"/ˈtɔɪlət/","tomato":"/təˈmeɪtoʊ/","tomorrow":"/təˈmɑɹoʊ/","tooth":"/ˈtuθ/","toy":"/ˈtɔɪ/","train":"/ˈtɹeɪn/","tree":"/ˈtɹi/","tuesday":"/ˈtuzdi/","twenty-two":"/ˌtwɛntiˈtu/","two":"/ˈtu/","umbrella":"/əmˈbɹɛlə/","use":"/ˈjuz/","vegetable":"/ˈvɛdʒtəbəl/","village":"/ˈvɪlədʒ/","wait":"/ˈweɪt/","wake":"/ˈweɪk/","walk":"/ˈwɔk/","wall":"/ˈwɔl/","want":"/ˈwɑnt/","watch":"/ˈwɑtʃ/","water":"/ˈwɔtɚ/","we":"/ˈwi/","weak":"/ˈwik/","wednesday":"/ˈwɛnzdi/","week":"/ˈwik/","what":"/ˈwʌt/","where":"/ˈwɛɹ/","white":"/ˈwaɪt/","wind":"/ˈwɪnd/","window":"/ˈwɪndoʊ/","woman":"/ˈwʊmən/","work":"/ˈwɝk/","worker":"/ˈwɝkɚ/","write":"/ˈɹaɪt/","wrong":"/ˈɹɔŋ/","year":"/ˈjɪɹ/","yellow":"/ˈjɛloʊ/","yes":"/ˈjɛs/","yesterday":"/ˈjɛstɚˌdeɪ/","you":"/ˈju/","young":"/ˈjʌŋ/"};
+
 function pronTokenize(text){
-  return (text||"").replace(/[.,!?¿¡"“”‘’():;]/g," ").split(/\s+/).filter(Boolean);
+  return (text||"").toLowerCase().replace(/[.,!?¿¡"“”‘’():;]/g," ").split(/\s+/).filter(Boolean);
 }
-async function englishStandardPronWord(word){
-  var key=norm(word);
-  if(!key)return "";
-  if(PUMA_PRON_CACHE[key])return PUMA_PRON_CACHE[key];
-  try{
-    var r=await fetch("https://api.dictionaryapi.dev/api/v2/entries/en/"+encodeURIComponent(key),{cache:"force-cache"});
-    if(!r.ok)throw new Error("pron");
-    var data=await r.json(),ipa="",fallback="";
-    if(data&&data[0]){
-      var ps=data[0].phonetics||[];
-      for(var i=0;i<ps.length;i++){
-        if(ps[i].text&&!fallback)fallback=ps[i].text;
-        var a=(ps[i].audio||"").toLowerCase();
-        var src=(ps[i].sourceUrl||"").toLowerCase();
-        if(ps[i].text&&(a.indexOf("-us.")>=0||a.indexOf("_us_")>=0||a.indexOf("/us/")>=0||src.indexOf("american")>=0)){
-          ipa=ps[i].text;break;
-        }
-      }
-      if(!ipa)ipa=data[0].phonetic||fallback||"";
-    }
-    if(ipa){
-      PUMA_PRON_CACHE[key]=ipa;
-      localStorage.setItem("pumaPronCacheUS",JSON.stringify(PUMA_PRON_CACHE));
-    }
-    return ipa||"";
-  }catch(e){return ""}
-}
-async function pronunciationLabel(text){
+function pronunciationLabel(text){
   if(S.lang!=="en-US")return "";
-  var words=pronTokenize(text);
-  if(!words.length)return "";
-  var vals=await Promise.all(words.slice(0,14).map(englishStandardPronWord));
-  var out=[];
-  for(var i=0;i<vals.length;i++)if(vals[i])out.push(vals[i]);
-  return out.join(" ");
+  var direct=PUMA_IPA_US[(text||"").toLowerCase().trim()];
+  if(direct)return direct;
+  var words=pronTokenize(text),out=[];
+  for(var i=0;i<words.length;i++){
+    var p=PUMA_IPA_US[words[i]];
+    if(p)out.push(p.replace(/^\//,"").replace(/\/$/,""));
+  }
+  return out.length?("/"+out.join(" ")+"/"):"";
 }
 function attachPronunciation(note,text){
   if(!note||note.querySelector(".pron-row"))return;
   var row=document.createElement("div");row.className="pron-row";
   var ipa=document.createElement("div");ipa.className="pron-ipa";
-  ipa.textContent=S.lang==="en-US"?"미국 표준 발음 불러오는 중...":"발음";
+  var p=pronunciationLabel(text);
+  ipa.textContent=S.lang==="en-US"?(p?("미국식 표준 IPA "+p):"미국식 표준 IPA 표기 없음"):"발음";
   var btn=document.createElement("button");btn.className="secondary pron-btn";btn.textContent="🔊 발음 듣기";
   btn.onclick=function(e){e.stopPropagation();speak(text)};
   row.appendChild(ipa);row.appendChild(btn);note.appendChild(row);
-  pronunciationLabel(text).then(function(p){
-    if(S.lang==="en-US")ipa.textContent=p?("미국 표준 발음 "+p):"미국 표준 발음표기 없음";
-    else ipa.textContent="발음";
-  });
 }
 function openOnlyChoiceNote(scope,note){
   Array.from(scope.querySelectorAll(".choice-note")).forEach(function(n){
@@ -323,6 +296,7 @@ function wordQuestion(){
     };
     holder.appendChild(b);
     holder.appendChild(note);
+    attachPronunciation(note,o);
   });
   document.getElementById("wordHint").onclick=function(){
     wSess.hint=true;
@@ -431,6 +405,7 @@ function paintSentenceChoices(q,opts,correct,x){
     };
     q.appendChild(b);
     q.appendChild(note);
+    attachPronunciation(note,sentenceChoiceTarget(o));
   });
 }
 function question(){
