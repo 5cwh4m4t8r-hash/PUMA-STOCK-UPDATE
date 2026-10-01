@@ -17,7 +17,7 @@
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
 <div class="hero"><h1>오늘 10분만 가자.</h1><p>듣고, 말하고, 틀린 건 다시.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="start()">오늘 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">빠른 학습</div><div class="grid">
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid">
 <div class="card" onclick="show('course')">🧭<b>코스</b><small>상황별 문장</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
@@ -46,11 +46,11 @@ var S=JSON.parse(localStorage.getItem("pumaLingoLive")||'{"lang":"en-US","xp":0,
 function save(){localStorage.setItem("pumaLingoLive",JSON.stringify(S));home()}
 function day(){return new Date().toISOString().slice(0,10)}
 function makeFlat(){flat=[];D[S.lang].u.forEach(function(u,ui){u[1].forEach(function(x,ii){flat.push({id:ui+"-"+ii,t:x[0],k:x[1],u:ui})})})}
-function home(){makeFlat();document.getElementById("langPill").textContent=D[S.lang].f+" "+D[S.lang].n;document.getElementById("xp").textContent=S.xp;document.getElementById("streak").textContent=S.streak;document.getElementById("acc").textContent=(S.total?Math.round(S.ok/S.total*100):0)+"%";var n=S.done[day()]||0;document.getElementById("dailyText").textContent=n+"/"+S.goal;document.getElementById("dailyBar").style.width=Math.min(100,n/S.goal*100)+"%";document.getElementById("due").textContent=S.bad.length+"개";units();settings();reviews()}
+function home(){makeFlat();document.getElementById("langPill").textContent=D[S.lang].f+" "+D[S.lang].n;quickLangs();document.getElementById("xp").textContent=S.xp;document.getElementById("streak").textContent=S.streak;document.getElementById("acc").textContent=(S.total?Math.round(S.ok/S.total*100):0)+"%";var n=S.done[day()]||0;document.getElementById("dailyText").textContent=n+"/"+S.goal;document.getElementById("dailyBar").style.width=Math.min(100,n/S.goal*100)+"%";document.getElementById("due").textContent=S.bad.length+"개";units();settings();reviews()}
 function show(id){document.querySelectorAll(".screen").forEach(function(e){e.classList.remove("on")});document.getElementById(id).classList.add("on")}
 function nav(id,b){show(id);document.querySelectorAll(".nav button").forEach(function(x){x.classList.remove("sel")});b.classList.add("sel")}
 function units(){var b=document.getElementById("units");b.innerHTML="";D[S.lang].u.forEach(function(u,i){var d=document.createElement("div");d.className="unit";d.innerHTML="<b>"+u[0]+"</b><span class='muted'>"+u[1].length+"문장</span><button class='secondary'>연습 시작</button>";d.querySelector("button").onclick=function(){start(i)};b.appendChild(d)})}
-function settings(){var s=document.getElementById("langSel");s.innerHTML="";Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].f+" "+D[k].n;o.selected=k===S.lang;s.appendChild(o)})}
+function quickLangs(){var b=document.getElementById("quickLangs");if(!b)return;b.innerHTML="";Object.keys(D).forEach(function(k){var x=document.createElement("div");x.className="card";x.style.padding="13px";x.innerHTML="<b style=\"margin:0\">"+D[k].f+" "+D[k].n+"</b><small>"+(k===S.lang?"현재 학습 중":"눌러서 변경")+"</small>";x.onclick=function(){setLang(k)};b.appendChild(x)})}function settings(){var s=document.getElementById("langSel");s.innerHTML="";Object.keys(D).forEach(function(k){var o=document.createElement("option");o.value=k;o.textContent=D[k].f+" "+D[k].n;o.selected=k===S.lang;s.appendChild(o)})}
 function setLang(v){S.lang=v;save();show("home")}
 function goal(n){S.goal=n;save();alert("하루 목표를 "+n+"문제로 바꿨어요.")}
 function start(ui){makeFlat();var p=ui===undefined?flat:flat.filter(function(x){return x.u===ui});p=p.slice().sort(function(){return Math.random()-.5}).slice(0,S.goal);sess={p:p,i:0,c:0};show("lesson");question()}
