@@ -31,7 +31,8 @@ def wave(start, count, low=90.0, high=100.0):
             close = 95.0
             h = 97.0
             l = 93.0
-        rows.append(b(start + i, close - 0.4, h, l, close, 1000))
+        op = close - 0.8 if phase in (0, 1) else close + 0.8 if phase in (4, 5) else close + (0.3 if phase % 2 else -0.3)
+        rows.append(b(start + i, op, h, l, close, 1000))
     return rows
 
 
