@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.66",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.66_UPDATE.zip",
-    "notes":  "v2.9.66 UI: Automatic-trading controls now have visible pressed feedback and unmistakable RUNNING/STOPPED/PENDING state indicators. Start buttons switch to an active check-mark label while trading is running, stop buttons become available only when active, and failures/cancellations show an immediate status message. Trading strategy remains unchanged from v2.9.65: buy at the live 65% deep-Cha with volume slowdown, +4% first take-profit 50%, remainder trend/stage3 management, same-theme bonus, and existing NXT safeguards.",
-    "sha256":  "a3540ab5affa58ce0698757a886b3970ff8c6494dd8e50a43ed056da7354d766"
+    "version":  "2.9.68",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.68_UPDATE.zip",
+    "notes":  "v2.9.68 INDICATORS: Watermelon keeps the original EMA224-near and pre-Bowl3 preparation context. Its MA trigger is corrected to the user rule: top-to-bottom EMA448 \u003e EMA224 \u003e EMA112 \u003e EMA20 \u003e EMA5 \u003e EMA60, OR the exact bar where EMA60 golden-crosses above EMA112. Long-below-224 and volume/accumulation evidence remain required. Concrete remains a true repeated body box: upper resistance uses repeated bullish candle body-top contacts, lower support uses repeated bearish candle body-bottom contacts, with multiple alternating touches; wick extremes do not define the box. Auto-trading rules are unchanged from v2.9.66.",
+    "sha256":  "436b4e8557d523c96f578008e18ddb85bbeda1a98f144db458a67c89b0ee5301"
 }
