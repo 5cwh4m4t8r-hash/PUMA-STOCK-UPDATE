@@ -77,4 +77,6 @@ def test_historical_scan_is_cycle_isolated_for_dongyang_type_repeated_launches()
     assert "search_floor = max(0, last_strong_ref + 1)" in src
     assert "start_floor=search_floor" in src
     assert "last_top_touch_idx" in src
-    assert "hill_touch >= max(start, end - 20)" in src
+    assert "def _spaced_body_touch_indices" in src
+    assert "양봉몸통저항" in src
+    assert "음봉몸통지지" in src
