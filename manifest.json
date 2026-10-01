@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.64",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.64_UPDATE.zip",
-    "notes":  "v2.9.64 FINAL: Gaboja now recognizes the first 5-minute bar as Young1 even when bearish, keeps the 65% deep-Cha plus volume-slowdown rule, waits through Cha without buying, and enters only when Young2 strength returns. After +4% profit it realizes 50% (changed from 25%) and manages the remaining 50% with rising Cha stops, a new third-wave exit, and the existing 15:00 safety exit. KRX candidates receive a bounded same-theme co-strength bonus using Kiwoom ka90001 theme membership, while the normal PUMA score and one-stock concentration remain primary. v2.9.63 NXT best-quote limit/reprice safeguards remain unchanged.",
-    "sha256":  "14e32a2f4e09eab7332aaf22fcd9a5de7e51b7f6fb16c6b0e04c427a090201bc"
+    "version":  "2.9.65",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.65_UPDATE.zip",
+    "notes":  "v2.9.65 HOTFIX: Corrects Gaboja entry timing. The first 5-minute bar may still be Young1 even when bearish, but the actual buy is the live 65% deep-Cha with volume slowdown; PUMA no longer waits for Young2. A missed Cha may still use the existing body-breakout fallback. +4% first take-profit remains 50%, remaining 50% keeps rising-Cha stops, third-wave exit, and 15:00 safety exit. Same-theme co-strength bonus and v2.9.63 NXT safeguards remain unchanged.",
+    "sha256":  "65eeb6452fdbdecabbc21f17a25d0ac9614d7f1a14829a76450d553048b1ce28"
 }
