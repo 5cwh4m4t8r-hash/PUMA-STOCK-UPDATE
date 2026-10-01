@@ -15,9 +15,9 @@
 <div class="app">
 <section id="home" class="screen on">
 <div class="top"><div class="brand">PUMA Lingo</div><div class="pill" id="langPill"></div></div>
-<div class="hero"><h1>오늘 10분만 가자.</h1><p>단어 5개부터. 뜻을 익힌 뒤 아주 짧게 반복해요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">왕초보 단어 학습 시작</button></div>
+<div class="hero"><h1>오늘 10분만 가자.</h1><p>단어만 보고 뜻을 고릅니다. 틀린 단어만 한 번 더 나와요.</p><div class="barbg"><div class="bar" id="dailyBar"></div></div><div class="muted" style="margin-top:7px">오늘 <b id="dailyText">0/10</b></div><button class="primary" onclick="wordStart()">왕초보 단어 학습 시작</button></div>
 <div class="stats"><div class="stat"><b id="xp">0</b><small>XP</small></div><div class="stat"><b id="streak">0</b><small>연속일</small></div><div class="stat"><b id="acc">0%</b><small>정답률</small></div></div>
-<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>왕초보 단어</b><small>한 단어씩 아주 쉽게</small></div>
+<div class="section">학습 언어</div><div class="grid" id="quickLangs"></div><div class="section">빠른 학습</div><div class="grid"><div class="card" onclick="wordStart()">🔤<b>왕초보 단어</b><small>단어만 보고 뜻 선택</small></div>
 <div class="card" onclick="show('course')">🧩<b>문장 코스</b><small>단어 익힌 뒤 천천히</small></div>
 <div class="card" onclick="show('review')">🔁<b>복습</b><small>오답 다시 보기</small></div>
 <div class="card" onclick="pron()">🎙️<b>발음</b><small>seat / sit 구별</small></div>
@@ -53,37 +53,64 @@ var W={
 };
 var wSess=null;
 function wordStart(){
-  var all=W[S.lang]||W["en-US"], seen=S.wordSeen||{}, fresh=all.filter(function(x){return !seen[x[0]]});
-  var pool=(fresh.length?fresh:all).slice().sort(function(){return Math.random()-.5}).slice(0,5);
-  wSess={p:pool,i:0,stage:0,correct:0};show("word");wordQuestion();
+  var all=(W[S.lang]||W["en-US"]).slice();
+  var learned=S.wordStats||{};
+  // Prefer words not yet mastered; randomize without pointless duplicates.
+  all.sort(function(a,b){
+    var aa=(learned[a[0]]&&learned[a[0]].right||0)-(learned[a[0]]&&learned[a[0]].wrong||0);
+    var bb=(learned[b[0]]&&learned[b[0]].right||0)-(learned[b[0]]&&learned[b[0]].wrong||0);
+    return aa-bb || Math.random()-.5;
+  });
+  var count=Math.min(7,all.length);
+  wSess={p:all.slice(0,count),i:0,correct:0,retry:[],retryMode:false};
+  show("word");wordQuestion();
 }
 function wordQuestion(){
-  if(wSess.i>=wSess.p.length)return wordFinish();
-  var x=wSess.p[wSess.i], q=document.getElementById("wq");document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length;
-  if(wSess.stage===0){
-    q.innerHTML="<span class='tag'>새 단어</span><div class='big'>"+x[0]+"</div><div class='muted' style='margin-top:10px'>먼저 뜻을 떠올려봐.</div><button class='mic' id='wplay'>🔊</button><button class='primary' id='wreveal'>뜻 보기</button>";
-    document.getElementById("wplay").onclick=function(){speak(x[0])};
-    document.getElementById("wreveal").onclick=function(){
-      q.innerHTML="<span class='tag'>뜻 확인</span><div class='big'>"+x[0]+"</div><div style='font-size:24px;font-weight:900;margin-top:14px'>"+x[1]+"</div><button class='secondary' id='wplay2'>🔊 발음 다시 듣기</button><button class='primary' id='wquiz'>문제로 확인</button>";
-      document.getElementById("wplay2").onclick=function(){speak(x[0])};
-      document.getElementById("wquiz").onclick=function(){wSess.stage=1;wordQuestion()};
-    };
-  } else if(wSess.stage===1){
-    var opts=[x[1]], all=W[S.lang]||W["en-US"];
-    all.filter(function(y){return y[0]!==x[0]}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y[1])});
-    opts.sort(function(){return Math.random()-.5});
-    q.innerHTML="<span class='tag'>뜻 고르기</span><div class='big'>"+x[0]+"</div><div class='muted'>뜻을 골라봐.</div>";
-    opts.forEach(function(o){var b=document.createElement("button");b.className="choice";b.textContent=o;b.onclick=function(){var ok=o===x[1];b.classList.add(ok?"ok":"bad");if(ok)wSess.correct++;S.total++;if(ok)S.ok++;S.xp+=ok?5:1;if(!ok){S.bad.unshift({id:"w-"+x[0],t:x[0],k:x[1]});S.bad=S.bad.slice(0,60)}S.wordSeen=S.wordSeen||{};S.wordSeen[x[0]]=(S.wordSeen[x[0]]||0)+1;save();var n=document.createElement("button");n.className="primary";n.textContent=ok?"정답! 다음":"정답은 “"+x[1]+"” · 다음";n.onclick=function(){wSess.stage=2;wordQuestion()};q.appendChild(n)};q.appendChild(b)});
-  } else {
-    q.innerHTML="<span class='tag'>한 번 더</span><div class='big'>"+x[1]+"</div><div class='muted'>이 뜻의 단어를 떠올려봐.</div><button class='secondary' id='reveal'>정답 보기</button>";
-    document.getElementById("reveal").onclick=function(){q.innerHTML="<span class='tag'>확인</span><div class='big'>"+x[0]+"</div><div class='muted' style='font-size:20px;margin-top:10px'>"+x[1]+"</div><button class='mic' id='wp2'>🔊</button><button class='primary' id='wnext'>다음 단어</button>";document.getElementById("wp2").onclick=function(){speak(x[0])};document.getElementById("wnext").onclick=function(){wSess.i++;wSess.stage=0;wordQuestion()}};
+  if(wSess.i>=wSess.p.length){
+    // Only missed words get one meaningful retry at the end.
+    if(!wSess.retryMode && wSess.retry.length){
+      var uniq=[],seen={};
+      wSess.retry.forEach(function(x){if(!seen[x[0]]){seen[x[0]]=1;uniq.push(x)}});
+      wSess={p:uniq,i:0,correct:wSess.correct,retry:[],retryMode:true};
+      wordQuestion();return;
+    }
+    return wordFinish();
   }
+  var x=wSess.p[wSess.i], q=document.getElementById("wq");
+  document.getElementById("wordNo").textContent=(wSess.i+1)+"/"+wSess.p.length+(wSess.retryMode?" · 오답":"");
+  var all=W[S.lang]||W["en-US"], opts=[x[1]];
+  all.filter(function(y){return y[0]!==x[0]&&y[1]!==x[1]}).sort(function(){return Math.random()-.5}).slice(0,3).forEach(function(y){opts.push(y[1])});
+  opts.sort(function(){return Math.random()-.5});
+  q.innerHTML="<span class='tag'>"+(wSess.retryMode?"오답 다시":"단어 학습")+"</span><div class='big'>"+x[0]+"</div><div class='muted' style='margin-top:10px'>뜻을 하나 고르세요.</div><button class='mic' id='wplay'>🔊</button><div id='wopts'></div><div class='feedback' id='wfb'></div>";
+  document.getElementById("wplay").onclick=function(){speak(x[0])};
+  var box=document.getElementById("wopts");
+  opts.forEach(function(o){
+    var b=document.createElement("button");b.className="choice";b.textContent=o;
+    b.onclick=function(){
+      if(box.dataset.done==="1")return;
+      box.dataset.done="1";
+      var ok=o===x[1];
+      Array.from(box.querySelectorAll("button")).forEach(function(z){z.disabled=true;if(z.textContent===x[1])z.classList.add("ok")});
+      if(!ok)b.classList.add("bad");
+      var fb=document.getElementById("wfb");fb.className="feedback "+(ok?"ok":"bad");
+      fb.innerHTML=ok?"정답!":"정답: <b>"+x[1]+"</b>";
+      S.wordStats=S.wordStats||{};
+      S.wordStats[x[0]]=S.wordStats[x[0]]||{right:0,wrong:0};
+      if(ok){S.wordStats[x[0]].right++;S.ok++;S.xp+=5;wSess.correct++}
+      else {S.wordStats[x[0]].wrong++;S.xp+=1;if(!wSess.retryMode)wSess.retry.push(x);S.bad.unshift({id:"w-"+x[0],t:x[0],k:x[1]});S.bad=S.bad.slice(0,60)}
+      S.total++;save();
+      var n=document.createElement("button");n.className="primary";n.textContent="다음";n.onclick=function(){wSess.i++;wordQuestion()};q.appendChild(n);
+    };
+    box.appendChild(b);
+  });
 }
 function wordFinish(){
   var t=day();if(S.last!==t){var y=new Date();y.setDate(y.getDate()-1);S.streak=S.last===y.toISOString().slice(0,10)?S.streak+1:1;S.last=t}
-  S.done[t]=(S.done[t]||0)+wSess.p.length;save();alert("단어 5개 학습 완료!");show("home");
+  var learnedCount=(wSess&&wSess.p?wSess.p.length:0);
+  S.done[t]=(S.done[t]||0)+learnedCount;save();
+  alert("단어 학습 완료!");
+  show("home");
 }
-
 var S=JSON.parse(localStorage.getItem("pumaLingoLive")||'{"lang":"en-US","xp":0,"streak":0,"last":"","goal":10,"done":{},"ok":0,"total":0,"bad":[]}'),flat=[],sess=null;
 function save(){localStorage.setItem("pumaLingoLive",JSON.stringify(S));home()}
 function day(){return new Date().toISOString().slice(0,10)}
