@@ -44,13 +44,18 @@ def test_clear_trend_is_not_box():
     assert find_box_before(rows,len(rows)-1,SwingSettings()) is None
 
 
-def test_wick_only_repeated_hits_do_not_make_concrete():
+def test_wick_extremes_do_not_define_concrete_boundaries():
     rows=[]
-    # Bodies stay near the center while only wicks repeatedly hit 110/90.
+    # Wicks repeatedly hit 110/90, but body contacts form a much tighter 100-area box.
     for i in range(48):
         close = 100.4 if i % 2 == 0 else 99.6
         op = 99.8 if i % 2 == 0 else 100.2
         high = 110.0 if i % 6 in (0, 1) else 102.0
         low = 90.0 if i % 6 in (3, 4) else 98.0
         rows.append(bar(i, op, high, low, close, 1000))
-    assert find_box_before(rows, len(rows)-1, SwingSettings()) is None
+    box = find_box_before(rows, len(rows)-1, SwingSettings())
+    assert box is not None
+    assert 99.0 < box["low"] < 100.0
+    assert 100.0 < box["high"] < 101.0
+    assert box["top_basis"] == "양봉몸통"
+    assert box["bottom_basis"] == "음봉몸통"
