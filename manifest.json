@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.70",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.70_UPDATE.zip",
-    "notes":  "v2.9.70 UI: The first-screen header now shows a compact live Kiwoom account summary directly beside the version: account number, cash deposit, order-available cash, holding count, total evaluation, and evaluation P/L. Hovering the summary shows exact values plus withdrawable cash, D+2 estimated deposit, estimated assets, unsettled cash, and up to eight holding names/quantities/returns. Account data refreshes asynchronously every 15 seconds and after trading activity so it does not block the trading UI. Watermelon, concrete, and auto-trading rules remain unchanged from v2.9.69.",
-    "sha256":  "9d453c45682a9cd97dca1d669631c40c5945c588219bc0b93532e394babdb0e9"
+    "version":  "2.9.71",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.71_UPDATE.zip",
+    "notes":  "v2.9.71 GABOJA: Adds a separate high-volume-drop recovery entry path. If a candidate reaches the 65% deep-Cha zone while volume pace remains hot instead of slowing, PUMA does not buy the falling Cha. It watches only, and may enter later only when a bullish candle body crosses the prior Young high; a wick-only break is rejected. The stop for this recovery-breakout entry is the confirmed pullback low. The normal low-volume Cha entry remains unchanged. Header account summary, Watermelon, Concrete, and other auto-trading rules remain unchanged.",
+    "sha256":  "5cb8f46652f0f0a9efcf50ed6309558fd9a8676f63f257a42785645e7815e893"
 }
