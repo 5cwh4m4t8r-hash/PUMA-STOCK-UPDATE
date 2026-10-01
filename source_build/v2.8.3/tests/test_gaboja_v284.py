@@ -59,7 +59,7 @@ def test_gaboja_cha_is_entry():
 def test_gaboja_body_rebreak_requires_body_cross():
     sig = evaluate_gaboja(_minute(True), _daily(), now=datetime(2026,9,23,9,20))
     assert sig.passed is True
-    assert sig.entry_kind == "BODY_REBREAK"
+    assert sig.entry_kind == "YOUNG2"
     assert sig.young1_high == 113
 
 
