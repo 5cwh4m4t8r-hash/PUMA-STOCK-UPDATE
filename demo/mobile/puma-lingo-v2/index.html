@@ -217,6 +217,12 @@ function choiceWords(m){
   return out.sort(function(){return Math.random()-.5});
 }
 
+function openOnlyChoiceNote(scope,note){
+  Array.from(scope.querySelectorAll(".choice-note")).forEach(function(n){
+    if(n!==note)n.classList.remove("on");
+  });
+  note.classList.add("on");
+}
 function vocabChoiceMeaning(word,m){
   return findMeaning(word)||((norm(word)===norm(m.word))?m.meaning:"뜻 정보 없음");
 }
@@ -239,11 +245,16 @@ function wordQuestion(){
 
     var note=document.createElement("div");
     note.className="choice-note";
-    note.innerHTML="<b>"+o+"</b> — "+vocabChoiceMeaning(o,m);
+    var choiceMeaning=vocabChoiceMeaning(o,m);
+    var isCorrectChoice=norm(o)===norm(m.word);
+    note.innerHTML="<b>"+o+"</b> — "+choiceMeaning+
+      "<br><span class='muted'>"+(isCorrectChoice
+        ?"이 문장의 빈칸에 맞는 정답입니다."
+        :"이 단어는 ‘"+choiceMeaning+"’ 뜻이라 이 문장의 빈칸에는 맞지 않습니다.")+"</span>";
 
     b.onclick=function(){
       if(holder.dataset.done){
-        note.classList.toggle("on");
+        openOnlyChoiceNote(holder,note);
         return;
       }
       holder.dataset.done="1";
@@ -251,7 +262,7 @@ function wordQuestion(){
         if(norm(z.textContent)===norm(m.word))z.classList.add("ok");
       });
       if(norm(o)!==norm(m.word))b.classList.add("bad");
-      note.classList.add("on");
+      openOnlyChoiceNote(holder,note);
       finishWordAnswer(m,"cloze_choice",norm(o)===norm(m.word),o,m.word,wSess.hint,b);
     };
     holder.appendChild(b);
@@ -345,11 +356,16 @@ function paintSentenceChoices(q,opts,correct,x){
 
     var note=document.createElement("div");
     note.className="choice-note";
-    note.innerHTML="<b>"+o+"</b><br>"+sentenceChoiceMeaning(o);
+    var other=sentenceChoiceMeaning(o);
+    var isCorrectChoice=norm(o)===norm(correct);
+    note.innerHTML="<b>"+o+"</b><br>"+other+
+      "<br><span class='muted'>"+(isCorrectChoice
+        ?"이 문제의 정답 보기입니다."
+        :"이 보기는 위 문장/해석과 의미가 맞지 않습니다.")+"</span>";
 
     b.onclick=function(){
       if(q.dataset.done){
-        note.classList.toggle("on");
+        openOnlyChoiceNote(q,note);
         return;
       }
       q.dataset.done="1";
@@ -358,7 +374,7 @@ function paintSentenceChoices(q,opts,correct,x){
       });
       var ok=norm(o)===norm(correct);
       if(!ok)b.classList.add("bad");
-      note.classList.add("on");
+      openOnlyChoiceNote(q,note);
       grade(ok,x);
 
       var fb=document.createElement("div");fb.className="feedback "+(ok?"ok":"bad");
