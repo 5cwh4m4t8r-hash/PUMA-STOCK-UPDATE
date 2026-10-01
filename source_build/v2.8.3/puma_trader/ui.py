@@ -343,6 +343,7 @@ class AccountSummaryThread(QThread):
     def run(self):
         broker = reader_broker(self.broker, self.isInterruptionRequested)
         if broker is not self.broker:
+            broker.account_no_cache = str(getattr(self.broker, "account_no_cache", "") or "")
             broker.last_account_balance_summary = deepcopy(
                 getattr(self.broker, "last_account_balance_summary", {}) or {}
             )
