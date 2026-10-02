@@ -147,7 +147,7 @@ def test_pullback_cannot_touch_basis_open():
     assert sig.passed is False
 
 
-def test_high_volume_deep_drop_is_not_bought_at_cha_but_enters_on_body_recovery_breakout():
+def test_high_volume_deep_drop_is_still_a_price_structure_cha():
     rows = _minute(False)
     # 영1 1400/300=4.67주/s보다 눌림 거래량속도가 더 강하다.
     # 따라서 09:15에는 차 매수 금지, 이후 전고(113) 양봉 몸통돌파 때만 진입한다.
@@ -157,8 +157,9 @@ def test_high_volume_deep_drop_is_not_bought_at_cha_but_enters_on_body_recovery_
         rows, _daily(), now=datetime(2026, 9, 23, 9, 15, 30),
         cha_min_live_seconds=20,
     )
-    assert hot_drop.passed is False
-    assert hot_drop.entry_kind == ""
+    assert hot_drop.passed is True
+    assert hot_drop.entry_kind == "PULLBACK"
+    assert hot_drop.details["lower_volume_pace"] is False
 
     rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 900))
     recovered = evaluate_gaboja(
@@ -209,7 +210,7 @@ def test_low_volume_drift_then_gradual_recovery_is_kept_as_youngcha_and_bought_a
     assert sig.details["volume_required_for_structure"] is False
 
 
-def test_young2_structure_survives_even_when_pullback_volume_does_not_slow():
+def test_price_structure_cha_does_not_require_volume_slowdown():
     rows = _minute(False)
     rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 1800)
 
@@ -217,8 +218,8 @@ def test_young2_structure_survives_even_when_pullback_volume_does_not_slow():
         rows, _daily(), now=datetime(2026, 9, 23, 9, 15, 30),
         cha_min_live_seconds=20,
     )
-    assert watching.passed is False
-    assert watching.details["structural_pullback"] is True
+    assert watching.passed is True
+    assert watching.entry_kind == "PULLBACK"
     assert watching.details["volume_required_for_structure"] is False
 
     rows.append(_d("20260923092000", 112.2, 114.5, 112.0, 114.0, 900))

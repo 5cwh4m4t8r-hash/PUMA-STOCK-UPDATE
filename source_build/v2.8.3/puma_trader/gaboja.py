@@ -551,7 +551,8 @@ def evaluate_gaboja(
 
             prev_close = float(session[j - 1]["close"]) if j > 0 else pb_close
             pullback_shape = (
-                pb_close < prev_close
+                young_kind == "opening_bearish"
+                or pb_close < prev_close
                 or float(pb["close"]) < float(pb["open"])
                 or pb_low < float(session[j - 1]["low"])
             )
@@ -636,7 +637,7 @@ def evaluate_gaboja(
             young_volume, young_kind, cha_depth_pct, young_pace,
             pullback_pace, pullback_elapsed_sec, lower_volume_pace,
             structural_floor,
-        ) = current_cha_pairs[0]
+        ) = max(current_cha_pairs, key=lambda x: x[1])
         pb = session[j]
         passed = bool(time_ok)
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
@@ -699,7 +700,7 @@ def evaluate_gaboja(
             young_start, i, j, young1_high, pullback_low, cha_ceiling,
             young_volume, young_kind, cha_depth_pct, young_pace,
             pullback_pace, pullback_elapsed_sec, structural_floor,
-        ) = second_young_setups[0]
+        ) = min(second_young_setups, key=lambda x: (x[2], -x[1]))
         passed = bool(time_ok)
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
         reason = (
@@ -757,7 +758,7 @@ def evaluate_gaboja(
         )
 
     if structural_watches:
-        watch = structural_watches[0]
+        watch = min(structural_watches, key=lambda x: (x[2], -x[1]))
         return GabojaSignal(
             False,
             reason="가보자 1영→차 확인 · 2영 전고 몸통돌파 감시 중",
