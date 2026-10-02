@@ -168,3 +168,69 @@ def test_order_transport_failure_is_classified_as_auto_order_error():
         engine._buy_session_order("005930", 1)
     with pytest.raises(AutoOrderError):
         engine._sell_session_order("005930", 1)
+
+
+def _locked_body_break_rows(*, wick_only=False, late_break=False):
+    """1영 윗꼬리 고가가 아니라 잠긴 몸통 상단을 2영 기준선으로 쓰는 샘플."""
+    rows = [
+        _d("20261002090000", 100, 120, 99, 110, 1000),  # 1영: 고가 120, 몸통 상단 110
+        _d("20261002090500", 110, 111, 104, 105, 250),   # 차: 1영 상승폭 되돌림
+    ]
+    if late_break:
+        rows += [
+            _d("20261002091000", 105, 109.5, 104.5, 109, 300),  # 아직 몸통 기준선 110 아래
+            _d("20261002091500", 109, 112, 108.5, 111, 450),    # 최초 몸통 돌파 = 2영
+        ]
+    elif wick_only:
+        rows.append(
+            _d("20261002091000", 105, 112, 104.5, 109, 450)     # 꼬리만 110 위, 몸통은 아래
+        )
+    else:
+        rows.append(
+            _d("20261002091000", 105, 112, 104.5, 111, 450)     # 몸통이 110을 처음 돌파
+        )
+    return rows
+
+
+def test_young2_uses_locked_young1_body_top_not_wick_high():
+    rows = _locked_body_break_rows()
+    sig = evaluate_gaboja(
+        rows,
+        _daily(),
+        now=datetime(2026, 10, 2, 9, 10, 30),
+        apply_secondary_filter=False,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.details["young1_index"] == 0
+    assert sig.details["young1_high"] == 120
+    assert sig.details["young1_break_level"] == 110
+    assert sig.details["young2_index"] == 2
+
+
+def test_young2_rejects_wick_only_cross_of_locked_body_level():
+    rows = _locked_body_break_rows(wick_only=True)
+    sig = evaluate_gaboja(
+        rows,
+        _daily(),
+        now=datetime(2026, 10, 2, 9, 10, 30),
+        apply_secondary_filter=False,
+    )
+    assert sig.passed is False
+    assert sig.entry_kind == ""
+    assert sig.details["young1_break_level"] == 110
+
+
+def test_young1_is_not_rebased_to_later_bigger_bar_before_young2():
+    rows = _locked_body_break_rows(late_break=True)
+    sig = evaluate_gaboja(
+        rows,
+        _daily(),
+        now=datetime(2026, 10, 2, 9, 15, 30),
+        apply_secondary_filter=False,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.details["young1_index"] == 0
+    assert sig.details["young1_break_level"] == 110
+    assert sig.details["young2_index"] == 3
