@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.72",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.72_UPDATE.zip",
-    "notes":  "v2.9.72 GABOJA: Young-Cha-Young2 is now price-structure led instead of being classified by a high-volume-drop subtype. Young1 can be a rising candle or rising hill without requiring that individual candle volume expand. A 65% deep Cha is tracked as a structural pullback regardless of pullback volume, so slow low-volume drifts and other pullbacks remain under observation. The existing direct-Cha buy keeps the volume-pace slowdown safeguard, while the second entry path keeps tracking the structure and buys only when a bullish candle body crosses the Young1 prior high; wick-only breaks remain rejected. Young2 entry uses the confirmed pullback low as its stop. Other auto-trading, account-header, Watermelon and Concrete rules remain unchanged.",
-    "sha256":  "44398502ba0dd0aacf17370e633b259b511408719e4ede1793ae3f4121eceae7"
+    "version":  "2.9.73",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.73_UPDATE.zip",
+    "notes":  "v2.9.73 LIVE FIX: Corrects the live Young-Cha entry/exit mistakes seen in RFHIC and LS Marine Solution. Opening bars with dominant upper-wick rejection are no longer accepted as Young1, preventing RFHIC-style spike/fade false entries. Cha now starts from a real pullback after at least a 35% retracement instead of waiting for only 65% deep retracements, and the earliest valid Young-Cha structure is locked so PUMA does not keep rebasing to later highs and chase. If Cha is missed, Young2 still requires a bullish candle body through the locked Young1 prior high. A new quick-profit rule exits valid Young-Cha positions after at least 1% peak gain when price rolls over by 0.35% from the post-entry peak, while the existing +4% partial-profit rule remains as a fallback. Other indicator and account-summary rules are unchanged.",
+    "sha256":  "26331a2025bf557540f9ebfb547ccc8e4e4fdbbb74dbddda7d95c6872597d419"
 }
