@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.73",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.73_UPDATE.zip",
-    "notes":  "v2.9.73 LIVE FIX: Corrects the live Young-Cha entry/exit mistakes seen in RFHIC and LS Marine Solution. Opening bars with dominant upper-wick rejection are no longer accepted as Young1, preventing RFHIC-style spike/fade false entries. Cha now starts from a real pullback after at least a 35% retracement instead of waiting for only 65% deep retracements, and the earliest valid Young-Cha structure is locked so PUMA does not keep rebasing to later highs and chase. If Cha is missed, Young2 still requires a bullish candle body through the locked Young1 prior high. A new quick-profit rule exits valid Young-Cha positions after at least 1% peak gain when price rolls over by 0.35% from the post-entry peak, while the existing +4% partial-profit rule remains as a fallback. Other indicator and account-summary rules are unchanged.",
-    "sha256":  "26331a2025bf557540f9ebfb547ccc8e4e4fdbbb74dbddda7d95c6872597d419"
+    "version":  "2.9.74",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.74_UPDATE.zip",
+    "notes":  "v2.9.74 AUTO-RUN STABILITY: Fixes automatic trading unexpectedly stopping on any Kiwoom BrokerError. Transient chart, account-query, and read API errors now keep auto trading enabled and retry on the next scan instead of calling stop_auto(). Actual order/cancel requests are separately wrapped as AutoOrderError; if an order state may be unknown, PUMA still performs a safety stop to prevent duplicate orders. Manual reconnect, explicit stop, and app close remain intentional stop paths. Gaboja entry/exit rules remain as v2.9.73.",
+    "sha256":  "6ea249463632738ad22fdcd7e405605f8c1dadd9aee73e2f280823d165d0263a"
 }
