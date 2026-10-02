@@ -140,7 +140,7 @@ INDEX_HTML = r"""<!doctype html>
     <div class="card auto-card">
       <div class="auto-status-row">
         <div><div class="k">자동매매 엔진</div><div id="autoStatus" class="auto-status">중지</div></div>
-        <div class="status-orb"></div>
+        <div id="autoStatusOrb" class="status-orb"></div>
       </div>
       <div id="autoLock" class="warning">모바일 실전 잠금 해제 필요</div>
 
@@ -274,7 +274,7 @@ main{max-width:760px;margin:0 auto;padding:12px 12px 20px}.page{display:none}.pa
 .stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:6px}.stock-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center;min-height:58px;padding:10px 11px;background:#0c141d;border:1px solid #1d2b39;border-radius:12px}.stock-row:active{background:#122231;border-color:#31506b}.stock-title{overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:950;white-space:nowrap}.stock-meta{overflow:hidden;text-overflow:ellipsis;font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap}.class-pill{align-self:center;padding:5px 7px;border:1px solid #244b67;border-radius:8px;background:#102436;color:#74caff;font-size:9.5px;font-weight:950}.inactive{opacity:.5}
 .log-row{display:grid;grid-template-columns:44px 62px minmax(0,1fr);gap:7px;padding:8px 5px;border-bottom:1px solid rgba(255,255,255,.05);font-size:10px}.log-row:last-child{border-bottom:0}.log-kind{overflow:hidden;text-overflow:ellipsis;color:#79c6ff;font-weight:900;white-space:nowrap}
 .chart-card{padding:9px}.segmented{display:flex;padding:3px;border:1px solid #243647;border-radius:10px;background:#0a1118}.mini{min-width:58px;padding:7px 11px;border-radius:7px;background:transparent;color:#728395;font-size:10px;font-weight:900}.active-mini{background:#1a3650;color:#a9dcff;box-shadow:0 2px 8px rgba(0,0,0,.25)}#chartCanvas{width:100%;height:322px;display:block;border-radius:11px;background:#080e14}.legend{display:flex;gap:11px;flex-wrap:wrap;padding:8px 4px 2px;color:var(--muted);font-size:9px}.l112{color:#49db8c}.l224{color:#f3b65a}.l448{color:#c8d0da}.analysis-grid{display:grid;gap:9px}.analysis-card{margin-bottom:0}.analysis-title{margin-bottom:9px;font-size:12px;font-weight:950}.analysis-title span{display:inline-block;min-width:43px;margin-right:7px;color:#71c8ff;font-size:9px;letter-spacing:.8px}
-.auto-card{padding:15px;border-color:#273b4c}.auto-status{margin-top:3px;font-size:23px;font-weight:1000;letter-spacing:-.6px}.status-orb{width:12px;height:12px;border-radius:50%;background:#354353;box-shadow:0 0 0 5px rgba(90,112,133,.08)}
+.auto-card{padding:15px;border-color:#273b4c}.auto-status{margin-top:3px;font-size:23px;font-weight:1000;letter-spacing:-.6px}.status-orb{width:12px;height:12px;border-radius:50%;background:#354353;box-shadow:0 0 0 5px rgba(90,112,133,.08)}.status-orb.on{background:var(--green);box-shadow:0 0 0 5px rgba(56,217,150,.08),0 0 18px rgba(56,217,150,.42)}
 .warning{margin:11px 0;padding:9px 10px;border:1px solid #745524;border-radius:10px;background:rgba(110,77,19,.22);color:#f2cf76;font-size:10.5px;font-weight:850}
 .form-block{margin:12px 0;padding:10px;border:1px solid #1f2f3e;border-radius:12px;background:#0b1219}
 label{display:block;color:var(--muted);font-size:10px;font-weight:750;margin:8px 0}input,select{width:100%;margin-top:5px;padding:11px 12px;border:1px solid #2a3d4f;border-radius:10px;background:#080f16;color:#f1f5f9;outline:none}input:focus,select:focus{border-color:#3377a9;box-shadow:0 0 0 3px rgba(45,168,255,.08)}
@@ -329,11 +329,11 @@ async function refreshNow(){
   try{
     const s=await api('/api/state');
     state=s; render(s);
-    document.getElementById('connBadge').textContent='ONLINE';
+    document.getElementById('connBadge').innerHTML='<i></i> ONLINE';
     document.getElementById('connBadge').className='badge on';
   }catch(e){
     if(e.message==='AUTH'){document.getElementById('pair').classList.remove('hidden');}
-    document.getElementById('connBadge').textContent='OFFLINE';
+    document.getElementById('connBadge').innerHTML='<i></i> OFFLINE';
     document.getElementById('connBadge').className='badge off';
   }
 }
@@ -371,15 +371,15 @@ function render(s){
     homeAutoStatus.textContent=au.enabled?'실행 중':'중지';
     homeAutoStatus.className='v '+(au.enabled?'auto-running':'auto-stopped');
   }
-  if(homeSeed)homeSeed.textContent=money(au.compound_seed||au.seed||0)+' 원';
-  if(homeRisk)homeRisk.textContent=(au.daily_loss_locked?'중단':'가능');
   const autoStatus=document.getElementById('autoStatus');
   const actuallyEnabled=!!au.enabled;
   const shownEnabled=autoCommandBusy && autoCommandWanted!==null ? !!autoCommandWanted : actuallyEnabled;
   autoStatus.textContent=autoCommandBusy
     ? (autoCommandWanted?'시작 처리 중…':'중지 처리 중…')
     : (actuallyEnabled?'실행 중':'중지');
-  autoStatus.className='v '+(shownEnabled?'auto-running':'auto-stopped');
+  autoStatus.className='auto-status '+(shownEnabled?'auto-running':'auto-stopped');
+  const autoStatusOrb=document.getElementById('autoStatusOrb');
+  if(autoStatusOrb)autoStatusOrb.className='status-orb '+(shownEnabled?'on':'');
   document.getElementById('autoScope').textContent=actuallyEnabled?(au.scope_label||'-'):'-';
   document.getElementById('autoLock').style.display=unlocked?'none':'block';
   const startBtn=document.getElementById('autoStartBtn');
@@ -399,6 +399,11 @@ function render(s){
   const seed=Number(autoSettings.seed_capital??autoSettings.order_budget??0);
   const dayStartSeed=Number(autoSettings.daily_start_seed??seed);
   const lossPct=Number(autoSettings.daily_loss_pct??0);
+  if(homeSeed)homeSeed.textContent=money(seed)+' 원';
+  if(homeRisk){
+    homeRisk.textContent=autoSettings.daily_loss_locked?'중단':'가능';
+    homeRisk.style.color=autoSettings.daily_loss_locked?'#ff7b89':'#6ee4a9';
+  }
   const seedEl=document.getElementById('autoSeed');
   const lossEl=document.getElementById('autoDailyLoss');
   const riskEl=document.getElementById('autoRiskState');
