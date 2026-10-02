@@ -57,7 +57,7 @@ from .conditions import (
     select_puma_conditions,
     update_candidate_source,
 )
-from .engine import TradeEngine
+from .engine import TradeEngine, AutoOrderError
 from .models import StrategySettings
 from .storage import load_strategy, load_watchlist, save_strategy, save_watchlist, load_swing_settings, save_swing_settings
 from .swing import SwingSettings, analyze as analyze_swing, demo_candles, normalize_candles, ema
@@ -5649,11 +5649,23 @@ class MainWindow(QMainWindow):
         if self._closing:
             return
         name = getattr(self.auto_scan_thread, "name", "SYSTEM") if self.auto_scan_thread else "SYSTEM"
-        if isinstance(exc, BrokerError):
-            self.log(name, "ERROR", "0", str(exc))
+
+        # v2.9.74:
+        # 조회/차트/잔고 API의 일시적인 BrokerError 하나 때문에 전체 자동매매를
+        # 멋대로 꺼버리지 않는다. 다음 타이머 스캔에서 자동 재시도한다.
+        # 단, 실제 주문/취소 요청을 보낸 뒤 응답 상태가 불명확한 경우에는
+        # 중복주문 방지를 위해 AutoOrderError로 분리하여 안전 중지한다.
+        if isinstance(exc, AutoOrderError):
+            self.log(name, "ORDER ERROR", "0", str(exc))
             self.stop_auto()
-        else:
-            self.log(name, "ERROR", "0", repr(exc))
+            self._set_auto_ui_state(False, "주문 상태 확인 필요 · 안전중지")
+            return
+        if isinstance(exc, BrokerError):
+            self.log(name, "API RETRY", "0", f"{exc} · 자동매매 유지 · 다음 스캔 재시도")
+            self._set_auto_ui_state(True, "일시 API 오류 · 자동 재시도 중")
+            return
+
+        self.log(name, "ERROR", "0", repr(exc))
 
     def _on_auto_scan_finished(self):
         self.auto_scan_thread = None
