@@ -21,10 +21,10 @@ INDEX_HTML = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#081321">
+  <meta name="theme-color" content="#070a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PUMA Mobile">
+  <meta name="apple-mobile-web-app-title" content="PUMA STOCK">
   <title>PUMA STOCK MOBILE</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
@@ -34,213 +34,258 @@ INDEX_HTML = r"""<!doctype html>
 <body>
 <div id="pair" class="overlay">
   <div class="pair-card">
-    <div class="logo">🐆</div>
-    <h1>PUMA STOCK MOBILE</h1>
+    <div class="brand-mark large">P</div>
+    <div class="eyebrow">PUMA STOCK PRO</div>
+    <h1>모바일 터미널 연결</h1>
     <p>PC PUMA의 <b>모바일 연동</b> 탭에 표시된 6자리 연결코드를 입력하세요.</p>
-    <input id="pairToken" inputmode="numeric" maxlength="6" placeholder="연결코드 6자리">
-    <button class="primary" onclick="pair()">연결</button>
+    <input id="pairToken" inputmode="numeric" maxlength="6" placeholder="000000">
+    <button class="primary" onclick="pair()">PUMA 연결</button>
     <div id="pairMsg" class="muted"></div>
   </div>
 </div>
 
 <header>
-  <div>
-    <div class="brand">🐆 PUMA STOCK</div>
-    <div id="subTitle" class="muted">PC 연결 확인 중…</div>
+  <div class="brand-wrap">
+    <div class="brand-mark">P</div>
+    <div>
+      <div class="brand">PUMA STOCK <span>PRO</span></div>
+      <div id="subTitle" class="muted">PC 연결 확인 중…</div>
+    </div>
   </div>
-  <div id="connBadge" class="badge off">OFFLINE</div>
+  <div id="connBadge" class="badge off"><i></i> OFFLINE</div>
 </header>
 
 <main>
   <section id="home" class="page active">
-    <div class="grid2">
-      <div class="card">
-        <div class="k">PC / KIWOOM</div><div id="pcMode" class="v">-</div>
-        <div id="pcStatus" class="muted">-</div>
+    <div class="hero-card">
+      <div class="hero-top">
+        <div>
+          <div class="eyebrow">TRADING TERMINAL</div>
+          <div id="pcMode" class="hero-mode">-</div>
+          <div id="pcStatus" class="muted">-</div>
+        </div>
+        <div class="live-dot"><span></span> LIVE</div>
       </div>
-      <div class="card">
-        <div class="k">현재 종목</div><div id="selName" class="v">-</div>
-        <div id="selPrice" class="price">-</div>
+      <div class="hero-divider"></div>
+      <div class="selected-strip">
+        <div><div class="k">현재 종목</div><div id="selName" class="selected-name">-</div></div>
+        <div id="selPrice" class="price hero-price">-</div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">통합 판정</div>
-      <div id="stage" class="analysis big">데이터 대기</div>
+
+    <div class="section-label">자동매매</div>
+    <div class="card control-card">
+      <div class="control-status">
+        <div><div class="k">엔진 상태</div><div id="homeAutoStatus" class="v">동기화 중</div></div>
+        <button class="compact-action" onclick="showPage('account',document.querySelector('nav [data-page=account]'))">제어</button>
+      </div>
+      <div class="metric-grid">
+        <div class="metric"><span>복리 시드</span><b id="homeSeed">-</b></div>
+        <div class="metric"><span>신규매수</span><b id="homeRisk">-</b></div>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title">활성 조건검색</div>
-      <div id="homeCandidates" class="compact-list"></div>
+
+    <div class="section-label">PUMA 판단</div>
+    <div class="card decision-card"><div id="stage" class="analysis big">데이터 대기</div></div>
+
+    <div class="section-head">
+      <div class="section-label">실시간 후보</div>
+      <button class="text-button" onclick="showPage('candidates',document.querySelector('nav [data-page=candidates]'))">전체 보기</button>
     </div>
-    <div class="card">
-      <div class="card-title">최근 로그</div>
-      <div id="homeLogs" class="log-list"></div>
-    </div>
+    <div class="card list-card"><div id="homeCandidates" class="compact-list"></div></div>
+
+    <div class="section-label">최근 이벤트</div>
+    <div class="card list-card"><div id="homeLogs" class="log-list"></div></div>
   </section>
 
   <section id="candidates" class="page">
-    <div class="page-head">
-      <div><b>조건검색 종목</b><div class="muted">종목을 누르면 PC PUMA도 같은 종목으로 이동</div></div>
-      <button class="ghost" onclick="refreshNow()">새로고침</button>
+    <div class="page-title-row">
+      <div><div class="eyebrow">LIVE SCANNER</div><h2>조건검색 후보</h2><div class="muted">종목을 누르면 PC PUMA와 즉시 동기화</div></div>
+      <button class="icon-action" onclick="refreshNow()" aria-label="새로고침">↻</button>
     </div>
     <div id="candidateList" class="stock-list"></div>
   </section>
 
   <section id="stock" class="page">
-    <div class="stock-head">
-      <div><div id="stockName" class="v">종목 선택</div><div id="stockCode" class="muted">-</div></div>
+    <div class="stock-head premium-head">
+      <div><div class="eyebrow">SELECTED STOCK</div><div id="stockName" class="stock-name">종목 선택</div><div id="stockCode" class="muted">-</div></div>
       <div id="stockPrice" class="price">-</div>
     </div>
     <div class="card chart-card">
       <div class="chart-toolbar">
-        <div><button id="dayBtn" class="mini active-mini" onclick="setChartMode('DAY')">일봉</button><button id="minBtn" class="mini" onclick="setChartMode('MIN')">5분</button></div>
+        <div class="segmented">
+          <button id="dayBtn" class="mini active-mini" onclick="setChartMode('DAY')">일봉</button>
+          <button id="minBtn" class="mini" onclick="setChartMode('MIN')">5분</button>
+        </div>
         <span id="chartCount" class="muted">0봉</span>
       </div>
       <canvas id="chartCanvas"></canvas>
       <div class="legend">
-        <span class="l112">— 112</span><span class="l224">— 224</span><span class="l448">— 448</span>
-        <span>▲ 분홍/파랑/빨강/검정</span><span>🍉 수박</span>
+        <span class="l112">112 EMA</span><span class="l224">224 EMA</span><span class="l448">448 EMA</span><span>▲ 신호</span><span>● 수박</span>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">단타 DAY · 5분봉</div>
-      <pre id="danta" class="analysis">-</pre>
-    </div>
-    <div class="card">
-      <div class="card-title">역매공파 SWING</div>
-      <pre id="swing" class="analysis">-</pre>
-    </div>
-    <div class="card">
-      <div class="card-title">밥그릇3 LONG</div>
-      <pre id="bowl" class="analysis">-</pre>
+    <div class="analysis-grid">
+      <div class="card analysis-card"><div class="analysis-title"><span>DAY</span> 단타 · 5분봉</div><pre id="danta" class="analysis">-</pre></div>
+      <div class="card analysis-card"><div class="analysis-title"><span>SWING</span> 역매공파</div><pre id="swing" class="analysis">-</pre></div>
+      <div class="card analysis-card"><div class="analysis-title"><span>LONG</span> 밥그릇3</div><pre id="bowl" class="analysis">-</pre></div>
     </div>
   </section>
 
   <section id="account" class="page">
-    <div class="card">
-      <div class="card-title">보유 종목</div>
-      <div id="positions" class="stock-list"></div>
+    <div class="page-title-row">
+      <div><div class="eyebrow">TRADE CONTROL</div><h2>잔고 · 자동매매</h2></div>
+      <div id="autoScope" class="class-pill">-</div>
     </div>
+
     <div class="card auto-card">
-      <div class="card-title">자동매매</div>
       <div class="auto-status-row">
-        <div><div class="k">현재 상태</div><div id="autoStatus" class="v">중지</div></div>
-        <div id="autoScope" class="class-pill">-</div>
+        <div><div class="k">자동매매 엔진</div><div id="autoStatus" class="auto-status">중지</div></div>
+        <div class="status-orb"></div>
       </div>
       <div id="autoLock" class="warning">모바일 실전 잠금 해제 필요</div>
-      <label>대상
-        <select id="autoScopeSelect">
-          <option value="ALL">전체 후보</option>
-          <option value="SELECTED">현재 선택종목만</option>
-        </select>
-      </label>
-      <label>전체 후보 경로
-        <select id="autoSource" disabled>
-          <option value="HERO4">단타 검색기 전체 → PUMA 최우선 1종목</option>
-        </select>
-      </label>
-      <div class="grid2 compound-grid">
-        <div class="compound-stat">
-          <div class="k">현재 복리 시드</div>
-          <div id="autoSeed" class="compound-value">-</div>
-        </div>
-        <div class="compound-stat">
-          <div class="k">동시 보유</div>
-          <div class="compound-value">1종목 고정</div>
-        </div>
-      </div>
-      <div class="grid2 compound-grid">
-        <div class="compound-stat">
-          <div class="k">오늘 시드 손익</div>
-          <div id="autoDailyLoss" class="compound-value">-</div>
-        </div>
-        <div class="compound-stat">
-          <div class="k">신규매수 상태</div>
-          <div id="autoRiskState" class="compound-value">-</div>
-        </div>
+
+      <div class="metric-grid four">
+        <div class="metric"><span>현재 복리 시드</span><b id="autoSeed">-</b></div>
+        <div class="metric"><span>동시 보유</span><b>1종목</b></div>
+        <div class="metric"><span>오늘 시드 손익</span><b id="autoDailyLoss">-</b></div>
+        <div class="metric"><span>신규매수</span><b id="autoRiskState">-</b></div>
       </div>
       <div id="autoPhaseNote" class="muted small compound-note">1차 목표 300만원 · 하루 -4% 도달 시 신규매수 중단</div>
-      <div class="fixed-rule-box">
-        <div class="k">가보자 고정 매매 규칙</div>
-        <div class="fixed-rule-line">현재 복리 시드 전액 · 최우선 1종목만 진입</div>
-        <div class="fixed-rule-line">08:00~08:50 NXT 실전 · 매수=최우선매도호가 지정가 · 매도=최우선매수호가 지정가</div>
-        <div class="fixed-rule-line">08:50~09:00 신규주문 공백 · 09:00 이후 정규장 주문방식 복귀</div>
-        <div class="fixed-rule-line">1차 차 = 영 고점 대비 65% 이상 되돌림~기준봉 시가 위 · 현재봉 거래량속도 둔화 시 조기진입</div>
-        <div class="fixed-rule-line">조기 차는 기준봉 시가 이탈 손절 · +4% 도달 시 25%만 익절</div>
-        <div class="fixed-rule-line">잔량 75% 추세추적 · 새 차 저점마다 손절선 상향 · 15:00 최종청산</div>
+
+      <div class="form-block">
+        <label>매매 대상
+          <select id="autoScopeSelect">
+            <option value="ALL">전체 후보 → PUMA 최우선 1종목</option>
+            <option value="SELECTED">현재 선택종목만</option>
+          </select>
+        </label>
+        <label>후보 경로
+          <select id="autoSource" disabled>
+            <option value="HERO4">단타 검색기 전체 → PUMA 최우선 1종목</option>
+          </select>
+        </label>
       </div>
-      <button id="autoStartBtn" class="primary" onclick="startAuto()" disabled>▶ 자동매매 시작</button>
-      <button id="autoStopBtn" class="ghost full stop-auto" onclick="stopAuto()" disabled>■ 자동매매 중지</button>
+
+      <details class="rules">
+        <summary>가보자 실전 규칙 보기</summary>
+        <div class="fixed-rule-box">
+          <div class="fixed-rule-line"><b>A</b> 차(눌림) 구간 진입</div>
+          <div class="fixed-rule-line"><b>B</b> A 미진입 시 잠긴 1영 몸통 기준선 첫 돌파 진입</div>
+          <div class="fixed-rule-line">A/B 중 한 곳에서만 1회 진입 · 윗꼬리 돌파 제외</div>
+          <div class="fixed-rule-line">복리 시드 집중 · 최우선 1종목 · 하루 -4% 신규매수 중단</div>
+          <div class="fixed-rule-line">손절·익절·당일청산은 PC 가보자 엔진과 동일하게 실행</div>
+        </div>
+      </details>
+
+      <div class="auto-actions">
+        <button id="autoStartBtn" class="primary start-action" onclick="startAuto()" disabled>자동매매 시작</button>
+        <button id="autoStopBtn" class="stop-action" onclick="stopAuto()" disabled>중지</button>
+      </div>
       <div id="autoCommandMsg" class="muted small auto-command-msg">상태 동기화 중</div>
-      <div class="muted small">실전 잠금을 최초 1회 해제한 뒤에는 시작/중지를 한 번 눌러 바로 제어합니다.</div>
     </div>
-    <div class="card order-card">
-      <div class="card-title">수동 주문</div>
-      <div id="orderLock" class="warning">모바일 실전 잠금 해제 필요</div>
-      <label>종목코드<input id="orderCode" maxlength="6" inputmode="numeric"></label>
-      <div class="grid2">
-        <label>구분<select id="orderSide"><option value="BUY">매수</option><option value="SELL">매도</option></select></label>
-        <label>주문방식<select id="orderType"><option value="market">시장가</option><option value="limit">지정가</option><option value="stop_limit">스톱지정가</option></select></label>
+
+    <div class="section-label">보유 종목</div>
+    <div class="card list-card"><div id="positions" class="stock-list"></div></div>
+
+    <details class="order-drawer">
+      <summary>수동 주문 열기</summary>
+      <div class="card order-card">
+        <div id="orderLock" class="warning">모바일 실전 잠금 해제 필요</div>
+        <label>종목코드<input id="orderCode" maxlength="6" inputmode="numeric"></label>
+        <div class="grid2">
+          <label>구분<select id="orderSide"><option value="BUY">매수</option><option value="SELL">매도</option></select></label>
+          <label>주문방식<select id="orderType"><option value="market">시장가</option><option value="limit">지정가</option><option value="stop_limit">스톱지정가</option></select></label>
+        </div>
+        <div class="grid2">
+          <label>수량<input id="orderQty" type="number" min="1" value="1"></label>
+          <label>가격<input id="orderPrice" type="number" min="0" value="0"></label>
+        </div>
+        <label>조건가격(스톱)<input id="condPrice" type="number" min="0" value="0"></label>
+        <button id="orderBtn" class="primary danger" onclick="submitOrder()" disabled>주문 요청</button>
       </div>
-      <div class="grid2">
-        <label>수량<input id="orderQty" type="number" min="1" value="1"></label>
-        <label>가격<input id="orderPrice" type="number" min="0" value="0"></label>
-      </div>
-      <label>조건가격(스톱)<input id="condPrice" type="number" min="0" value="0"></label>
-      <button id="orderBtn" class="primary danger" onclick="submitOrder()" disabled>주문 요청</button>
-      <div class="muted small">최초 1회 실전 잠금 해제 후에는 주문마다 추가 문구 입력 없이 사용합니다.</div>
-    </div>
-    <div class="card">
-      <div class="card-title">전체 로그</div>
-      <div id="logs" class="log-list"></div>
-    </div>
+    </details>
+
+    <div class="section-label">전체 로그</div>
+    <div class="card list-card"><div id="logs" class="log-list"></div></div>
   </section>
 
   <section id="settings" class="page">
-    <div class="card">
-      <div class="card-title">연결</div>
-      <div class="kv"><span>서버</span><b id="serverUrl">-</b></div>
-      <div class="kv"><span>버전</span><b id="version">-</b></div>
-      <div class="kv"><span>실전 잠금</span><b id="liveLockState">잠김</b></div>
-      <button id="unlockLiveBtn" class="primary" onclick="unlockLive()">🔓 실전 기능 최초 1회 잠금 해제</button>
-      <button id="lockLiveBtn" class="ghost full" onclick="lockLive()">🔒 실전 잠금 다시 걸기</button>
-      <button class="ghost full" style="margin-top:7px" onclick="logout()">연결코드 초기화</button>
+    <div class="page-title-row"><div><div class="eyebrow">SYSTEM</div><h2>설정</h2></div></div>
+    <div class="card settings-card">
+      <div class="setting-row"><span>서버</span><b id="serverUrl">-</b></div>
+      <div class="setting-row"><span>버전</span><b id="version">-</b></div>
+      <div class="setting-row"><span>실전 잠금</span><b id="liveLockState">잠김</b></div>
+      <div class="settings-actions">
+        <button id="unlockLiveBtn" class="primary" onclick="unlockLive()">실전 기능 잠금 해제</button>
+        <button id="lockLiveBtn" class="secondary full" onclick="lockLive()">실전 잠금 다시 걸기</button>
+        <button class="secondary full" onclick="logout()">연결코드 초기화</button>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title">아이폰 설치</div>
-      <p>Safari 공유 버튼 → <b>홈 화면에 추가</b>를 누르면 PUMA Mobile이 앱 아이콘으로 설치됩니다.</p>
+    <div class="card install-card">
+      <div class="card-title">아이폰 홈 화면 설치</div>
+      <p>Safari 공유 버튼 → <b>홈 화면에 추가</b>. 이후 일반 앱처럼 전체화면으로 실행됩니다.</p>
     </div>
   </section>
 </main>
 
 <nav>
-  <button data-page="home" class="active" onclick="showPage('home',this)">홈</button>
-  <button data-page="candidates" onclick="showPage('candidates',this)">조건</button>
-  <button data-page="stock" onclick="showPage('stock',this)">종목</button>
-  <button data-page="account" onclick="showPage('account',this)">잔고·주문</button>
-  <button data-page="settings" onclick="showPage('settings',this)">설정</button>
+  <button data-page="home" class="active" onclick="showPage('home',this)"><span class="nav-icon">⌂</span><span>홈</span></button>
+  <button data-page="candidates" onclick="showPage('candidates',this)"><span class="nav-icon">◎</span><span>후보</span></button>
+  <button data-page="stock" onclick="showPage('stock',this)"><span class="nav-icon">▥</span><span>차트</span></button>
+  <button data-page="account" onclick="showPage('account',this)"><span class="nav-icon">↗</span><span>매매</span></button>
+  <button data-page="settings" onclick="showPage('settings',this)"><span class="nav-icon">⚙︎</span><span>설정</span></button>
 </nav>
 <script src="/app.js"></script>
 </body>
-</html>
-"""
-
-STYLES_CSS = r"""
-:root{--bg:#081321;--panel:#0e1e31;--panel2:#122842;--line:#26415f;--text:#edf5ff;--muted:#8eaac4;--green:#48d88a;--red:#ff5b68;--blue:#4f8fff;--gold:#ffd34d}
+</html>"""\n\nSTYLES_CSS = r""":root{
+  --bg:#070a0f;--bg2:#0b1017;--panel:#101720;--panel2:#131d28;--panel3:#0d141c;
+  --line:#202c39;--line2:#2a3b4c;--text:#f4f7fb;--muted:#8493a5;--muted2:#5d6a79;
+  --accent:#2da8ff;--accent2:#6bc7ff;--green:#38d996;--red:#ff6070;--gold:#f1c75b;
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
-body{padding-top:env(safe-area-inset-top);padding-bottom:calc(72px + env(safe-area-inset-bottom))}
-header{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:rgba(8,19,33,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(14px)}
-.brand{font-size:18px;font-weight:900;letter-spacing:.4px}.muted{color:var(--muted);font-size:12px}.small{font-size:11px}.badge{padding:6px 9px;border-radius:999px;font-weight:900;font-size:11px}.badge.on{background:#0a6b45;color:#8fffc2}.badge.off{background:#542331;color:#ff9cac}
-main{max-width:760px;margin:0 auto;padding:12px}.page{display:none}.page.active{display:block}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px;box-shadow:0 5px 18px rgba(0,0,0,.18)}.card-title{font-weight:900;margin-bottom:9px}.k{font-size:11px;color:var(--muted)}.v{font-size:17px;font-weight:900}.price{font-size:21px;font-weight:900;color:var(--red);font-variant-numeric:tabular-nums}.analysis{white-space:pre-wrap;margin:0;color:#f4d46b;font:700 12px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:13px;color:#68f29c}
-.page-head,.stock-head,.chart-toolbar,.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:7px}.stock-row{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;background:#0b1b2c;border:1px solid #203b58;border-radius:10px}.stock-row:active{transform:scale(.995);background:#142f4e}.stock-title{font-weight:900}.stock-meta{font-size:11px;color:var(--muted);margin-top:3px}.class-pill{align-self:center;padding:5px 7px;border-radius:7px;background:#15395d;color:#6dc6ff;font-size:11px;font-weight:900}.inactive{opacity:.55}.log-row{display:grid;grid-template-columns:52px 70px 1fr;gap:7px;padding:7px 0;border-bottom:1px solid rgba(78,111,145,.25);font-size:11px}.log-kind{font-weight:900;color:#72bfff}.warning{background:#4a3011;color:#ffd77c;border:1px solid #7a5520;border-radius:9px;padding:9px;margin-bottom:10px;font-size:12px;font-weight:800}
-button,input,select{font:inherit}button{border:0;border-radius:10px;padding:11px 13px;font-weight:900;color:white;background:#173c63}.primary{width:100%;background:#1679d2}.danger{background:#a63143}.ghost{background:#15314f;border:1px solid #315a84}.full{width:100%}button:disabled{opacity:.35}label{display:block;color:var(--muted);font-size:11px;margin:8px 0}input,select{width:100%;margin-top:4px;padding:11px;border-radius:9px;border:1px solid #31506f;background:#091a2c;color:#fff;outline:none}.order-card .grid2,.auto-card .grid2{gap:8px}.auto-status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.compound-grid{margin:8px 0}.compound-stat{padding:10px;background:#091a2c;border:1px solid #31506f;border-radius:9px}.compound-value{margin-top:3px;font-size:14px;font-weight:900;color:#edf5ff}.compound-note{margin:4px 2px 10px;line-height:1.45}.auto-command-msg{min-height:18px;margin:8px 2px 2px}.auto-command-msg.ok{color:#61ff8f}.auto-command-msg.busy{color:#ffd65a}.auto-command-msg.err{color:#ff7885}.auto-running{color:#5df29b}.auto-stopped{color:#ff9a72}.checklabel{display:flex;align-items:center;gap:8px;margin-top:25px}.checklabel input{width:auto;margin:0}.stop-auto{margin-top:7px}.fixed-rule-box{margin:10px 0;padding:10px 11px;border:1px solid #315a84;border-radius:10px;background:#0b1b2c}.fixed-rule-line{margin-top:5px;font-size:11px;line-height:1.45;color:#dcecff}
-.chart-card{padding:10px}.mini{padding:5px 9px;margin-right:5px;font-size:10px;background:#102a46;border:1px solid #315a84}.active-mini{background:#1c65a6;color:#fff}#chartCanvas{width:100%;height:310px;display:block;border-radius:9px;background:#071421}.legend{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:7px}.l112{color:#42df83}.l224{color:#ffb44b}.l448{color:#b8c1cc}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:20;height:calc(62px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(7,17,29,.97);border-top:1px solid var(--line);backdrop-filter:blur(16px)}nav button{background:none;border-radius:0;color:#829db7;font-size:11px;padding:8px 2px}nav button.active{color:#65baff;border-top:2px solid #4da9ff}
-.overlay{position:fixed;inset:0;z-index:100;background:rgba(3,9,16,.94);display:flex;align-items:center;justify-content:center;padding:24px}.overlay.hidden{display:none}.pair-card{width:min(400px,100%);padding:25px;background:#10233a;border:1px solid #315273;border-radius:20px;text-align:center}.pair-card .logo{font-size:54px}.pair-card h1{font-size:21px}.pair-card input{text-align:center;font-size:28px;letter-spacing:9px;font-weight:900;margin:14px 0}.pair-card button{margin-bottom:8px}
-@media(max-width:390px){main{padding:9px}.grid2{gap:7px}.card{padding:11px}.chart-card{margin-left:-2px;margin-right:-2px}#chartCanvas{height:270px}}
-"""
-
-APP_JS = r"""
+html{background:var(--bg)}
+html,body{margin:0;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+body{min-height:100vh;background:radial-gradient(circle at 50% -18%,#14283a 0,#0a1119 30%,var(--bg) 62%);padding-top:env(safe-area-inset-top);padding-bottom:calc(84px + env(safe-area-inset-bottom));font-variant-numeric:tabular-nums}
+button,input,select{font:inherit}
+button{border:0;color:var(--text);cursor:pointer;-webkit-appearance:none}
+button:active{transform:scale(.985)}
+button:disabled{opacity:.34;transform:none}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;min-height:64px;padding:10px 15px;background:rgba(7,10,15,.84);border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter:blur(22px) saturate(150%)}
+.brand-wrap{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(145deg,#36b3ff,#1369d7);box-shadow:0 8px 24px rgba(31,142,236,.28);font-size:19px;font-weight:1000;color:white;letter-spacing:-1px}
+.brand-mark.large{width:58px;height:58px;border-radius:17px;margin:0 auto 14px;font-size:31px}
+.brand{font-size:15px;font-weight:1000;letter-spacing:.35px;white-space:nowrap}.brand span{font-size:9px;color:var(--accent2);vertical-align:top;margin-left:3px}
+.muted{color:var(--muted);font-size:11px}.small{font-size:10.5px}.eyebrow{font-size:9px;font-weight:900;letter-spacing:1.4px;color:#72869b;text-transform:uppercase}
+.badge{display:flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--line2);border-radius:999px;background:#0d151e;font-weight:900;font-size:9px;letter-spacing:.45px}
+.badge i{display:block;width:6px;height:6px;border-radius:50%}.badge.on{color:#80efbc}.badge.on i{background:var(--green);box-shadow:0 0 10px rgba(56,217,150,.8)}.badge.off{color:#f48a97}.badge.off i{background:var(--red)}
+main{max-width:760px;margin:0 auto;padding:12px 12px 20px}.page{display:none}.page.active{display:block;animation:pagein .16s ease-out}@keyframes pagein{from{opacity:.3;transform:translateY(3px)}to{opacity:1;transform:none}}
+.hero-card{padding:17px;margin-bottom:17px;border:1px solid #253748;border-radius:19px;background:linear-gradient(145deg,#142231 0,#101820 58%,#0c1219 100%);box-shadow:0 12px 34px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.03)}
+.hero-top,.selected-strip,.control-status,.auto-status-row,.section-head,.page-title-row,.stock-head,.chart-toolbar,.setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.hero-mode{margin-top:5px;font-size:18px;font-weight:950;letter-spacing:-.3px}.live-dot{align-self:flex-start;display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:rgba(56,217,150,.08);color:#7cebb9;font-size:9px;font-weight:1000;letter-spacing:.7px}.live-dot span{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(56,217,150,.7)}
+.hero-divider{height:1px;background:linear-gradient(90deg,transparent,#263746 18%,#263746 82%,transparent);margin:14px 0}
+.selected-name{margin-top:3px;font-size:17px;font-weight:950}.hero-price{font-size:24px}
+.section-label{margin:16px 4px 7px;font-size:11px;font-weight:950;color:#b9c4d0;letter-spacing:.2px}.section-head .section-label{margin-right:auto}.text-button{padding:6px 4px;background:none;color:var(--accent2);font-size:10px;font-weight:900}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:11px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.list-card{padding:7px}.card-title{font-size:13px;font-weight:950;margin-bottom:10px}.k{font-size:10px;color:var(--muted);font-weight:700}.v{font-size:16px;font-weight:950}.price{font-size:21px;font-weight:1000;color:#ff7180;letter-spacing:-.4px}
+.control-card{padding:14px}.compact-action,.icon-action{background:#15283a;border:1px solid #2d475e;color:#8dd2ff;font-weight:900}.compact-action{padding:8px 13px;border-radius:9px;font-size:11px}.icon-action{width:38px;height:38px;border-radius:12px;font-size:19px;padding:0}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.metric-grid.four{margin:12px 0 8px}.metric{min-width:0;padding:10px 11px;border:1px solid #1e2d3b;border-radius:11px;background:#0b1219}.metric span{display:block;font-size:9.5px;color:var(--muted);margin-bottom:4px}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:950;white-space:nowrap}
+.decision-card{position:relative;overflow:hidden}.decision-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--green),#188de0)}.analysis{white-space:pre-wrap;margin:0;color:#e8edf3;font:650 11.5px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}.analysis.big{font-size:12.5px;font-weight:800;color:#8ff0bd}
+.page-title-row{margin:4px 2px 15px}.page-title-row h2{margin:3px 0 2px;font-size:22px;line-height:1.15;letter-spacing:-.6px}.premium-head{padding:4px 2px 12px}.stock-name{margin-top:3px;font-size:22px;font-weight:1000;letter-spacing:-.6px}
+.stock-list,.compact-list,.log-list{display:flex;flex-direction:column;gap:6px}.stock-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:center;min-height:58px;padding:10px 11px;background:#0c141d;border:1px solid #1d2b39;border-radius:12px}.stock-row:active{background:#122231;border-color:#31506b}.stock-title{overflow:hidden;text-overflow:ellipsis;font-size:13px;font-weight:950;white-space:nowrap}.stock-meta{overflow:hidden;text-overflow:ellipsis;font-size:10px;color:var(--muted);margin-top:4px;white-space:nowrap}.class-pill{align-self:center;padding:5px 7px;border:1px solid #244b67;border-radius:8px;background:#102436;color:#74caff;font-size:9.5px;font-weight:950}.inactive{opacity:.5}
+.log-row{display:grid;grid-template-columns:44px 62px minmax(0,1fr);gap:7px;padding:8px 5px;border-bottom:1px solid rgba(255,255,255,.05);font-size:10px}.log-row:last-child{border-bottom:0}.log-kind{overflow:hidden;text-overflow:ellipsis;color:#79c6ff;font-weight:900;white-space:nowrap}
+.chart-card{padding:9px}.segmented{display:flex;padding:3px;border:1px solid #243647;border-radius:10px;background:#0a1118}.mini{min-width:58px;padding:7px 11px;border-radius:7px;background:transparent;color:#728395;font-size:10px;font-weight:900}.active-mini{background:#1a3650;color:#a9dcff;box-shadow:0 2px 8px rgba(0,0,0,.25)}#chartCanvas{width:100%;height:322px;display:block;border-radius:11px;background:#080e14}.legend{display:flex;gap:11px;flex-wrap:wrap;padding:8px 4px 2px;color:var(--muted);font-size:9px}.l112{color:#49db8c}.l224{color:#f3b65a}.l448{color:#c8d0da}.analysis-grid{display:grid;gap:9px}.analysis-card{margin-bottom:0}.analysis-title{margin-bottom:9px;font-size:12px;font-weight:950}.analysis-title span{display:inline-block;min-width:43px;margin-right:7px;color:#71c8ff;font-size:9px;letter-spacing:.8px}
+.auto-card{padding:15px;border-color:#273b4c}.auto-status{margin-top:3px;font-size:23px;font-weight:1000;letter-spacing:-.6px}.status-orb{width:12px;height:12px;border-radius:50%;background:#354353;box-shadow:0 0 0 5px rgba(90,112,133,.08)}
+.warning{margin:11px 0;padding:9px 10px;border:1px solid #745524;border-radius:10px;background:rgba(110,77,19,.22);color:#f2cf76;font-size:10.5px;font-weight:850}
+.form-block{margin:12px 0;padding:10px;border:1px solid #1f2f3e;border-radius:12px;background:#0b1219}
+label{display:block;color:var(--muted);font-size:10px;font-weight:750;margin:8px 0}input,select{width:100%;margin-top:5px;padding:11px 12px;border:1px solid #2a3d4f;border-radius:10px;background:#080f16;color:#f1f5f9;outline:none}input:focus,select:focus{border-color:#3377a9;box-shadow:0 0 0 3px rgba(45,168,255,.08)}
+.rules,.order-drawer{margin:10px 0}.rules summary,.order-drawer>summary{list-style:none;padding:11px 12px;border:1px solid #243545;border-radius:11px;background:#0d151e;color:#aebac7;font-size:10.5px;font-weight:900;cursor:pointer}.rules summary::-webkit-details-marker,.order-drawer>summary::-webkit-details-marker{display:none}.rules summary:after,.order-drawer>summary:after{content:"+";float:right;color:#6e8195;font-size:15px}.rules[open] summary:after,.order-drawer[open]>summary:after{content:"−"}.fixed-rule-box{margin:7px 0 0;padding:10px 11px;border:1px solid #1f3040;border-radius:10px;background:#091119}.fixed-rule-line{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.045);font-size:10.5px;line-height:1.45;color:#c9d3dd}.fixed-rule-line:last-child{border-bottom:0}.fixed-rule-line b{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:5px;border-radius:5px;background:#133452;color:#79caff}
+.auto-actions{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:8px;margin-top:12px}.primary,.secondary,.stop-action{min-height:44px;border-radius:11px;padding:11px 13px;font-weight:950}.primary{width:100%;background:linear-gradient(180deg,#168bea,#0870cf);box-shadow:0 7px 18px rgba(0,112,207,.18)}.secondary{background:#121e29;border:1px solid #2a3e50}.stop-action{background:#29171b;border:1px solid #61313a;color:#ff8490}.danger{background:linear-gradient(180deg,#c94455,#a92d3e)}.auto-command-msg{min-height:17px;margin:8px 2px 1px}.auto-command-msg.ok{color:#6ee4a9}.auto-command-msg.busy{color:#e9c65d}.auto-command-msg.err{color:#ff7b89}.auto-running{color:#55e5a3}.auto-stopped{color:#ff8d78}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.order-card{margin-top:8px}.order-drawer .card{border-radius:0 0 14px 14px;margin-top:-1px}.compound-note{margin:7px 2px 0;line-height:1.45}
+.settings-card{padding:5px 14px 14px}.setting-row{min-height:46px;border-bottom:1px solid rgba(255,255,255,.055);font-size:11px}.setting-row span{color:var(--muted)}.setting-row b{max-width:68%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.settings-actions{display:grid;gap:8px;padding-top:12px}.install-card p{margin:0;color:#a8b4c1;font-size:11px;line-height:1.55}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(72px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(6,9,13,.92);border-top:1px solid rgba(255,255,255,.07);backdrop-filter:blur(24px) saturate(160%)}nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:6px 1px;background:none;border-radius:0;color:#617184;font-size:9.5px;font-weight:850}nav button .nav-icon{font-size:18px;line-height:18px;font-weight:500}nav button.active{color:#79caff}nav button.active .nav-icon{filter:drop-shadow(0 0 8px rgba(45,168,255,.45))}
+.overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(3,6,10,.94);backdrop-filter:blur(14px)}.overlay.hidden{display:none}.pair-card{width:min(390px,100%);padding:26px 22px;border:1px solid #263847;border-radius:22px;background:linear-gradient(160deg,#131e29,#0d141c);box-shadow:0 24px 70px rgba(0,0,0,.45);text-align:center}.pair-card h1{margin:5px 0 7px;font-size:22px;letter-spacing:-.6px}.pair-card p{margin:0;color:#8e9cab;font-size:11px;line-height:1.6}.pair-card input{text-align:center;font-size:26px;letter-spacing:9px;font-weight:950;margin:16px 0 10px}
+@media(min-width:620px){main{padding-left:18px;padding-right:18px}.analysis-grid{grid-template-columns:1fr 1fr}.analysis-grid .analysis-card:first-child{grid-column:1/-1}}
+@media(max-width:390px){main{padding:9px}.hero-card{padding:15px}.card{padding:12px}.metric-grid.four{grid-template-columns:1fr 1fr}.chart-card{margin-left:-1px;margin-right:-1px}#chartCanvas{height:280px}.hero-price{font-size:22px}}"""\n\nAPP_JS = r"""
 let token=localStorage.getItem('puma_token')||'';
 let state=null, pollTimer=null, commandTimers={};
 let autoCommandBusy=false, autoCommandWanted=null;
@@ -319,6 +364,15 @@ function render(s){
   document.getElementById('orderLock').style.display=unlocked?'none':'block';
 
   const au=s.auto||{};
+  const homeAutoStatus=document.getElementById('homeAutoStatus');
+  const homeSeed=document.getElementById('homeSeed');
+  const homeRisk=document.getElementById('homeRisk');
+  if(homeAutoStatus){
+    homeAutoStatus.textContent=au.enabled?'실행 중':'중지';
+    homeAutoStatus.className='v '+(au.enabled?'auto-running':'auto-stopped');
+  }
+  if(homeSeed)homeSeed.textContent=money(au.compound_seed||au.seed||0)+' 원';
+  if(homeRisk)homeRisk.textContent=(au.daily_loss_locked?'중단':'가능');
   const autoStatus=document.getElementById('autoStatus');
   const actuallyEnabled=!!au.enabled;
   const shownEnabled=autoCommandBusy && autoCommandWanted!==null ? !!autoCommandWanted : actuallyEnabled;
@@ -593,7 +647,7 @@ if(token){document.getElementById('pair').classList.add('hidden');startPolling()
 """
 
 SW_JS = r"""
-const CACHE='puma-mobile-v1';
+const CACHE='puma-mobile-v2';
 const ASSETS=['/','/styles.css','/app.js','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
@@ -604,9 +658,10 @@ self.addEventListener('fetch',e=>{
 """
 
 ICON_SVG = r"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<rect width="512" height="512" rx="110" fill="#081321"/>
-<circle cx="256" cy="256" r="172" fill="#142b46" stroke="#4aa9ff" stroke-width="18"/>
-<text x="256" y="300" text-anchor="middle" font-size="190">🐆</text>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#39b8ff"/><stop offset="1" stop-color="#086fd4"/></linearGradient></defs>
+<rect width="512" height="512" rx="118" fill="#070a0f"/>
+<rect x="70" y="70" width="372" height="372" rx="96" fill="url(#g)"/>
+<path d="M170 354V158h103c58 0 96 31 96 82 0 53-39 85-101 85h-40v29h-58zm58-78h37c28 0 44-12 44-35 0-22-16-34-44-34h-37v69z" fill="white"/>
 </svg>"""
 
 MANIFEST = {
@@ -614,8 +669,8 @@ MANIFEST = {
     "short_name": "PUMA Mobile",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#081321",
-    "theme_color": "#081321",
+    "background_color": "#070a0f",
+    "theme_color": "#070a0f",
     "icons": [{"src": "/icon.svg", "sizes": "512x512", "type": "image/svg+xml"}],
 }
 
