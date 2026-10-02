@@ -63,11 +63,15 @@ def test_gaboja_body_rebreak_requires_body_cross():
     assert sig.young1_high == 113
 
 
-def test_tail_only_break_is_rejected():
+def test_body_cross_of_young1_body_top_is_young2_even_below_old_wick_high():
     rows = _minute(False)
+    # 1영은 09:10봉: 고가 113, 몸통 상단 112.5.
+    # 2영은 113까지 기다리는 것이 아니라 몸통이 잠긴 112.5를 처음 넘는 자리다.
     rows.append(_d("20260923092000", 112.0, 114.5, 111.8, 112.8, 800))
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,20))
-    assert sig.passed is False
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.details["young1_break_level"] == 112.5
 
 
 
@@ -175,11 +179,11 @@ def test_high_volume_deep_drop_is_still_a_price_structure_cha():
     assert recovered.details["volume_required_for_structure"] is False
 
 
-def test_high_volume_recovery_requires_bullish_body_not_wick_only():
+def test_high_volume_recovery_requires_body_cross_not_wick_only():
     rows = _minute(False)
     rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 1800)
-    # 고가는 전고 113을 넘지만 몸통 종가는 전고 아래 -> 진입 금지.
-    rows.append(_d("20260923092000", 112.0, 114.5, 111.8, 112.8, 900))
+    # 1영 몸통 상단 112.5. 고가만 112.5를 넘고 종가 112.4면 2영이 아니다.
+    rows.append(_d("20260923092000", 112.0, 114.5, 111.8, 112.4, 900))
     sig = evaluate_gaboja(
         rows, _daily(), now=datetime(2026, 9, 23, 9, 20, 30),
         cha_min_live_seconds=20,
