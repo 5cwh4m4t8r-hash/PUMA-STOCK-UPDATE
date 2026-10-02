@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from puma_trader.engine import _gaboja_stage3_exit_from_rows, _gaboja_quick_profit_exit_from_rows
+from puma_trader.engine import AutoOrderError, _gaboja_stage3_exit_from_rows, _gaboja_quick_profit_exit_from_rows
 from puma_trader.gaboja import evaluate_gaboja
 from puma_trader.models import StrategySettings
 from puma_trader.theme_strength import apply_theme_strength
@@ -152,3 +152,19 @@ def test_quick_profit_exit_does_not_sell_small_noise_before_min_gain():
     )
     assert hit is False
     assert gain < 1.0
+
+
+def test_order_transport_failure_is_classified_as_auto_order_error():
+    class BadOrderBroker:
+        is_live = False
+        def buy_market(self, code, qty):
+            raise RuntimeError("order transport lost")
+        def sell_market(self, code, qty):
+            raise RuntimeError("order transport lost")
+
+    engine = TradeEngine(BadOrderBroker(), StrategySettings())
+    import pytest
+    with pytest.raises(AutoOrderError):
+        engine._buy_session_order("005930", 1)
+    with pytest.raises(AutoOrderError):
+        engine._sell_session_order("005930", 1)

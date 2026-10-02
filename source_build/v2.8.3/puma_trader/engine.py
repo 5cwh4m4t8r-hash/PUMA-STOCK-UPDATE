@@ -15,6 +15,11 @@ PHASE1_TARGET_CAPITAL = 3_000_000
 AUTO_ORDER_BUDGET = INITIAL_SEED_CAPITAL
 
 
+class AutoOrderError(RuntimeError):
+    """Order/cancel state may be unknown; automatic trading must stop for safety."""
+    pass
+
+
 def _num(v):
     try:
         return abs(float(str(v).replace(",", "").strip()))
@@ -608,16 +613,22 @@ class TradeEngine:
             price = int(quote.get("best_ask", 0) or 0)
             if price <= 0:
                 raise RuntimeError("NXT 최우선 매도호가를 조회하지 못했습니다.")
-            resp = dict(limit_order(code, qty, price, "NXT") or {})
+            try:
+                resp = dict(limit_order(code, qty, price, "NXT") or {})
+            except Exception as exc:
+                raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
             return resp
 
         routed = getattr(self.broker, "buy_market_on", None)
-        if exchange and callable(routed):
-            return routed(code, qty, exchange)
-        return self.broker.buy_market(code, qty)
+        try:
+            if exchange and callable(routed):
+                return routed(code, qty, exchange)
+            return self.broker.buy_market(code, qty)
+        except Exception as exc:
+            raise AutoOrderError(f"매수주문 상태 확인 필요: {exc}") from exc
 
     def _sell_session_order(self, code: str, qty: int):
         exchange = self._session_order_exchange()
@@ -630,16 +641,22 @@ class TradeEngine:
             price = int(quote.get("best_bid", 0) or 0)
             if price <= 0:
                 raise RuntimeError("NXT 최우선 매수호가를 조회하지 못했습니다.")
-            resp = dict(limit_order(code, qty, price, "NXT") or {})
+            try:
+                resp = dict(limit_order(code, qty, price, "NXT") or {})
+            except Exception as exc:
+                raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
             return resp
 
         routed = getattr(self.broker, "sell_market_on", None)
-        if exchange and callable(routed):
-            return routed(code, qty, exchange)
-        return self.broker.sell_market(code, qty)
+        try:
+            if exchange and callable(routed):
+                return routed(code, qty, exchange)
+            return self.broker.sell_market(code, qty)
+        except Exception as exc:
+            raise AutoOrderError(f"매도주문 상태 확인 필요: {exc}") from exc
 
     @staticmethod
     def _pending_age_seconds(pending: dict) -> float:
@@ -709,9 +726,12 @@ class TradeEngine:
             chase_pct = max(0.0, float(getattr(self.settings, "nxt_limit_buy_chase_pct", 0.50) or 0.50))
             ceiling = first_price * (1.0 + chase_pct / 100.0)
             if first_price > 0 and new_price > ceiling:
-                cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
-                self.pending_orders.pop(code, None)
-                self.sync_account(force=True)
+                try:
+                    cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
+                    self.pending_orders.pop(code, None)
+                    self.sync_account(force=True)
+                except Exception as exc:
+                    raise AutoOrderError(f"NXT 매수취소 상태 확인 필요: {exc}") from exc
                 held = int(self.account_qty.get(code, 0) or 0)
                 if held <= before:
                     self.managed_qty.pop(code, None)
@@ -729,8 +749,11 @@ class TradeEngine:
 
         # Cancel the old remainder first, then synchronize once to avoid duplicating
         # shares if a fill raced with the cancel request.
-        cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
-        self.sync_account(force=True)
+        try:
+            cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
+            self.sync_account(force=True)
+        except Exception as exc:
+            raise AutoOrderError(f"NXT 주문취소/동기화 상태 확인 필요: {exc}") from exc
         latest = self.pending_orders.get(code)
         if latest is None:
             return {
@@ -757,7 +780,10 @@ class TradeEngine:
                 "signal": "NXT 지정가 목표수량 체결 확인",
             }
 
-        resp = dict(limit_order(code, qty, new_price, "NXT") or {})
+        try:
+            resp = dict(limit_order(code, qty, new_price, "NXT") or {})
+        except Exception as exc:
+            raise AutoOrderError(f"NXT 재주문 상태 확인 필요: {exc}") from exc
         latest["qty"] = qty
         self.daily_order_count += 1
         latest["ord_no"] = str(resp.get("ord_no", ""))
