@@ -17,7 +17,7 @@ def test_mobile_terminal_redesign_keeps_core_controls_and_ids():
         'id="lockLiveBtn"',
         'id="autoStatusOrb"',
         'PUMA STOCK <span>PRO</span>',
-        '가보자 실전 규칙 보기',
+        '가보자 고정 매매 규칙 보기',
         '수동 주문 열기',
     ]
     for text in required:
