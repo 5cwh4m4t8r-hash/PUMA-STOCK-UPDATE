@@ -237,7 +237,9 @@ INDEX_HTML = r"""<!doctype html>
 </nav>
 <script src="/app.js"></script>
 </body>
-</html>"""\n\nSTYLES_CSS = r""":root{
+</html>"""
+
+STYLES_CSS = r""":root{
   --bg:#070a0f;--bg2:#0b1017;--panel:#101720;--panel2:#131d28;--panel3:#0d141c;
   --line:#202c39;--line2:#2a3b4c;--text:#f4f7fb;--muted:#8493a5;--muted2:#5d6a79;
   --accent:#2da8ff;--accent2:#6bc7ff;--green:#38d996;--red:#ff6070;--gold:#f1c75b;
@@ -285,7 +287,9 @@ label{display:block;color:var(--muted);font-size:10px;font-weight:750;margin:8px
 nav{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(72px + env(safe-area-inset-bottom));padding:0 4px env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(5,1fr);background:rgba(6,9,13,.92);border-top:1px solid rgba(255,255,255,.07);backdrop-filter:blur(24px) saturate(160%)}nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;padding:6px 1px;background:none;border-radius:0;color:#617184;font-size:9.5px;font-weight:850}nav button .nav-icon{font-size:18px;line-height:18px;font-weight:500}nav button.active{color:#79caff}nav button.active .nav-icon{filter:drop-shadow(0 0 8px rgba(45,168,255,.45))}
 .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(3,6,10,.94);backdrop-filter:blur(14px)}.overlay.hidden{display:none}.pair-card{width:min(390px,100%);padding:26px 22px;border:1px solid #263847;border-radius:22px;background:linear-gradient(160deg,#131e29,#0d141c);box-shadow:0 24px 70px rgba(0,0,0,.45);text-align:center}.pair-card h1{margin:5px 0 7px;font-size:22px;letter-spacing:-.6px}.pair-card p{margin:0;color:#8e9cab;font-size:11px;line-height:1.6}.pair-card input{text-align:center;font-size:26px;letter-spacing:9px;font-weight:950;margin:16px 0 10px}
 @media(min-width:620px){main{padding-left:18px;padding-right:18px}.analysis-grid{grid-template-columns:1fr 1fr}.analysis-grid .analysis-card:first-child{grid-column:1/-1}}
-@media(max-width:390px){main{padding:9px}.hero-card{padding:15px}.card{padding:12px}.metric-grid.four{grid-template-columns:1fr 1fr}.chart-card{margin-left:-1px;margin-right:-1px}#chartCanvas{height:280px}.hero-price{font-size:22px}}"""\n\nAPP_JS = r"""
+@media(max-width:390px){main{padding:9px}.hero-card{padding:15px}.card{padding:12px}.metric-grid.four{grid-template-columns:1fr 1fr}.chart-card{margin-left:-1px;margin-right:-1px}#chartCanvas{height:280px}.hero-price{font-size:22px}}"""
+
+APP_JS = r"""
 let token=localStorage.getItem('puma_token')||'';
 let state=null, pollTimer=null, commandTimers={};
 let autoCommandBusy=false, autoCommandWanted=null;
