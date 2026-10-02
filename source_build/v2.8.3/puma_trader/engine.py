@@ -614,10 +614,7 @@ class TradeEngine:
             if price <= 0:
                 raise RuntimeError("NXT 최우선 매도호가를 조회하지 못했습니다.")
             try:
-                try:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
-            except Exception as exc:
-                raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
             except Exception as exc:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
@@ -644,7 +641,10 @@ class TradeEngine:
             price = int(quote.get("best_bid", 0) or 0)
             if price <= 0:
                 raise RuntimeError("NXT 최우선 매수호가를 조회하지 못했습니다.")
-            resp = dict(limit_order(code, qty, price, "NXT") or {})
+            try:
+                resp = dict(limit_order(code, qty, price, "NXT") or {})
+            except Exception as exc:
+                raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
