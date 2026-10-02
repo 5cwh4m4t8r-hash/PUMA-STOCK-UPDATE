@@ -281,7 +281,7 @@ def evaluate_gaboja(
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
-    cha_max_ratio: float = 0.35,
+    cha_max_ratio: float = 0.65,
     cha_volume_pace_ratio: float = 1.00,
     cha_min_live_seconds: int = 20,
 ) -> GabojaSignal:
@@ -395,7 +395,7 @@ def evaluate_gaboja(
     #   B = 구조 바닥, H = 1영 전고, R = H-B
     #   기본값 B < 현재가 <= B + R*0.65  (1영 상승폭에서 35% 이상 되돌림)
     # 실제 상승 뒤 첫 눌림을 차로 잡되, 단순 고점 횡보는 제외한다.
-    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.35)))
+    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.65)))
     cha_pace_ratio = min(2.0, max(0.10, float(cha_volume_pace_ratio or 1.00)))
     cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
     latest_index = len(session) - 1
