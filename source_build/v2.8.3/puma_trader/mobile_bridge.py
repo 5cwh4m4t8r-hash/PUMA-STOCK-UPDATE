@@ -172,7 +172,7 @@ INDEX_HTML = r"""<!doctype html>
           <div class="fixed-rule-line"><b>A</b> 차(눌림) 구간 진입</div>
           <div class="fixed-rule-line"><b>B</b> A 미진입 시 잠긴 1영 몸통 기준선 첫 돌파 진입</div>
           <div class="fixed-rule-line">A/B 중 한 곳에서만 1회 진입 · 윗꼬리 돌파 제외</div>
-          <div class="fixed-rule-line">복리 시드 집중 · 최우선 1종목 · 하루 -4% 신규매수 중단</div>
+          <div class="fixed-rule-line">현재 복리 시드 전액 · 최우선 1종목만 진입 · 하루 -4% 신규매수 중단</div>
           <div class="fixed-rule-line">손절·익절·당일청산은 PC 가보자 엔진과 동일하게 실행</div>
         </div>
       </details>
