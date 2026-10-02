@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from puma_trader.engine import _gaboja_stage3_exit_from_rows
+from puma_trader.engine import _gaboja_stage3_exit_from_rows, _gaboja_quick_profit_exit_from_rows
 from puma_trader.gaboja import evaluate_gaboja
 from puma_trader.models import StrategySettings
 from puma_trader.theme_strength import apply_theme_strength
@@ -112,3 +112,43 @@ def test_stage3_does_not_fire_without_intermediate_pullback():
         opened_at="2026-10-01T09:10:00",
     )
     assert hit is False
+
+
+def test_quick_profit_exit_locks_gain_on_first_rollover_after_run():
+    rows = [
+        _d("20261002080500", 32650, 32720, 32620, 32680, 500),
+        _d("20261002081000", 32680, 32950, 32670, 32920, 700),
+        _d("20261002081500", 32920, 33300, 32900, 33280, 800),
+        _d("20261002082000", 33280, 33300, 33120, 33150, 500),
+    ]
+    hit, peak, gain = _gaboja_quick_profit_exit_from_rows(
+        rows,
+        current_bar_key="202610020820",
+        timeframe=5,
+        entry_price=32650,
+        opened_at="2026-10-02T08:05:00",
+        min_profit_pct=1.0,
+        peak_retreat_pct=0.35,
+    )
+    assert hit is True
+    assert peak == 33300
+    assert gain > 1.9
+
+
+def test_quick_profit_exit_does_not_sell_small_noise_before_min_gain():
+    rows = [
+        _d("20261002080500", 32900, 32940, 32880, 32920, 500),
+        _d("20261002081000", 32920, 33050, 32900, 33020, 600),
+        _d("20261002081500", 33020, 33060, 32900, 32920, 400),
+    ]
+    hit, _, gain = _gaboja_quick_profit_exit_from_rows(
+        rows,
+        current_bar_key="202610020815",
+        timeframe=5,
+        entry_price=32900,
+        opened_at="2026-10-02T08:05:00",
+        min_profit_pct=1.0,
+        peak_retreat_pct=0.35,
+    )
+    assert hit is False
+    assert gain < 1.0

@@ -254,3 +254,71 @@ def test_single_bar_young_does_not_require_local_volume_expansion():
     assert sig.passed is True
     assert sig.entry_kind == "YOUNG2"
     assert sig.young1_high == 113
+
+
+def test_rfhic_like_opening_wick_spike_is_not_young_or_cha_entry():
+    rows = []
+    for day in ("20260925", "20260928", "20260929", "20260930", "20261001"):
+        rows += [
+            _d(day+"080000", 60000, 60200, 59800, 60050, 100),
+            _d(day+"080500", 60050, 60200, 59950, 60100, 100),
+        ]
+    # RFHIC-like: first bar spikes hard to a high but leaves a dominant upper wick.
+    rows += [
+        _d("20261002080000", 61700, 64500, 61500, 62600, 1200),
+        _d("20261002080500", 62600, 62800, 62050, 62200, 250),
+    ]
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 10, 2, 8, 5, 30),
+        apply_secondary_filter=False,
+        cha_max_ratio=0.65,
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is False
+    assert sig.entry_kind == ""
+
+
+def test_ls_like_first_pullback_is_cha_entry_with_35pct_retrace():
+    rows = []
+    for day in ("20260925", "20260928", "20260929", "20260930", "20261001"):
+        rows += [
+            _d(day+"080000", 32400, 32500, 32350, 32450, 100),
+            _d(day+"080500", 32450, 32520, 32400, 32480, 100),
+        ]
+    rows += [
+        _d("20261002080000", 32400, 32900, 32380, 32850, 1200),  # 1영
+        _d("20261002080500", 32850, 32880, 32620, 32650, 250),   # 약 50% 눌림 = 차
+    ]
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 10, 2, 8, 5, 30),
+        apply_secondary_filter=False,
+        cha_max_ratio=0.65,
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.young1_high == 32900
+
+
+def test_ls_like_missed_cha_enters_on_first_body_break_not_late_rebased_breakout():
+    rows = []
+    for day in ("20260925", "20260928", "20260929", "20260930", "20261001"):
+        rows += [
+            _d(day+"080000", 32400, 32500, 32350, 32450, 100),
+            _d(day+"080500", 32450, 32520, 32400, 32480, 100),
+        ]
+    rows += [
+        _d("20261002080000", 32400, 32900, 32380, 32850, 1200),  # 1영
+        _d("20261002080500", 32850, 32880, 32620, 32650, 250),   # 차
+        _d("20261002081000", 32840, 33000, 32820, 32950, 350),   # 첫 전고 몸통돌파 = 2영
+    ]
+    sig = evaluate_gaboja(
+        rows, _daily(), now=datetime(2026, 10, 2, 8, 10, 30),
+        apply_secondary_filter=False,
+        cha_max_ratio=0.65,
+        cha_min_live_seconds=20,
+    )
+    assert sig.passed is True
+    assert sig.entry_kind == "YOUNG2"
+    assert sig.young1_high == 32900
+    assert sig.details["pullback_index"] == 1

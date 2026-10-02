@@ -391,11 +391,10 @@ def evaluate_gaboja(
     current = session[-1]
     current_price = float(current["close"])
 
-    # 실시간 1차 차 영역:
-    #   B = 기준봉 시가, H = 영 고점, R = H-B
-    #   B < 현재가 <= B + R*0.35  (영 고점에서 65% 이상 되돌림)
-    # 즉 고점 근처의 얕은 눌림은 차로 보지 않고, 영 상승폭의 절반 아래까지 깊게 눌린
-    # 현재 봉만 1차 차 후보로 본다. 현재 봉을 그대로 사용하므로 미래 봉 확인이 필요 없다.
+    # 실시간 차 영역:
+    #   B = 구조 바닥, H = 1영 전고, R = H-B
+    #   기본값 B < 현재가 <= B + R*0.65  (1영 상승폭에서 35% 이상 되돌림)
+    # 실제 상승 뒤 첫 눌림을 차로 잡되, 단순 고점 횡보는 제외한다.
     cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.35)))
     cha_pace_ratio = min(2.0, max(0.10, float(cha_volume_pace_ratio or 1.00)))
     cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
@@ -411,21 +410,35 @@ def evaluate_gaboja(
 
     for i in range(0, len(session) - 1):
         bar = session[i]
+        bar_open = float(bar["open"])
+        bar_high = float(bar["high"])
+        bar_low = float(bar["low"])
+        bar_close = float(bar["close"])
+        bar_range = max(0.0, bar_high - bar_low)
+        body_top = max(bar_open, bar_close)
+        body_size = abs(bar_close - bar_open)
+        upper_wick = max(0.0, bar_high - body_top)
+        close_retention = ((bar_close - bar_low) / bar_range) if bar_range > 0 else 0.0
+
+        # 첫 봉은 음봉이어도 1영이 될 수 있지만, RFHIC처럼 고가만 순간적으로
+        # 크게 찌르고 몸통이 아래에 남은 '윗꼬리 급등-실패' 봉은 1영으로 인정하지 않는다.
         opening_young = (
             i == 0
             and float(bar["volume"]) > 0
-            and float(bar["high"]) > float(bar["low"])
+            and bar_range > 0
+            and close_retention >= 0.50
+            and upper_wick <= max(body_size * 1.50, bar_range * 0.30)
         )
 
         if opening_young:
             young_start = 0
-            young_high = float(bar["high"])
+            young_high = bar_high
             young_volume = float(bar["volume"])
             young_volume_total = float(bar["volume"])
             young_bar_count = 1
-            young_kind = "opening_bearish" if float(bar["close"]) < float(bar["open"]) else "opening"
+            young_kind = "opening_bearish" if bar_close < bar_open else "opening"
             # 첫 봉 음봉은 당일 시가 아래에서 끝날 수 있으므로 구조 바닥은 첫 봉 저가로 둔다.
-            structural_floor = min(basis_open, float(bar["low"]))
+            structural_floor = min(basis_open, bar_low)
         else:
             prior = session[max(0, i - 3):i]
             if not prior:
@@ -440,7 +453,7 @@ def evaluate_gaboja(
             # 이 봉의 거래량이 직전 봉들보다 반드시 커야 한다고 다시 강제하지 않는다.
             single_impulse = (
                 float(bar["close"]) > float(bar["open"])
-                and float(bar["high"]) > prior_high
+                and max(float(bar["open"]), float(bar["close"])) > prior_high
             )
 
             # 언덕형 1영: 최근 최대 7봉 안에서 저점부터 이어진 상승 언덕 전체를 인정한다.
@@ -529,7 +542,13 @@ def evaluate_gaboja(
                 structure_invalid = True
                 break
 
-            deep_zone = structural_floor < pb_close <= cha_ceiling
+            prev_close = float(session[j - 1]["close"]) if j > 0 else pb_close
+            pullback_shape = (
+                pb_close < prev_close
+                or float(pb["close"]) < float(pb["open"])
+                or pb_low < float(session[j - 1]["low"])
+            )
+            deep_zone = structural_floor < pb_close <= cha_ceiling and pullback_shape
             is_live_bar = j == latest_index
             if is_live_bar:
                 elapsed = _bar_elapsed_seconds(pb.get("date"), now, 5)
@@ -610,12 +629,12 @@ def evaluate_gaboja(
             young_volume, young_kind, cha_depth_pct, young_pace,
             pullback_pace, pullback_elapsed_sec, lower_volume_pace,
             structural_floor,
-        ) = current_cha_pairs[-1]
+        ) = current_cha_pairs[0]
         pb = session[j]
         passed = bool(time_ok)
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
         reason = (
-            f"가보자 1영→차 매수{opening_note} · 65% 깊은 눌림 "
+            f"가보자 1영→차 매수{opening_note} · 35% 이상 실제 눌림 "
             f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
             f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
             f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
@@ -673,7 +692,7 @@ def evaluate_gaboja(
             young_start, i, j, young1_high, pullback_low, cha_ceiling,
             young_volume, young_kind, cha_depth_pct, young_pace,
             pullback_pace, pullback_elapsed_sec, structural_floor,
-        ) = second_young_setups[-1]
+        ) = second_young_setups[0]
         passed = bool(time_ok)
         opening_note = " · 첫봉 음봉 1영 인정" if young_kind == "opening_bearish" else ""
         reason = (
@@ -731,7 +750,7 @@ def evaluate_gaboja(
         )
 
     if structural_watches:
-        watch = structural_watches[-1]
+        watch = structural_watches[0]
         return GabojaSignal(
             False,
             reason="가보자 1영→차 확인 · 2영 전고 몸통돌파 감시 중",
@@ -756,7 +775,7 @@ def evaluate_gaboja(
 
     return GabojaSignal(
         False,
-        reason="1영 이후 65% 이상 차(눌림) 형성 대기",
+        reason="1영 이후 35% 이상 차(눌림) 형성 대기",
         current_price=current_price,
         basis_open=basis_open,
         day_volume_ratio=day_ratio,

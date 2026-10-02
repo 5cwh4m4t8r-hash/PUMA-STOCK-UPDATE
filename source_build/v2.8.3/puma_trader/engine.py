@@ -97,6 +97,71 @@ def _gaboja_trend_stop_from_rows(
     return best
 
 
+def _gaboja_quick_profit_exit_from_rows(
+    rows,
+    *,
+    current_bar_key: str,
+    timeframe: int,
+    entry_price: float,
+    opened_at: str = "",
+    min_profit_pct: float = 1.0,
+    peak_retreat_pct: float = 0.35,
+) -> tuple[bool, float, float]:
+    """Take profit quickly when a post-entry run makes a local high and starts to roll over.
+
+    This is intentionally different from the +4% partial-profit rule. It matches the
+    user's Young-Cha-Young2 scalping intent: after a valid entry, once price has run
+    at least the configured minimum and then retreats from the new post-entry peak,
+    lock the gain instead of waiting for a later 3-wave structure.
+    """
+    candles = normalize_candles(rows or [])
+    if len(candles) < 2 or float(entry_price or 0) <= 0:
+        return False, 0.0, 0.0
+
+    entry_stamp = ""
+    try:
+        dt = datetime.fromisoformat(str(opened_at or ""))
+        entry_stamp = dt.strftime("%Y%m%d%H%M")
+    except Exception:
+        entry_stamp = ""
+
+    if entry_stamp:
+        post = []
+        for row in candles:
+            digits = "".join(ch for ch in str(row.get("date") or "") if ch.isdigit())
+            if len(digits) >= 12 and digits[:12] >= entry_stamp:
+                post.append(row)
+        if len(post) >= 2:
+            candles = post
+        else:
+            candles = candles[-6:]
+    else:
+        candles = candles[-6:]
+
+    if len(candles) < 2:
+        return False, 0.0, 0.0
+
+    current = candles[-1]
+    current_close = float(current["close"])
+    current_open = float(current["open"])
+    previous_close = float(candles[-2]["close"])
+
+    peak = max(float(x["high"]) for x in candles)
+    gain_pct = (peak / float(entry_price) - 1.0) * 100.0
+    if gain_pct < abs(float(min_profit_pct or 0.0)):
+        return False, peak, gain_pct
+
+    retreat_pct = (current_close / peak - 1.0) * 100.0 if peak > 0 else 0.0
+    rolling_over = bool(
+        current_close < current_open
+        or current_close < previous_close
+    )
+    if rolling_over and retreat_pct <= -abs(float(peak_retreat_pct or 0.0)):
+        return True, peak, gain_pct
+
+    return False, peak, gain_pct
+
+
 def _gaboja_stage3_exit_from_rows(
     rows,
     *,
@@ -967,6 +1032,29 @@ class TradeEngine:
             )
             if self.enabled and float(getattr(pos, "stop_price", 0) or 0) > 0 and datetime.now().strftime("%H:%M") >= day_exit:
                 return self._submit_sell(code, pos, current, f"가보자 당일 단타 {day_exit} 전량청산", require_enabled=True)
+
+            # 영차 단타 빠른 익절: 유효 진입 뒤 고점을 만들고 되밀리기 시작하면
+            # +4%를 기다리지 않고 먼저 수익을 확보한다.
+            if (
+                self.enabled
+                and bool(getattr(self.settings, "gabojago_quick_profit_enabled", True))
+                and str(getattr(pos, "entry_kind", "") or "") in {"PULLBACK", "YOUNG2"}
+            ):
+                quick_exit, quick_peak, quick_gain = _gaboja_quick_profit_exit_from_rows(
+                    candles,
+                    current_bar_key=bar_key,
+                    timeframe=self.settings.timeframe_min,
+                    entry_price=float(pos.entry_price or 0),
+                    opened_at=str(getattr(pos, "opened_at", "") or ""),
+                    min_profit_pct=float(getattr(self.settings, "gabojago_quick_profit_min_pct", 1.0) or 1.0),
+                    peak_retreat_pct=float(getattr(self.settings, "gabojago_quick_profit_peak_retreat_pct", 0.35) or 0.35),
+                )
+                if quick_exit:
+                    return self._submit_sell(
+                        code, pos, current,
+                        f"가보자 빠른 익절 · 고점 {quick_peak:,.0f} 형성 후 되밀림 · 고점기준 {quick_gain:+.2f}%",
+                        require_enabled=True,
+                    )
 
             # 가보자 추세추적: +4% 최초 도달 시 50% 확보, 나머지 50%는 차 저점/3파동 추적.
             partial_target = float(getattr(self.settings, "gabojago_partial_profit_pct", self.settings.take_profit_pct) or self.settings.take_profit_pct)
