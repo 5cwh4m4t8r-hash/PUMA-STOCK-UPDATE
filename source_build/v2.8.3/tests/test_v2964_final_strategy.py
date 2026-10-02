@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from puma_trader.engine import AutoOrderError, _gaboja_stage3_exit_from_rows, _gaboja_quick_profit_exit_from_rows
+from puma_trader.engine import TradeEngine, AutoOrderError, _gaboja_stage3_exit_from_rows, _gaboja_quick_profit_exit_from_rows
 from puma_trader.gaboja import evaluate_gaboja
 from puma_trader.models import StrategySettings
 from puma_trader.theme_strength import apply_theme_strength
