@@ -50,15 +50,20 @@ class StrategySettings:
     gabojago_enabled: bool = True
     gabojago_daily_volume_ratio: float = 3.0
     gabojago_min_stop_gap_pct: float = 0.5
-    # 1차 차 조기진입: 영 고점에서 65% 이상 되돌린 깊은 눌림만 차 후보로 본다.
-    # 가격 기준으로는 B < 현재가 <= B + (H-B)*0.35.
-    gabojago_cha_max_ratio: float = 0.35
+    # 차 조기진입: 1영 상승폭의 최소 35% 이상 되돌린 실제 눌림을 차 후보로 본다.
+    # 가격 기준으로는 B < 현재가 <= B + (H-B)*0.65.
+    # v2.9.73부터 너무 깊은 65% 되돌림만 기다리던 기준을 완화한다.
+    gabojago_cha_max_ratio: float = 0.65
     # 진행 중 현재봉을 차로 조기판정할 때, 영 구간 평균 초당 거래량 대비
     # 현재봉 초당 거래량이 이 배수 이하여야 거래량 둔화로 인정한다.
     gabojago_cha_volume_pace_ratio: float = 1.00
     # 봉 시작 직후 노이즈를 피하기 위한 최소 실시간 관찰시간(초).
     gabojago_cha_min_live_seconds: int = 20
     gabojago_partial_profit_pct: float = 4.0
+    # 영차 진입 뒤 빠르게 고점을 만들고 되밀리면 수익을 먼저 확보한다.
+    gabojago_quick_profit_enabled: bool = True
+    gabojago_quick_profit_min_pct: float = 1.0
+    gabojago_quick_profit_peak_retreat_pct: float = 0.35
     # 추세추적: +4%에서 50%를 확보하고 나머지 50%는 높아지는 차 저점/3파동 매도를 따라간다.
     gabojago_trend_tracking_enabled: bool = True
     gabojago_partial_sell_ratio: float = 0.50
@@ -103,6 +108,16 @@ class StrategySettings:
                 payload["gabojago_partial_sell_ratio"] = 0.50
         except (TypeError, ValueError):
             payload["gabojago_partial_sell_ratio"] = 0.50
+
+        # v2.9.73: 예전 기본값 0.35(65% 깊은 되돌림만 허용)는
+        # 실전 표본에서 정상 차를 너무 늦게 잡아 0.65(35% 이상 되돌림)로 이동.
+        # 사용자가 별도로 바꾼 값은 보존하고, 정확히 옛 기본값만 마이그레이션한다.
+        try:
+            old_cha = float(payload.get("gabojago_cha_max_ratio", 0.65) or 0.65)
+            if abs(old_cha - 0.35) < 1e-9:
+                payload["gabojago_cha_max_ratio"] = 0.65
+        except (TypeError, ValueError):
+            payload["gabojago_cha_max_ratio"] = 0.65
         return cls(**payload)
 
 
