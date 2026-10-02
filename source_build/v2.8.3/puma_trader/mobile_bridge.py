@@ -146,7 +146,7 @@ INDEX_HTML = r"""<!doctype html>
 
       <div class="metric-grid four">
         <div class="metric"><span>현재 복리 시드</span><b id="autoSeed">-</b></div>
-        <div class="metric"><span>동시 보유</span><b>1종목</b></div>
+        <div class="metric"><span>동시 보유</span><b>1종목 고정</b></div>
         <div class="metric"><span>오늘 시드 손익</span><b id="autoDailyLoss">-</b></div>
         <div class="metric"><span>신규매수</span><b id="autoRiskState">-</b></div>
       </div>
