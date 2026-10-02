@@ -72,26 +72,26 @@ def test_tail_only_break_is_rejected():
 
 
 
-def test_pullback_shallower_than_65pct_is_not_cha():
+def test_pullback_shallower_than_35pct_is_not_cha():
     rows = _minute(False)
     rows[-1] = _d("20260923091500", 112.0, 112.2, 110.0, 111.0, 400)
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15))
     assert sig.passed is False
-    assert "65%" in sig.reason
+    assert "35%" in sig.reason
 
 
-def test_65pct_retracement_boundary_is_used():
+def test_35pct_retracement_boundary_is_used():
     rows = _minute(False)
-    # B=106, H=113 -> 65% 되돌림선 = 113 - 7*0.65 = 108.45
-    rows[-1] = _d("20260923091500", 110.5, 110.7, 108.4, 108.5, 100)
+    # B=106, H=113 -> 35% 되돌림선 = 113 - 7*0.35 = 110.55
+    rows[-1] = _d("20260923091500", 111.0, 111.2, 110.6, 110.6, 100)
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15,30))
     assert sig.passed is False
 
-    rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.4, 100)
+    rows[-1] = _d("20260923091500", 111.0, 111.2, 110.4, 110.5, 100)
     sig = evaluate_gaboja(rows, _daily(), now=datetime(2026,9,23,9,15,30))
     assert sig.passed is True
     assert sig.entry_kind == "PULLBACK"
-    assert round(sig.details["cha_ceiling"], 2) == 108.45
+    assert round(sig.details["cha_ceiling"], 2) == 110.55
 
 
 def test_deep_cha_enters_immediately():
@@ -100,20 +100,21 @@ def test_deep_cha_enters_immediately():
     assert sig.entry_kind == "PULLBACK"
     assert sig.details["early_cha"] is True
     assert sig.details["cha_ready"] is True
-    assert round(sig.details["cha_ceiling"], 2) == 108.45
+    assert round(sig.details["cha_ceiling"], 2) == 110.55
     assert sig.current_price == 108.3
 
 
-def test_live_cha_rejects_raw_low_volume_when_per_second_pace_is_fast():
+def test_live_cha_volume_pace_is_advisory_not_a_hard_gate():
     rows = _minute(False)
-    # 영1은 1400/300 = 4.67주/s. 현재봉은 총량 500으로 더 작아 보여도
-    # 시작 30초 시점에는 16.67주/s라서 '거래량 둔화 차'가 아니다.
+    # 거래량속도가 영보다 빠르더라도 가격 구조가 차면 진입은 허용한다.
     rows[-1] = _d("20260923091500", 110.5, 110.7, 107.8, 108.3, 500)
     sig = evaluate_gaboja(
         rows, _daily(), now=datetime(2026,9,23,9,15,30),
         cha_min_live_seconds=20,
     )
-    assert sig.passed is False
+    assert sig.passed is True
+    assert sig.entry_kind == "PULLBACK"
+    assert sig.details["lower_volume_pace"] is False
 
 
 def test_live_cha_enters_without_waiting_for_next_bar():

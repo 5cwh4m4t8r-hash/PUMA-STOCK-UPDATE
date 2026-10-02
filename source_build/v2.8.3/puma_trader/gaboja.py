@@ -281,7 +281,7 @@ def evaluate_gaboja(
     scan_end: str = "10:00",
     apply_secondary_filter: bool = True,
     secondary_min_score: int = 3,
-    cha_max_ratio: float = 0.35,
+    cha_max_ratio: float = 0.65,
     cha_volume_pace_ratio: float = 1.00,
     cha_min_live_seconds: int = 20,
 ) -> GabojaSignal:
@@ -395,7 +395,7 @@ def evaluate_gaboja(
     #   B = 구조 바닥, H = 1영 전고, R = H-B
     #   기본값 B < 현재가 <= B + R*0.65  (1영 상승폭에서 35% 이상 되돌림)
     # 실제 상승 뒤 첫 눌림을 차로 잡되, 단순 고점 횡보는 제외한다.
-    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.35)))
+    cha_ratio = min(0.95, max(0.05, float(cha_max_ratio or 0.65)))
     cha_pace_ratio = min(2.0, max(0.10, float(cha_volume_pace_ratio or 1.00)))
     cha_live_min_sec = max(0, min(120, int(cha_min_live_seconds or 0)))
     latest_index = len(session) - 1
@@ -426,8 +426,15 @@ def evaluate_gaboja(
             i == 0
             and float(bar["volume"]) > 0
             and bar_range > 0
-            and close_retention >= 0.50
-            and upper_wick <= max(body_size * 1.50, bar_range * 0.30)
+            and (
+                # 사용자가 지정한 기존 규칙: 첫 봉 음봉도 1영 가능.
+                bar_close < bar_open
+                or (
+                    # 양봉 첫 봉은 RFHIC형 윗꼬리 급등-실패를 제외한다.
+                    close_retention >= 0.50
+                    and upper_wick <= max(body_size * 1.50, bar_range * 0.30)
+                )
+            )
         )
 
         if opening_young:
@@ -522,8 +529,8 @@ def evaluate_gaboja(
         )
 
         # 차(눌림)는 가격 구조로 먼저 기록한다.
-        # 65% 이상 깊은 눌림이 확인되면 거래량이 크든 작든 2영 감시는 계속한다.
-        # 단, 차 자체에서 즉시 사는 기존 타점은 거래량 진행속도 둔화가 확인될 때만 유지한다.
+        # 35% 이상 실제 눌림이 확인되면 거래량이 크든 작든 차/2영 구조를 계속 추적한다.
+        # v2.9.73 실전 수정: 거래량 둔화는 보조정보일 뿐 차 직접매수의 필수조건이 아니다.
         structural_pullback_idx = -1
         structural_pullback_low = 0.0
         structural_pullback_depth = 0.0
@@ -575,9 +582,9 @@ def evaluate_gaboja(
                     structural_pullback_pace = pb_pace
                     structural_pullback_elapsed = elapsed
 
-                # 기존 '차에서 매수'는 그대로 유지한다.
-                # 거래량 둔화가 확인되는 첫 차 봉을 직접매수 후보로 기록한다.
-                if lower_volume_pace and not quiet_cha_recorded:
+                # 차 직접매수는 가격 구조가 기준이다.
+                # 거래량 진행속도는 기록만 하고, 빠르다는 이유로 사용자가 지정한 차를 버리지 않는다.
+                if not quiet_cha_recorded:
                     quiet_cha_pairs.append((
                         young_start, i, j, young_high, pb_low,
                         cha_ceiling, young_volume, young_kind, depth_pct,
@@ -621,7 +628,7 @@ def evaluate_gaboja(
 
     latest = len(session) - 1
 
-    # 1차 진입: 현재봉 자체가 거래량 둔화까지 확인된 차면 기존대로 차에서 즉시 매수.
+    # 1차 진입: 현재봉 자체가 가격 구조상 차면 즉시 매수. 거래량은 보조정보다.
     current_cha_pairs = [x for x in quiet_cha_pairs if x[2] == latest]
     if current_cha_pairs:
         (
@@ -636,7 +643,7 @@ def evaluate_gaboja(
         reason = (
             f"가보자 1영→차 매수{opening_note} · 35% 이상 실제 눌림 "
             f"({current_price:,.0f} ≤ {cha_ceiling:,.0f}) · "
-            f"거래량속도 {pullback_pace:.2f}/s ≤ 영 {young_pace:.2f}/s · "
+            f"거래량속도 {pullback_pace:.2f}/s (보조) · "
             f"기준봉 시가 {basis_open:,.0f} 이탈 손절"
             if passed else
             f"가보자 1영→차 확인 · 검색시간 외({scan_start}~{scan_end})"
