@@ -167,7 +167,7 @@ INDEX_HTML = r"""<!doctype html>
       </div>
 
       <details class="rules">
-        <summary>가보자 실전 규칙 보기</summary>
+        <summary>가보자 고정 매매 규칙 보기</summary>
         <div class="fixed-rule-box">
           <div class="fixed-rule-line"><b>A</b> 차(눌림) 구간 진입</div>
           <div class="fixed-rule-line"><b>B</b> A 미진입 시 잠긴 1영 몸통 기준선 첫 돌파 진입</div>
