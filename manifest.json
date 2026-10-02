@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.74",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.74_UPDATE.zip",
-    "notes":  "v2.9.74 AUTO-RUN STABILITY: Fixes automatic trading unexpectedly stopping on any Kiwoom BrokerError. Transient chart, account-query, and read API errors now keep auto trading enabled and retry on the next scan instead of calling stop_auto(). Actual order/cancel requests are separately wrapped as AutoOrderError; if an order state may be unknown, PUMA still performs a safety stop to prevent duplicate orders. Manual reconnect, explicit stop, and app close remain intentional stop paths. Gaboja entry/exit rules remain as v2.9.73.",
-    "sha256":  "6ea249463632738ad22fdcd7e405605f8c1dadd9aee73e2f280823d165d0263a"
+    "version":  "2.9.75",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.75_UPDATE.zip",
+    "notes":  "v2.9.75 GABOJA LIVE STRUCTURE LOCK: Applies the finalized Young-Cha logic to every eligible candidate without ticker-specific exceptions. The first valid Young1 structure is locked and cannot be rebased to a later larger candle. Cha remains entry option A. If A is missed, Young2 entry option B triggers on the first bullish candle body that crosses the locked Young1 body-top resistance level; wick-only crosses do not count. For hill-shaped Young1, the breakout level is the highest candle-body top in the locked hill. A and B are alternative single-entry locations, not two separate buys. v2.9.74 auto-run stability remains unchanged.",
+    "sha256":  "2381199ff57a69818d63e0b066892f0e49d8b60633b3d3877bae618060f2bd44"
 }
