@@ -623,6 +623,9 @@ class TradeEngine:
                 # 같은 종목을 1.8초마다 재주문하지 않도록 짧은 쿨다운만 건다.
                 self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
                 raise
+            except Exception as exc:
+                # 서드파티/테스트 브로커의 원시 통신 예외는 체결여부를 확정할 수 없다.
+                raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
@@ -638,6 +641,8 @@ class TradeEngine:
         except BrokerError:
             self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
             raise
+        except Exception as exc:
+            raise AutoOrderError(f"매수주문 상태 확인 필요: {exc}") from exc
 
     def _sell_session_order(self, code: str, qty: int):
         exchange = self._session_order_exchange()
@@ -656,6 +661,8 @@ class TradeEngine:
                 raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
             except BrokerError:
                 raise
+            except Exception as exc:
+                raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
@@ -670,6 +677,8 @@ class TradeEngine:
             raise AutoOrderError(f"매도주문 상태 확인 필요: {exc}") from exc
         except BrokerError:
             raise
+        except Exception as exc:
+            raise AutoOrderError(f"매도주문 상태 확인 필요: {exc}") from exc
 
     @staticmethod
     def _pending_age_seconds(pending: dict) -> float:
