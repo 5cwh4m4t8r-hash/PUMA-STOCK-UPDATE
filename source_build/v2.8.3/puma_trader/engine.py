@@ -620,6 +620,8 @@ class TradeEngine:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             except BrokerError:
                 # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
+                # 같은 종목을 1.8초마다 재주문하지 않도록 짧은 쿨다운만 건다.
+                self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
                 raise
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
@@ -634,6 +636,7 @@ class TradeEngine:
         except OrderStateUnknown as exc:
             raise AutoOrderError(f"매수주문 상태 확인 필요: {exc}") from exc
         except BrokerError:
+            self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
             raise
 
     def _sell_session_order(self, code: str, qty: int):
@@ -804,6 +807,8 @@ class TradeEngine:
             # 기존 주문은 이미 정상 취소됐고 새 주문은 명시적으로 거절됨.
             # stale pending을 제거해 다음 스캔에서 같은 취소를 무한 반복하지 않는다.
             self.pending_orders.pop(code, None)
+            if side == "BUY":
+                self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
             self._persist_runtime()
             raise
         latest["qty"] = qty
