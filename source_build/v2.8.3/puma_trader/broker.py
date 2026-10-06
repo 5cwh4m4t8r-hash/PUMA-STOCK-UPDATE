@@ -13,6 +13,11 @@ class BrokerError(RuntimeError):
     pass
 
 
+class OrderStateUnknown(BrokerError):
+    """An order/cancel HTTP request may have reached Kiwoom but no definitive response was received."""
+    pass
+
+
 class BaseBroker:
     name = "BASE"
     is_live = False
@@ -195,7 +200,13 @@ class KiwoomRestBroker(BaseBroker):
             r.raise_for_status()
             data = r.json()
         except requests.RequestException as exc:
+            # 주문/취소 HTTP 통신이 끊긴 경우에는 요청이 서버에 도달했는지 단정할 수 없다.
+            # 이 경우만 '주문상태 불명'으로 분리해 중복주문 방지 안전중지를 허용한다.
+            if path == "/api/dostk/ordr":
+                raise OrderStateUnknown(f"키움 {api_id} 주문통신 상태 불명: {exc}") from exc
             raise BrokerError(f"키움 {api_id} 통신 실패: {exc}") from exc
+        # Kiwoom이 return_code로 명시적으로 거절한 주문은 체결되지 않은 것이 확정이다.
+        # 일반 BrokerError로 올려 자동매매 전체를 끄지 않고 다음 후보/스캔으로 계속 진행한다.
         if data.get("return_code") not in (None, 0):
             raise BrokerError(data.get("return_msg", f"{api_id} 호출 실패"))
         return data, r.headers.get("cont-yn", ""), r.headers.get("next-key", "")
