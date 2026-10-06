@@ -8,6 +8,7 @@ from .storage import load_runtime, save_runtime
 from .strategy import evaluate_buy, evaluate_sell, in_scan_window
 from .gaboja import evaluate_gaboja
 from .swing import normalize_candles
+from .broker import BrokerError, OrderStateUnknown
 
 INITIAL_SEED_CAPITAL = 500_000
 PHASE1_TARGET_CAPITAL = 3_000_000
@@ -615,8 +616,11 @@ class TradeEngine:
                 raise RuntimeError("NXT 최우선 매도호가를 조회하지 못했습니다.")
             try:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
-            except Exception as exc:
+            except OrderStateUnknown as exc:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
+            except BrokerError:
+                # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
+                raise
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
@@ -627,8 +631,10 @@ class TradeEngine:
             if exchange and callable(routed):
                 return routed(code, qty, exchange)
             return self.broker.buy_market(code, qty)
-        except Exception as exc:
+        except OrderStateUnknown as exc:
             raise AutoOrderError(f"매수주문 상태 확인 필요: {exc}") from exc
+        except BrokerError:
+            raise
 
     def _sell_session_order(self, code: str, qty: int):
         exchange = self._session_order_exchange()
@@ -643,8 +649,10 @@ class TradeEngine:
                 raise RuntimeError("NXT 최우선 매수호가를 조회하지 못했습니다.")
             try:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
-            except Exception as exc:
+            except OrderStateUnknown as exc:
                 raise AutoOrderError(f"NXT 매도주문 상태 확인 필요: {exc}") from exc
+            except BrokerError:
+                raise
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
@@ -655,8 +663,10 @@ class TradeEngine:
             if exchange and callable(routed):
                 return routed(code, qty, exchange)
             return self.broker.sell_market(code, qty)
-        except Exception as exc:
+        except OrderStateUnknown as exc:
             raise AutoOrderError(f"매도주문 상태 확인 필요: {exc}") from exc
+        except BrokerError:
+            raise
 
     @staticmethod
     def _pending_age_seconds(pending: dict) -> float:
@@ -730,8 +740,11 @@ class TradeEngine:
                     cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
                     self.pending_orders.pop(code, None)
                     self.sync_account(force=True)
-                except Exception as exc:
+                except OrderStateUnknown as exc:
                     raise AutoOrderError(f"NXT 매수취소 상태 확인 필요: {exc}") from exc
+                except BrokerError:
+                    self.sync_account(force=True)
+                    raise
                 held = int(self.account_qty.get(code, 0) or 0)
                 if held <= before:
                     self.managed_qty.pop(code, None)
@@ -752,8 +765,11 @@ class TradeEngine:
         try:
             cancel(code, str(pending.get("ord_no", "")), "NXT", 0)
             self.sync_account(force=True)
-        except Exception as exc:
+        except OrderStateUnknown as exc:
             raise AutoOrderError(f"NXT 주문취소/동기화 상태 확인 필요: {exc}") from exc
+        except BrokerError:
+            self.sync_account(force=True)
+            raise
         latest = self.pending_orders.get(code)
         if latest is None:
             return {
@@ -782,8 +798,14 @@ class TradeEngine:
 
         try:
             resp = dict(limit_order(code, qty, new_price, "NXT") or {})
-        except Exception as exc:
+        except OrderStateUnknown as exc:
             raise AutoOrderError(f"NXT 재주문 상태 확인 필요: {exc}") from exc
+        except BrokerError:
+            # 기존 주문은 이미 정상 취소됐고 새 주문은 명시적으로 거절됨.
+            # stale pending을 제거해 다음 스캔에서 같은 취소를 무한 반복하지 않는다.
+            self.pending_orders.pop(code, None)
+            self._persist_runtime()
+            raise
         latest["qty"] = qty
         self.daily_order_count += 1
         latest["ord_no"] = str(resp.get("ord_no", ""))
