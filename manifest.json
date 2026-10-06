@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.76",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.76_UPDATE.zip",
-    "notes":  "v2.9.76 MOBILE TERMINAL REDESIGN: Rebuilds the iPhone/PWA interface into a denser trading-terminal layout without changing the live trading engine. Adds a premium dashboard with PC/Kiwoom connection state, selected stock, auto-trading state, compound seed and risk state at a glance; cleaner candidate cards; larger chart workspace; dedicated trade-control layout; collapsible Gaboja rules and manual-order drawer; modern bottom navigation; refreshed PWA icon and cache. The v2.9.75 Gaboja entry logic remains unchanged.",
-    "sha256":  "6fd2d67b503b9049b7b0c61f8d8b816ab05c6fc060ce87217cf738c86b0f30f9"
+    "version":  "2.9.77",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.77_UPDATE.zip",
+    "notes":  "v2.9.77 AUTO-STOP HOTFIX: Fixes the 08:00 NXT live session path where a definitive Kiwoom order rejection could be wrapped as an unknown-order error and shut the entire auto-trading engine off. Explicit API rejections now keep auto trading enabled, apply a short per-symbol cooldown, and continue scanning other candidates. Only genuinely ambiguous order/cancel transport failures where execution state is unknown still trigger the duplicate-order safety stop. v2.9.76 mobile UI and v2.9.75 Gaboja entry logic remain unchanged.",
+    "sha256":  "9428843592100aa28b1206489890e1dbb433f0760ecd266fb8ca5b30724a88be"
 }
