@@ -6,6 +6,7 @@ from puma_trader.models import StrategySettings
 
 class _BrokerFirstBuyingPower:
     is_live = True
+    name = "KIWOOM REST"
 
     def __init__(self):
         self.calls = []
