@@ -46,6 +46,9 @@ class BaseBroker:
     def get_account_positions(self) -> list[dict]:
         return []
 
+    def get_buyable_qty(self, code: str, price: int = 0) -> int:
+        return 0
+
 
 class SimBroker(BaseBroker):
     name = "SIMULATION"
@@ -702,6 +705,42 @@ class KiwoomRestBroker(BaseBroker):
         out["holdings"] = holdings
         out["holding_count"] = len(holdings)
         return out
+
+    def get_buyable_qty(self, code: str, price: int = 0) -> int:
+        """Return Kiwoom's cash-safe orderable quantity before a BUY order.
+
+        kt00011 is the broker's own margin-rate/orderable-quantity calculation.
+        PUMA intentionally prefers min_ord_alowq (no-credit/cash-safe quantity)
+        so its compound seed never relies on unsettled credit or a local estimate.
+        """
+        base = str(code or "").strip()
+        if "_" in base:
+            base = base.split("_", 1)[0]
+        body = {"stk_cd": base}
+        if int(price or 0) > 0:
+            body["uv"] = str(int(price))
+        data = self._post("/api/dostk/acnt", "kt00011", body)
+
+        # The explicit no-credit quantity is the final authority when Kiwoom supplies it,
+        # including a legitimate zero.
+        if "min_ord_alowq" in data:
+            return self._abs_int(data.get("min_ord_alowq"))
+
+        # Older/alternate responses may omit min_ord_alowq. Fall back to the
+        # quantity matching Kiwoom's applied margin rate.
+        applied = self._abs_int(data.get("aplc_rt"))
+        if applied in (20, 30, 40, 50, 60, 100):
+            key = f"profa_{applied}ord_alowq"
+            if key in data:
+                return self._abs_int(data.get(key))
+
+        for key in (
+            "profa_100ord_alowq", "profa_60ord_alowq", "profa_50ord_alowq",
+            "profa_40ord_alowq", "profa_30ord_alowq", "profa_20ord_alowq",
+        ):
+            if key in data:
+                return self._abs_int(data.get(key))
+        return 0
 
     def place_order(self, side: str, code: str, qty: int, order_type: str = "market", price: int = 0, cond_price: int = 0):
         if qty <= 0:
