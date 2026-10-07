@@ -13,7 +13,7 @@ class _BrokerFirstBuyingPower:
 
     def get_buyable_qty(self, code, price=0):
         assert code == "372320"
-        assert price == 27_000
+        assert price == 0
         return 16
 
     def buy_market(self, code, qty):
