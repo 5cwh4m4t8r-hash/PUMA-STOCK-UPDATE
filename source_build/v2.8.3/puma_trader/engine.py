@@ -621,7 +621,11 @@ class TradeEngine:
         hm = datetime.now().strftime("%H:%M")
         start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
         nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
-        if start <= hm < nxt_end:
+        is_live_kiwoom = (
+            str(getattr(self.broker, "name", "") or "").upper() == "KIWOOM REST"
+            and bool(getattr(self.broker, "is_live", False))
+        )
+        if is_live_kiwoom and start <= hm < nxt_end:
             return "NXT"
         return ""
 
