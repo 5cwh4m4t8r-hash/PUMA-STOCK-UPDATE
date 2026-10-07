@@ -621,11 +621,12 @@ class TradeEngine:
         hm = datetime.now().strftime("%H:%M")
         start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
         nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
-        is_live_kiwoom = (
-            str(getattr(self.broker, "name", "") or "").upper() == "KIWOOM REST"
-            and bool(getattr(self.broker, "is_live", False))
+        nxt_capable_live = (
+            bool(getattr(self.broker, "is_live", False))
+            and callable(getattr(self.broker, "get_best_quote", None))
+            and callable(getattr(self.broker, "buy_limit_on", None))
         )
-        if is_live_kiwoom and start <= hm < nxt_end:
+        if nxt_capable_live and start <= hm < nxt_end:
             return "NXT"
         return ""
 
