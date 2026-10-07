@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.77",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.77_UPDATE.zip",
-    "notes":  "v2.9.77 AUTO-STOP HOTFIX: Fixes the 08:00 NXT live session path where a definitive Kiwoom order rejection could be wrapped as an unknown-order error and shut the entire auto-trading engine off. Explicit API rejections now keep auto trading enabled, apply a short per-symbol cooldown, and continue scanning other candidates. Only genuinely ambiguous order/cancel transport failures where execution state is unknown still trigger the duplicate-order safety stop. v2.9.76 mobile UI and v2.9.75 Gaboja entry logic remain unchanged.",
-    "sha256":  "9428843592100aa28b1206489890e1dbb433f0760ecd266fb8ca5b30724a88be"
+    "version":  "2.9.78",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.78_UPDATE.zip",
+    "notes":  "v2.9.78 BUYING-POWER RETRY: Fixes the live auto-trading stop seen after Kiwoom [2000] buying-power rejections. When Kiwoom explicitly says N shares are buyable, PUMA now retries once with that exact affordable quantity and records/manages the adjusted quantity. Deterministic buying-power rejections no longer call stop_auto(); the engine stays enabled and continues scanning other candidates. Only genuinely ambiguous order/cancel transport failures still trigger the duplicate-order safety stop. Trading-selection logic remains unchanged.",
+    "sha256":  "bbb7a3696892cd6b8a3ec373ecf686302dcab389982b4ee35820a7212448c982"
 }
