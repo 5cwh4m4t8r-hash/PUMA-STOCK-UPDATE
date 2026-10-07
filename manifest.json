@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "2.9.78",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.78_UPDATE.zip",
-    "notes":  "v2.9.78 BUYING-POWER RETRY: Fixes the live auto-trading stop seen after Kiwoom [2000] buying-power rejections. When Kiwoom explicitly says N shares are buyable, PUMA now retries once with that exact affordable quantity and records/manages the adjusted quantity. Deterministic buying-power rejections no longer call stop_auto(); the engine stays enabled and continues scanning other candidates. Only genuinely ambiguous order/cancel transport failures still trigger the duplicate-order safety stop. Trading-selection logic remains unchanged.",
-    "sha256":  "bbb7a3696892cd6b8a3ec373ecf686302dcab389982b4ee35820a7212448c982"
+    "version":  "2.9.79",
+    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.79_UPDATE.zip",
+    "notes":  "v2.9.79 AUTO SESSION: Kiwoom kt00011 buying-power is queried before every live BUY and caps order quantity. NXT candidates start at 08:00, regular candidates at 09:00, new entries end at 15:00, and the auto engine stops at the KRX 15:30 close. Daily +4% target or -4% loss locks new entries for the day. Order/API errors no longer switch off the whole auto engine; uncertain symbols are quarantined while scanning continues.",
+    "sha256":  "f03797eb18d827aa67a905af4fea290a366c6abdf4a531d053ea9ef9cf2b8d2e"
 }
