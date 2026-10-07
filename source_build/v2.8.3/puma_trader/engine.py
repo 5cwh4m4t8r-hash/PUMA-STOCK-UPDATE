@@ -21,6 +21,19 @@ class AutoOrderError(RuntimeError):
     pass
 
 
+def _max_buyable_qty_from_error(exc) -> int:
+    """Parse Kiwoom's deterministic '[... N주 매수가능]' rejection message."""
+    import re
+    text = str(exc or "")
+    m = re.search(r"(\d[\d,]*)\s*주\s*매수가능", text)
+    if not m:
+        return 0
+    try:
+        return max(0, int(m.group(1).replace(",", "")))
+    except Exception:
+        return 0
+
+
 def _num(v):
     try:
         return abs(float(str(v).replace(",", "").strip()))
@@ -618,27 +631,68 @@ class TradeEngine:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
             except OrderStateUnknown as exc:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
-            except BrokerError:
-                # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
-                # 같은 종목을 1.8초마다 재주문하지 않도록 짧은 쿨다운만 건다.
-                self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
-                raise
+            except BrokerError as exc:
+                allowed = _max_buyable_qty_from_error(exc)
+                if 0 < allowed < int(qty):
+                    try:
+                        resp = dict(limit_order(code, int(allowed), price, "NXT") or {})
+                        resp["_puma_order_qty"] = int(allowed)
+                        resp["_puma_qty_adjusted_from"] = int(qty)
+                        resp["_puma_qty_adjust_reason"] = str(exc)
+                    except OrderStateUnknown as retry_exc:
+                        raise AutoOrderError(f"NXT 매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
+                    except BrokerError:
+                        self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
+                        raise
+                    except Exception as retry_exc:
+                        raise AutoOrderError(f"NXT 매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
+                else:
+                    # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
+                    self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
+                    raise
             except Exception as exc:
                 # 서드파티/테스트 브로커의 원시 통신 예외는 체결여부를 확정할 수 없다.
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
+            resp.setdefault("_puma_order_qty", int(qty))
             return resp
 
         routed = getattr(self.broker, "buy_market_on", None)
         try:
             if exchange and callable(routed):
-                return routed(code, qty, exchange)
-            return self.broker.buy_market(code, qty)
+                resp = routed(code, qty, exchange)
+            else:
+                resp = self.broker.buy_market(code, qty)
+            if isinstance(resp, dict):
+                resp.setdefault("_puma_order_qty", int(qty))
+            return resp
         except OrderStateUnknown as exc:
             raise AutoOrderError(f"매수주문 상태 확인 필요: {exc}") from exc
-        except BrokerError:
+        except BrokerError as exc:
+            # 키움이 'N주 매수가능'이라고 명시적으로 거절하면 주문 상태는 확정적으로 미체결이다.
+            # 자동매매를 끄지 말고 그 수량으로 즉시 한 번만 재주문한다.
+            allowed = _max_buyable_qty_from_error(exc)
+            if 0 < allowed < int(qty):
+                retry_qty = int(allowed)
+                try:
+                    if exchange and callable(routed):
+                        resp = routed(code, retry_qty, exchange)
+                    else:
+                        resp = self.broker.buy_market(code, retry_qty)
+                    if isinstance(resp, dict):
+                        resp["_puma_order_qty"] = retry_qty
+                        resp["_puma_qty_adjusted_from"] = int(qty)
+                        resp["_puma_qty_adjust_reason"] = str(exc)
+                    return resp
+                except OrderStateUnknown as retry_exc:
+                    raise AutoOrderError(f"매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
+                except BrokerError:
+                    self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
+                    raise
+                except Exception as retry_exc:
+                    raise AutoOrderError(f"매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
             self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
             raise
         except Exception as exc:
@@ -845,7 +899,15 @@ class TradeEngine:
                 "code": code, "name": name, "status": "WAIT", "price": current,
                 "signal": f"현재 복리 시드 {budget:,.0f}원보다 주가가 높아 자동매수 불가",
             }
+        requested_qty = int(qty)
         resp = self._buy_session_order(code, qty)
+        actual_qty = int((resp or {}).get("_puma_order_qty", requested_qty) or requested_qty) if isinstance(resp, dict) else requested_qty
+        qty = max(1, actual_qty)
+        if isinstance(resp, dict) and int(resp.get("_puma_qty_adjusted_from", 0) or 0) > qty:
+            reason = (
+                f"{reason} · 주문가능 수량 자동조정 "
+                f"{int(resp.get('_puma_qty_adjusted_from', requested_qty))}→{qty}주"
+            )
         self.daily_order_count += 1
         if self.broker.__class__.__name__ != "SimBroker":
             # 앱이 재시작되어도 체결된 종목을 PUMA 포지션으로 복구할 수 있도록 주문수량을 먼저 기록.
