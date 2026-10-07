@@ -640,8 +640,21 @@ class TradeEngine:
             price = int(quote.get("best_ask", 0) or 0)
             if price <= 0:
                 raise RuntimeError("NXT 최우선 매도호가를 조회하지 못했습니다.")
+
+            original_qty = int(qty)
+            buyable_getter = getattr(self.broker, "get_buyable_qty", None)
+            if callable(buyable_getter):
+                broker_qty = int(buyable_getter(code, price) or 0)
+                if broker_qty < 1:
+                    raise BrokerError("키움 기준 실제 매수가능수량 0주")
+                qty = min(int(qty), broker_qty)
+
             try:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
+                if int(qty) < original_qty:
+                    resp["_puma_order_qty"] = int(qty)
+                    resp["_puma_qty_adjusted_from"] = original_qty
+                    resp["_puma_qty_adjust_reason"] = "키움 kt00011 NXT 지정가 주문가능수량"
             except OrderStateUnknown as exc:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             except BrokerError as exc:
@@ -917,7 +930,7 @@ class TradeEngine:
         planned_qty = int(qty)
         buyable_getter = getattr(self.broker, "get_buyable_qty", None)
         if str(getattr(self.broker, "name", "") or "").upper() == "KIWOOM REST" and callable(buyable_getter):
-            broker_qty = int(buyable_getter(code, int(current)) or 0)
+            broker_qty = int(buyable_getter(code, 0) or 0)
             if broker_qty < 1:
                 return {
                     "code": code, "name": name, "status": "WAIT", "price": current,
