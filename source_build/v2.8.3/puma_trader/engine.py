@@ -912,7 +912,7 @@ class TradeEngine:
         # 최종 주문수량은 로컬 시드 계산이 아니라 키움 kt00011의 실제 주문가능수량을 우선한다.
         planned_qty = int(qty)
         buyable_getter = getattr(self.broker, "get_buyable_qty", None)
-        if self.broker.__class__.__name__ != "SimBroker" and callable(buyable_getter):
+        if str(getattr(self.broker, "name", "") or "").upper() == "KIWOOM REST" and callable(buyable_getter):
             broker_qty = int(buyable_getter(code, int(current)) or 0)
             if broker_qty < 1:
                 return {
