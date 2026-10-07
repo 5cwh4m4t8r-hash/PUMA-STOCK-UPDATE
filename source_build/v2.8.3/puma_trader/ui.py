@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import re
 import importlib
@@ -798,6 +798,8 @@ class MainWindow(QMainWindow):
         self.selected_name: str = ""
         self.focus_only_code: str | None = None
         self.focus_auto_danta_pool: bool = False
+        # 같은 날 사용자가 수동 중지를 눌렀다면 자동시계가 다시 켜지지 않게 기억한다.
+        self.manual_auto_stop_date: str = ""
 
         self.broker = SimBroker()
         self.engine = TradeEngine(self.broker, self.settings)
@@ -887,6 +889,11 @@ class MainWindow(QMainWindow):
         self.timer.setInterval(1800)
         self.timer.timeout.connect(self.scan_one)
 
+        # 실전 자동시계: 08:00 자동 시작, 15:30 정규장 마감 자동 종료.
+        self.session_clock_timer = QTimer(self)
+        self.session_clock_timer.setInterval(5_000)
+        self.session_clock_timer.timeout.connect(self._manage_auto_session_clock)
+
         # 조건검색 WebSocket은 종목명 없이 코드만 주는 경우가 있어 REST 종목정보로 천천히 보완한다.
         self.name_lookup_timer = QTimer(self)
         self.name_lookup_timer.setInterval(650 if DEVICE_PROFILE.low_power else 320)
@@ -900,6 +907,8 @@ class MainWindow(QMainWindow):
         self.account_summary_timer.setInterval(15_000)
         self.account_summary_timer.timeout.connect(self._refresh_header_account_summary)
         self.account_summary_timer.start()
+        self.session_clock_timer.start()
+        QTimer.singleShot(1500, self._manage_auto_session_clock)
 
     # ---------- UI ----------
     def _build_ui(self):
@@ -1455,7 +1464,7 @@ class MainWindow(QMainWindow):
         self.focus_trail_start = self._dspin(0.1, 100, self.settings.trailing_start_pct, " %")
         self.focus_trail_gap = self._dspin(0.1, 30, self.settings.trailing_gap_pct, " %")
         afm.addRow("현재 복리 시드(전액)", self.focus_budget)
-        self.focus_seed_status = QLabel("1차 목표 300만원 · 동시보유 1종목 · 하루 -4% 신규매수 중단")
+        self.focus_seed_status = QLabel("자동 08:00 NXT / 09:00 일반 · 신규매수 15:00까지 · 15:30 자동종료 · 하루 +4%/-4% 도달 시 신규매수 종료")
         self.focus_seed_status.setWordWrap(True)
         self.focus_seed_status.setStyleSheet("color:#61ff8f;font-weight:900")
         afm.addRow(self.focus_seed_status)
@@ -1486,7 +1495,7 @@ class MainWindow(QMainWindow):
         )
         afm.addRow("실행 상태", self.focus_auto_status)
         auv.addWidget(auto)
-        note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. 단타 검색기 7개 합집합을 PUMA 점수 높은 순으로 확인하고, 가보자 진입조건을 통과한 최우선 1종목에 현재 복리 시드를 전액 투입합니다. 포지션이 끝나기 전에는 다른 종목을 사지 않습니다. 수익/손실은 다음 매매 시드에 그대로 반영되며 하루 누적 -4% 도달 시 그날 신규매수는 중단합니다. 검색추가·스윙·중장기는 자동매수 대상이 아닙니다.")
+        note = QLabel("전체 후보를 전부 매수하는 기능이 아닙니다. NXT는 08:00부터, 일반 종목은 09:00부터 자동매매하며 신규매수는 15:00에 종료하고 15:30 정규장 마감에 자동매매를 끕니다. 단타 검색기 7개 합집합을 PUMA 점수 높은 순으로 확인하고, 가보자 진입조건을 통과한 최우선 1종목에 현재 복리 시드를 전액 투입합니다. 당일 누적 +4% 목표 또는 -4% 손절 도달 시 그날 신규매수는 종료합니다. 검색추가·스윙·중장기는 자동매수 대상이 아닙니다.")
         note.setWordWrap(True)
         note.setStyleSheet("color:#9eb4c9")
         auv.addWidget(note)
@@ -2606,7 +2615,10 @@ class MainWindow(QMainWindow):
         return StrategySettings(
             timeframe_min=int(self.timeframe.currentText()),
             scan_start=self.scan_start.time().toString("HH:mm"),
+            trade_start="08:00",
+            regular_trade_start="09:00",
             scan_end=self.scan_end.time().toString("HH:mm"),
+            auto_trade_stop_time="15:30",
             min_change_pct=self.min_change.value(),
             max_change_pct=self.max_change.value(),
             volume_ratio_min=self.vol_ratio.value(),
@@ -2630,6 +2642,7 @@ class MainWindow(QMainWindow):
             seed_initial_capital=500_000,
             seed_phase1_target=3_000_000,
             daily_loss_limit_pct=-4.0,
+            daily_profit_target_pct=4.0,
             max_positions=1,
             cooldown_min=self.cooldown.value(),
             max_daily_orders=self.max_daily_orders.value(),
@@ -2679,7 +2692,7 @@ class MainWindow(QMainWindow):
 
     # ---------- broker ----------
     def use_sim(self):
-        self.stop_auto()
+        self.stop_auto(manual=False, reason="모의투자 전환")
         self.stop_condition_stream()
         self.broker = SimBroker()
         self.engine.set_broker(self.broker)
@@ -2697,7 +2710,9 @@ class MainWindow(QMainWindow):
         if ok and text.strip().upper() == "LIVE":
             self.real_armed = True
             self.live_auto_confirmed_session = False
-            QMessageBox.warning(self, "실전 잠금 해제", "실전 주문 잠금이 해제됐습니다. 자동매매는 추가 확인 입력 없이 시작됩니다.")
+            # 한 번 명시적으로 LIVE를 승인하면 다음 실행부터 자동시계가 같은 승인 상태를 복원한다.
+            self.ui_state.setValue("live_auto_consent", True)
+            QMessageBox.warning(self, "실전 잠금 해제", "실전 주문 잠금이 해제됐습니다. 이후에는 장중 자동시계가 별도 시작 버튼 없이 자동매매를 시작합니다.")
         else:
             self.real_armed = False
             self.live_auto_confirmed_session = False
@@ -2766,12 +2781,13 @@ class MainWindow(QMainWindow):
                 self.appkey.text(), self.secret.text(), real=real, order_exchange=self.settings.order_exchange
             )
             broker.connect()
-            self.stop_auto()
+            self.stop_auto(manual=False, reason="키움 연결 전환")
             self.stop_condition_stream()
             self.broker = broker
             self.engine.set_broker(broker)
-            self.real_armed = False
-            self.live_auto_confirmed_session = False
+            saved_consent = str(self.ui_state.value("live_auto_consent", "false")).strip().lower() in ("1", "true", "yes")
+            self.real_armed = bool(real and saved_consent)
+            self.live_auto_confirmed_session = bool(self.real_armed)
             self.engine.set_settings(self.settings)
             mode = "KIWOOM REAL" if real else "KIWOOM MOCK"
             self._set_status(mode, "REST 연결됨")
@@ -5395,7 +5411,7 @@ class MainWindow(QMainWindow):
             hm = datetime.now().strftime("%H:%M")
             scan_start = str(getattr(self.settings, "scan_start", "08:00") or "08:00")
             nxt_end = str(getattr(self.settings, "nxt_premarket_end", "08:50") or "08:50")
-            regular_start = "09:00"
+            regular_start = str(getattr(self.settings, "regular_trade_start", "09:00") or "09:00")
             if nxt_end <= hm < regular_start:
                 return []
 
@@ -5495,7 +5511,44 @@ class MainWindow(QMainWindow):
 
         return list(merged.values())
 
-    def start_danta_pool_auto(self):
+    def _manage_auto_session_clock(self):
+        """Start PUMA automatically in-session and stop it at the KRX regular close."""
+        if self._closing:
+            return
+        now = datetime.now()
+        day = now.date().isoformat()
+        hm = now.strftime("%H:%M")
+
+        # 토/일에는 자동 시작하지 않는다. 거래소 휴장일은 후보/API가 비어도 엔진을 억지로 주문하지 않는다.
+        if now.weekday() >= 5:
+            if self.engine.enabled:
+                self.stop_auto(manual=False, reason="주말 · 자동매매 종료")
+            return
+
+        auto_start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
+        auto_stop = str(getattr(self.settings, "auto_trade_stop_time", "15:30") or "15:30")
+
+        if hm >= auto_stop:
+            if self.engine.enabled:
+                self.stop_auto(manual=False, reason=f"{auto_stop} 정규장 마감 · 자동매매 종료")
+            return
+        if hm < auto_start:
+            return
+
+        # 사용자가 그날 직접 중지한 경우에만 자동시계가 재시작하지 않는다.
+        if self.manual_auto_stop_date == day:
+            return
+        if self.engine.enabled:
+            return
+        if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
+            return
+        if self.broker.real and not self.real_armed:
+            self._set_auto_ui_state(False, "자동시작 대기 · 최초 LIVE 승인 필요")
+            return
+
+        self.start_danta_pool_auto(auto_clock=True)
+
+    def start_danta_pool_auto(self, auto_clock: bool = False):
         self._set_auto_ui_pending("전체 후보 자동매매 시작 준비")
         # 통합 트레이딩 전용: 관심종목 등록 여부를 보지 않는다.
         # 필요하면 단타 검색기 7개 스트림부터 자동으로 시작한다.
@@ -5519,7 +5572,8 @@ class MainWindow(QMainWindow):
         if not isinstance(self.broker, KiwoomRestBroker) or not self.broker.token:
             self.focus_auto_danta_pool = False
             self._set_auto_ui_state(False, "키움 연결 필요")
-            QMessageBox.information(self, "키움 연결 필요", "전체 후보 자동매매는 키움 연결 후 단타 검색기 7개 결과를 사용합니다.")
+            if not auto_clock:
+                QMessageBox.information(self, "키움 연결 필요", "전체 후보 자동매매는 키움 연결 후 단타 검색기 7개 결과를 사용합니다.")
             return
 
         if not self.condition_thread or not self.condition_thread.isRunning():
@@ -5530,7 +5584,8 @@ class MainWindow(QMainWindow):
         if self.condition_thread is None:
             self.focus_auto_danta_pool = False
             self._set_auto_ui_state(False, "단타 검색기 시작 실패")
-            QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 시작하지 못했습니다.")
+            if not auto_clock:
+                QMessageBox.information(self, "단타 후보 없음", "단타 검색기 7개 실시간 검색을 시작하지 못했습니다.")
             return
 
         if isinstance(self.broker, KiwoomRestBroker) and self.broker.real:
@@ -5547,10 +5602,12 @@ class MainWindow(QMainWindow):
                 self._refresh_position_rows()
             except Exception as exc:
                 self.focus_auto_danta_pool = False
-                self._set_auto_ui_state(False, "실계좌 동기화 실패")
-                QMessageBox.critical(self, "실계좌 동기화 실패", f"잔고 동기화에 실패하여 실전 자동매매를 시작하지 않습니다.\n{exc}")
+                self._set_auto_ui_state(False, "실계좌 동기화 실패 · 자동 재시도")
+                if not auto_clock:
+                    QMessageBox.critical(self, "실계좌 동기화 실패", f"잔고 동기화에 실패하여 실전 자동매매를 시작하지 않습니다.\n{exc}")
                 return
 
+        self.manual_auto_stop_date = ""
         self.engine.enabled = True
         self.timer.start()
         candidate_count = sum(
@@ -5560,7 +5617,7 @@ class MainWindow(QMainWindow):
         self._set_auto_ui_state(True, f"전체 후보 감시 · 현재 KRX 후보 {candidate_count}종목")
         self.log(
             "SYSTEM", "AUTO", "0",
-            f"08:00 NXT 실시간 검색·매매 → 08:50 주문 공백 → 09:00 KRX+NXT 통합비교 → 가보자 최우선 1종목 · KRX 후보 {candidate_count}종목"
+            f"08:00 NXT 자동시작 → 09:00 일반종목 시작 → 15:00 신규매수 종료 → 15:30 정규장 마감 자동중지 · 가보자 최우선 1종목 · KRX 후보 {candidate_count}종목"
         )
         self.scan_one()
 
@@ -5568,14 +5625,17 @@ class MainWindow(QMainWindow):
         # 2026-10 실전 규칙: 모든 일반 자동매매 시작 경로는 단타 검색기 풀로 통일.
         return self.start_danta_pool_auto()
 
-    def stop_auto(self):
+    def stop_auto(self, checked=False, *, manual: bool = True, reason: str = ""):
+        if manual:
+            self.manual_auto_stop_date = datetime.now().date().isoformat()
         self.engine.enabled = False
         self.timer.stop()
         self.focus_only_code = None
         self.focus_auto_danta_pool = False
-        self._set_auto_ui_state(False, "주문·감시 중지")
+        detail = str(reason or ("사용자 수동 중지" if manual else "주문·감시 중지"))
+        self._set_auto_ui_state(False, detail)
         if hasattr(self, "log_table"):
-            self.log("SYSTEM", "STOP", "0", "자동매매 중지")
+            self.log("SYSTEM", "STOP", "0", f"자동매매 중지 · {detail}")
 
     def scan_one(self):
         # 08:00~08:50에는 NXT 후보를 갱신하면서 같은 가보자 기준으로 실제 매매한다.
@@ -5668,9 +5728,17 @@ class MainWindow(QMainWindow):
                 self.log(name, "ORDER REJECT", "0", f"{text} · 자동매매 유지 · 다음 후보 계속")
                 self._set_auto_ui_state(True, "주문거절 · 자동매매 계속")
                 return
-            self.log(name, "ORDER ERROR", "0", text)
-            self.stop_auto()
-            self._set_auto_ui_state(False, "주문 상태 확인 필요 · 안전중지")
+            # 주문 상태가 불명확해도 전체 엔진은 끄지 않는다.
+            # 해당 종목만 잠시 격리하고 계좌를 재동기화해 중복주문 위험을 줄인 뒤 다른 후보를 계속 본다.
+            code = str(getattr(self.auto_scan_thread, "code", "") or "") if self.auto_scan_thread else ""
+            if code:
+                self.engine.cooldowns[code] = datetime.now() + timedelta(minutes=5)
+            try:
+                self.engine.sync_account(force=True)
+            except Exception:
+                pass
+            self.log(name, "ORDER ERROR", "0", f"{text} · 해당 종목 5분 격리 · 자동매매 계속")
+            self._set_auto_ui_state(True, "주문 상태 재확인 · 자동매매 계속")
             return
         if isinstance(exc, BrokerError):
             self.log(name, "API RETRY", "0", f"{exc} · 자동매매 유지 · 다음 스캔 재시도")
@@ -6380,7 +6448,7 @@ class MainWindow(QMainWindow):
         if not self._closing:
             self._closing = True
             self._save_ui_layout()
-            self.stop_auto()
+            self.stop_auto(manual=False, reason="프로그램 종료")
             self.stop_condition_stream(block=True)
             self.stop_manual_condition_preview()
             self.name_lookup_timer.stop()
