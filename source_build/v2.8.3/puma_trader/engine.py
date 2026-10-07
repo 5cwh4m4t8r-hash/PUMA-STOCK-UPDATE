@@ -631,17 +631,32 @@ class TradeEngine:
                 resp = dict(limit_order(code, qty, price, "NXT") or {})
             except OrderStateUnknown as exc:
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
-            except BrokerError:
-                # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
-                # 같은 종목을 1.8초마다 재주문하지 않도록 짧은 쿨다운만 건다.
-                self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
-                raise
+            except BrokerError as exc:
+                allowed = _max_buyable_qty_from_error(exc)
+                if 0 < allowed < int(qty):
+                    try:
+                        resp = dict(limit_order(code, int(allowed), price, "NXT") or {})
+                        resp["_puma_order_qty"] = int(allowed)
+                        resp["_puma_qty_adjusted_from"] = int(qty)
+                        resp["_puma_qty_adjust_reason"] = str(exc)
+                    except OrderStateUnknown as retry_exc:
+                        raise AutoOrderError(f"NXT 매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
+                    except BrokerError:
+                        self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
+                        raise
+                    except Exception as retry_exc:
+                        raise AutoOrderError(f"NXT 매수 재주문 상태 확인 필요: {retry_exc}") from retry_exc
+                else:
+                    # 명시적 주문거절은 미체결이 확정이므로 자동매매를 끄지 않는다.
+                    self.cooldowns[code] = datetime.now() + timedelta(seconds=15)
+                    raise
             except Exception as exc:
                 # 서드파티/테스트 브로커의 원시 통신 예외는 체결여부를 확정할 수 없다.
                 raise AutoOrderError(f"NXT 매수주문 상태 확인 필요: {exc}") from exc
             resp["_puma_exchange"] = "NXT"
             resp["_puma_order_type"] = "limit"
             resp["_puma_limit_price"] = price
+            resp.setdefault("_puma_order_qty", int(qty))
             return resp
 
         routed = getattr(self.broker, "buy_market_on", None)
