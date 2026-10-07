@@ -5656,7 +5656,19 @@ class MainWindow(QMainWindow):
         # 단, 실제 주문/취소 요청을 보낸 뒤 응답 상태가 불명확한 경우에는
         # 중복주문 방지를 위해 AutoOrderError로 분리하여 안전 중지한다.
         if isinstance(exc, AutoOrderError):
-            self.log(name, "ORDER ERROR", "0", str(exc))
+            text = str(exc or "")
+            # 키움이 매수증거금/주문가능수량을 명시한 오류는 주문이 거절된 것이 확정된 상태다.
+            # 체결 여부가 불명확한 통신장애가 아니므로 전체 자동매매를 끄면 안 된다.
+            deterministic_reject = (
+                "매수증거금" in text
+                or ("매수가능" in text and "주" in text)
+                or "주문가능금액" in text
+            )
+            if deterministic_reject:
+                self.log(name, "ORDER REJECT", "0", f"{text} · 자동매매 유지 · 다음 후보 계속")
+                self._set_auto_ui_state(True, "주문거절 · 자동매매 계속")
+                return
+            self.log(name, "ORDER ERROR", "0", text)
             self.stop_auto()
             self._set_auto_ui_state(False, "주문 상태 확인 필요 · 안전중지")
             return
