@@ -284,6 +284,7 @@ class TradeEngine:
         self.daily_start_seed = float(self.seed_capital)
         self.daily_realized_pnl = 0.0
         self.daily_loss_locked = False
+        self.daily_profit_locked = False
         self.managed_qty: Dict[str, int] = {}
         self.managed_meta: Dict[str, dict] = {}
         self._gaboja_daily_cache: Dict[str, dict] = {}
@@ -302,6 +303,7 @@ class TradeEngine:
             "daily_start_seed": self.daily_start_seed,
             "daily_realized_pnl": self.daily_realized_pnl,
             "daily_loss_locked": self.daily_loss_locked,
+            "daily_profit_locked": self.daily_profit_locked,
         })
 
     def set_broker(self, broker):
@@ -346,6 +348,7 @@ class TradeEngine:
             )
             self.daily_realized_pnl = float(runtime.get("daily_realized_pnl", 0) or 0) if same_day else 0.0
             self.daily_loss_locked = bool(runtime.get("daily_loss_locked", False)) if same_day else False
+            self.daily_profit_locked = bool(runtime.get("daily_profit_locked", False)) if same_day else False
         else:
             self.daily_order_count = 0
             self.managed_qty = {}
@@ -354,6 +357,7 @@ class TradeEngine:
             self.daily_start_seed = self.seed_capital
             self.daily_realized_pnl = 0.0
             self.daily_loss_locked = False
+            self.daily_profit_locked = False
 
     def set_settings(self, settings):
         self.settings = settings
@@ -373,6 +377,7 @@ class TradeEngine:
             self.daily_start_seed = float(self.seed_capital)
             self.daily_realized_pnl = 0.0
             self.daily_loss_locked = False
+            self.daily_profit_locked = False
             self._persist_runtime()
 
     def current_trade_budget(self) -> int:
@@ -395,8 +400,12 @@ class TradeEngine:
         self.seed_capital = max(0.0, float(self.seed_capital) + delta)
         self.daily_realized_pnl += delta
         limit = float(getattr(self.settings, "daily_loss_limit_pct", -4.0) or -4.0)
-        if self.daily_loss_pct() <= limit:
+        target = abs(float(getattr(self.settings, "daily_profit_target_pct", 4.0) or 4.0))
+        today_pct = self.daily_loss_pct()
+        if today_pct <= limit:
             self.daily_loss_locked = True
+        if target > 0 and today_pct >= target:
+            self.daily_profit_locked = True
         self._persist_runtime()
 
     def _gaboja_daily_rows(self, code: str) -> list[dict]:
@@ -422,7 +431,7 @@ class TradeEngine:
 
     def can_open(self, code):
         self._roll_daily_counter()
-        if self.daily_loss_locked or self.phase1_complete():
+        if self.daily_loss_locked or self.daily_profit_locked or self.phase1_complete():
             return False
         # 1차 복리 구간은 현재 시드 전액을 가장 좋은 단타 한 종목에만 사용한다.
         # 한 포지션/매수주문이 끝나기 전에는 두 번째 종목 신규진입을 절대 허용하지 않는다.
@@ -899,6 +908,21 @@ class TradeEngine:
                 "code": code, "name": name, "status": "WAIT", "price": current,
                 "signal": f"현재 복리 시드 {budget:,.0f}원보다 주가가 높아 자동매수 불가",
             }
+
+        # 최종 주문수량은 로컬 시드 계산이 아니라 키움 kt00011의 실제 주문가능수량을 우선한다.
+        planned_qty = int(qty)
+        buyable_getter = getattr(self.broker, "get_buyable_qty", None)
+        if self.broker.__class__.__name__ != "SimBroker" and callable(buyable_getter):
+            broker_qty = int(buyable_getter(code, int(current)) or 0)
+            if broker_qty < 1:
+                return {
+                    "code": code, "name": name, "status": "WAIT", "price": current,
+                    "signal": "키움 기준 실제 매수가능수량 0주 · 신규주문 대기",
+                }
+            qty = min(int(qty), broker_qty)
+            if qty < planned_qty:
+                reason = f"{reason} · 키움 실제 매수가능수량 우선 {planned_qty}→{qty}주"
+
         requested_qty = int(qty)
         resp = self._buy_session_order(code, qty)
         actual_qty = int((resp or {}).get("_puma_order_qty", requested_qty) or requested_qty) if isinstance(resp, dict) else requested_qty
@@ -1243,11 +1267,15 @@ class TradeEngine:
         # 신규매수는 후보 공급원이 무엇이든 '가보자' 두 타점만 허용한다.
         # 영웅문 조건검색은 종목을 공급할 뿐, 편입 자체가 매수 신호가 되지 않는다.
         daily_rows = self._gaboja_daily_rows(code)
+        # NXT 선행후보는 08:00부터, 일반/KRX 후보는 09:00부터만 진입판정을 허용한다.
+        premarket_start = str(getattr(self.settings, "trade_start", "08:00") or "08:00")
+        regular_start = str(getattr(self.settings, "regular_trade_start", "09:00") or "09:00")
+        signal_trade_start = premarket_start if str(market_context or "").upper() == "NXT" else regular_start
         sig = evaluate_gaboja(
             candles,
             daily_rows,
             scan_start=self.settings.scan_start,
-            trade_start=str(getattr(self.settings, "trade_start", "08:00") or "08:00"),
+            trade_start=signal_trade_start,
             scan_end=self.settings.scan_end,
             apply_secondary_filter=bool(require_buy_filter),
             secondary_min_score=int(getattr(self.settings, "puma_secondary_min_score", 3) or 3),
@@ -1259,7 +1287,13 @@ class TradeEngine:
         if self.daily_loss_locked:
             return {
                 "code": code, "name": name, "status": "DAILY_STOP", "price": current,
-                "signal": f"하루 손실 한도 도달 · {self.daily_loss_pct():+.2f}% · 다음 거래일 현재 시드 {self.seed_capital:,.0f}원으로 재개",
+                "signal": f"하루 손절 한도 도달 · {self.daily_loss_pct():+.2f}% · 오늘 신규매수 종료",
+            }
+        if self.daily_profit_locked:
+            target = abs(float(getattr(self.settings, "daily_profit_target_pct", 4.0) or 4.0))
+            return {
+                "code": code, "name": name, "status": "DAILY_TARGET", "price": current,
+                "signal": f"하루 목표수익 +{target:.1f}% 도달 · {self.daily_loss_pct():+.2f}% · 오늘 신규매수 종료",
             }
         if self.phase1_complete():
             return {
