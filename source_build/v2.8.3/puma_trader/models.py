@@ -9,13 +9,16 @@ class StrategySettings:
     # 08:50~09:00 거래 공백에는 신규주문을 보내지 않고, 09:00부터 정규장 흐름을 이어 본다.
     scan_start: str = "08:00"
     trade_start: str = "08:00"
+    regular_trade_start: str = "09:00"
     nxt_premarket_end: str = "08:50"
     # NXT 08:00~08:50은 시장가 대신 최우선 상대호가 지정가를 사용한다.
     nxt_limit_reprice_sec: float = 2.0
     nxt_limit_max_reprices: int = 3
     # 매수 호가가 최초 지정가보다 이 이상 상승하면 추격을 중단하고 주문을 취소한다.
     nxt_limit_buy_chase_pct: float = 0.50
-    scan_end: str = "10:00"
+    # 신규매수는 15:00까지만. 15:00~15:30은 보유/주문 관리만 하고 정규장 마감에 엔진을 끈다.
+    scan_end: str = "15:00"
+    auto_trade_stop_time: str = "15:30"
     min_change_pct: float = 0.5
     max_change_pct: float = 12.0
     volume_ratio_min: float = 2.0
@@ -79,6 +82,7 @@ class StrategySettings:
     seed_initial_capital: int = 500_000
     seed_phase1_target: int = 3_000_000
     daily_loss_limit_pct: float = -4.0
+    daily_profit_target_pct: float = 4.0
     max_positions: int = 1
     cooldown_min: int = 10
     max_daily_orders: int = 10
@@ -101,6 +105,10 @@ class StrategySettings:
     def from_dict(cls, data):
         allowed = cls.__dataclass_fields__.keys()
         payload = {k: v for k, v in data.items() if k in allowed}
+        # v2.9.79: 예전 10:00 신규매수 종료 설정은 최종 규칙 15:00으로 자동 마이그레이션.
+        if str(payload.get("scan_end", "15:00") or "15:00") == "10:00":
+            payload["scan_end"] = "15:00"
+
         # v2.9.64: 기존 사용자 설정에 저장된 25% 1차 익절값을 새 최종 규칙 50%로 마이그레이션.
         try:
             old_ratio = float(payload.get("gabojago_partial_sell_ratio", 0.50) or 0.50)
