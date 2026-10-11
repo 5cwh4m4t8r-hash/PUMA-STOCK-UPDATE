@@ -1,6 +1,6 @@
-﻿{
-    "version":  "2.9.79",
-    "url":  "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.79_UPDATE.zip",
-    "notes":  "v2.9.79 AUTO SESSION: Kiwoom kt00011 buying-power is queried before every live BUY and caps order quantity. NXT candidates start at 08:00, regular candidates at 09:00, new entries end at 15:00, and the auto engine stops at the KRX 15:30 close. Daily +4% target or -4% loss locks new entries for the day. Order/API errors no longer switch off the whole auto engine; uncertain symbols are quarantined while scanning continues.",
-    "sha256":  "7ad6072477cb20024b912ead0f33fd4b13c0769daea04636ccb398b5a7be88d5"
+{
+  "version": "2.9.80",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.80_UPDATE.zip",
+  "notes": "v2.9.80 SCANNER RECOVERY: Keep seven Kiwoom condition search streams reconnecting when the trading engine stays ON; mobile refresh requests a real PC re-scan; show KRX/NXT candidate counts and NXT premarket candidates. Entry, exit, order, LIVE authorization and daily risk rules remain unchanged.",
+  "sha256": "44cc192664b0ff2c90055a020da588ac6660ee3fbcdfe131d36a6a07155717da"
 }
