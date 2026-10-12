@@ -1,6 +1,6 @@
 {
-  "version": "2.9.80",
-  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.80_UPDATE.zip",
-  "notes": "v2.9.80 SCANNER RECOVERY: Keep seven Kiwoom condition search streams reconnecting when the trading engine stays ON; mobile refresh requests a real PC re-scan; show KRX/NXT candidate counts and NXT premarket candidates. Entry, exit, order, LIVE authorization and daily risk rules remain unchanged.",
-  "sha256": "44cc192664b0ff2c90055a020da588ac6660ee3fbcdfe131d36a6a07155717da"
+  "version": "2.9.81",
+  "url": "https://raw.githubusercontent.com/5cwh4m4t8r-hash/PUMA-STOCK-UPDATE/main/releases/PUMA_STOCK_PRO_v2.9.81_UPDATE.zip",
+  "notes": "v2.9.81 AUTO SCAN PROGRESS: fair rotation of unscored candidates; scored candidate BUY evaluation between probes; logging of empty candidate pool and scan outcomes. Includes v2.9.80 scanner reconnection, real PC mobile refresh and NXT candidate display. No change to Gaboja entry, exit, order risk limits or LIVE authorization.",
+  "sha256": "f12ab245f6824618f76849db4d8a30f094210e4296b02a8aa8a930a824616dbd"
 }
